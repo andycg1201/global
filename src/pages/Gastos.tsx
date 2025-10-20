@@ -31,6 +31,12 @@ const Gastos: React.FC = () => {
     description: '',
     date: getCurrentDateColombia()
   });
+
+  // Debug: Verificar fecha inicial
+  useEffect(() => {
+    console.log('🔍 Fecha inicial del nuevo gasto:', nuevoGasto.date);
+    console.log('🔍 Fecha actual Colombia:', getCurrentDateColombia());
+  }, []);
   
   const [filtros, setFiltros] = useState<FiltrosGastos>({
     fechaInicio: getCurrentDateColombia(),

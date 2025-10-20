@@ -258,7 +258,6 @@ const Configuracion: React.FC = () => {
               onClick={() => abrirFormularioPlan()}
               className="btn-primary"
             >
-              <PlusIcon className="h-5 w-5 mr-2" />
               Nuevo Plan
             </button>
             <button
@@ -330,7 +329,6 @@ const Configuracion: React.FC = () => {
               onClick={() => abrirFormularioPlan()}
               className="btn-primary mt-4"
             >
-              <PlusIcon className="h-5 w-5 mr-2" />
               Crear Primer Plan
             </button>
           </div>
@@ -498,10 +496,11 @@ const Configuracion: React.FC = () => {
                 <li>• Todos los gastos</li>
                 <li>• Todos los conceptos de gastos</li>
                 <li>• Todos los reportes</li>
+                <li>• Todos los mantenimientos realizados</li>
                 <li>• La configuración actual</li>
               </ul>
               <p className="text-sm text-green-600 mt-4 font-medium">
-                ✅ Los planes se conservarán (no se eliminan)
+                ✅ Los planes y lavadoras se conservarán (no se eliminan)
               </p>
               <p className="text-sm text-gray-500 mt-2">
                 Después se crearán conceptos de gastos básicos si no existen.

@@ -17,8 +17,7 @@ const EditarPedido: React.FC<EditarPedidoProps> = ({ pedido, onClose, onSave }) 
     horasAdicionales: pedido.horasAdicionales || 0,
     paymentMethod: pedido.paymentMethod,
     descuentos: pedido.descuentos || [],
-    observaciones: pedido.observaciones || '',
-    status: pedido.status
+    observaciones: pedido.observaciones || ''
   });
 
   const [planesDisponibles, setPlanesDisponibles] = useState<any[]>([]);
@@ -86,7 +85,6 @@ const EditarPedido: React.FC<EditarPedidoProps> = ({ pedido, onClose, onSave }) 
         paymentMethod: formData.paymentMethod,
         descuentos: formData.descuentos,
         observaciones: formData.observaciones,
-        status: formData.status,
         total: Math.max(0, total) // Asegurar que el total no sea negativo
       };
 
@@ -368,23 +366,6 @@ const EditarPedido: React.FC<EditarPedidoProps> = ({ pedido, onClose, onSave }) 
         )}
       </div>
 
-      {/* Estado del Pedido */}
-      <div className="card">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Estado del Pedido</h3>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Estado actual</label>
-          <select
-            className="input-field"
-            value={formData.status}
-            onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as 'pendiente' | 'entregado' | 'recogido' | 'cancelado' }))}
-          >
-            <option value="pendiente">Pendiente</option>
-            <option value="entregado">Entregado</option>
-            <option value="recogido">Recogido</option>
-            <option value="cancelado">Cancelado</option>
-          </select>
-        </div>
-      </div>
 
       {/* Observaciones */}
       <div className="card">

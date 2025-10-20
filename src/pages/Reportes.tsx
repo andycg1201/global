@@ -126,11 +126,11 @@ const Reportes: React.FC = () => {
     
     pedidos.forEach(pedido => {
       const total = pedido.total || 0;
-      if (pedido.paymentMethod.type === 'efectivo') {
+      if (pedido.paymentMethod?.type === 'efectivo') {
         ingresosPorMetodo.efectivo += total;
-      } else if (pedido.paymentMethod.type === 'nequi') {
+      } else if (pedido.paymentMethod?.type === 'nequi') {
         ingresosPorMetodo.nequi += total;
-      } else if (pedido.paymentMethod.type === 'daviplata') {
+      } else if (pedido.paymentMethod?.type === 'daviplata') {
         ingresosPorMetodo.daviplata += total;
       }
     });

@@ -20,6 +20,7 @@ import type {
   Plan, 
   Cliente, 
   Pedido, 
+  Lavadora,
   Gasto, 
   ConceptoGasto, 
   ReporteDiario,
@@ -226,6 +227,38 @@ export const pedidoService = {
     console.log('🚀 Enviando a Firebase:', updateData);
     await updateDoc(docRef, updateData);
     console.log('✅ Actualización exitosa');
+  },
+
+  // Actualizar solo el estado del pedido
+  async updatePedidoStatus(id: string, status: 'pendiente' | 'entregado' | 'recogido' | 'cancelado'): Promise<void> {
+    const docRef = doc(db, 'pedidos', id);
+    const updateData: any = {
+      status,
+      updatedAt: Timestamp.now()
+    };
+
+    // Si se marca como entregado, establecer fecha de entrega y calcular fecha de recogida
+    if (status === 'entregado') {
+      updateData.fechaEntrega = Timestamp.now();
+      // Obtener el pedido para calcular la fecha de recogida
+      const pedidoDoc = await getDoc(docRef);
+      if (pedidoDoc.exists()) {
+        const pedidoData = pedidoDoc.data();
+        const plan = pedidoData.plan;
+        if (plan && plan.duration) {
+          const fechaRecogidaCalculada = new Date();
+          fechaRecogidaCalculada.setHours(fechaRecogidaCalculada.getHours() + plan.duration + (pedidoData.horasAdicionales || 0));
+          updateData.fechaRecogidaCalculada = Timestamp.fromDate(fechaRecogidaCalculada);
+        }
+      }
+    }
+
+    // Si se marca como recogido, establecer fecha de recogida
+    if (status === 'recogido') {
+      updateData.fechaRecogida = Timestamp.now();
+    }
+
+    await updateDoc(docRef, updateData);
   },
 
   // Eliminar pedido
@@ -542,9 +575,14 @@ export const resetService = {
       const configPromises = configSnapshot.docs.map(doc => deleteDoc(doc.ref));
       await Promise.all(configPromises);
 
-      // NOTA: Los planes NO se eliminan para preservar la configuración
+      // Eliminar todos los mantenimientos
+      const mantenimientosSnapshot = await getDocs(collection(db, 'mantenimientos'));
+      const mantenimientosPromises = mantenimientosSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(mantenimientosPromises);
 
-      console.log('Todos los datos han sido eliminados exitosamente (planes preservados)');
+      // NOTA: Los planes y lavadoras NO se eliminan para preservar la configuración
+
+      console.log('Todos los datos han sido eliminados exitosamente (planes y lavadoras preservados)');
     } catch (error) {
       console.error('Error al eliminar datos:', error);
       throw error;
@@ -606,5 +644,230 @@ export const resetService = {
       console.error('Error al inicializar datos básicos:', error);
       throw error;
     }
+  }
+};
+
+// ===== SERVICIOS DE LAVADORAS =====
+export const lavadoraService = {
+  // Generar el siguiente código QR disponible
+  async getNextCodigoQR(): Promise<string> {
+    const lavadoras = await this.getAllLavadoras();
+    const codigosExistentes = lavadoras.map(l => l.codigoQR);
+    
+    // Buscar el siguiente número disponible
+    let numero = 1;
+    while (codigosExistentes.includes(`G-${numero.toString().padStart(2, '0')}`)) {
+      numero++;
+    }
+    
+    return `G-${numero.toString().padStart(2, '0')}`;
+  },
+
+  // Crear nueva lavadora con código automático
+  async createLavadora(lavadora: Omit<Lavadora, 'id' | 'codigoQR' | 'createdAt' | 'updatedAt'>): Promise<string> {
+    const codigoQR = await this.getNextCodigoQR();
+    const docRef = await addDoc(collection(db, 'lavadoras'), {
+      ...lavadora,
+      codigoQR,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now()
+    });
+    return docRef.id;
+  },
+
+  // Crear lavadora con código específico (para inicialización)
+  async createLavadoraWithCode(lavadora: Omit<Lavadora, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+    const docRef = await addDoc(collection(db, 'lavadoras'), {
+      ...lavadora,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now()
+    });
+    return docRef.id;
+  },
+
+  // Obtener todas las lavadoras
+  async getAllLavadoras(): Promise<Lavadora[]> {
+    const querySnapshot = await getDocs(collection(db, 'lavadoras'));
+    return querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        codigoQR: data.codigoQR,
+        marca: data.marca,
+        modelo: data.modelo,
+        numeroSerie: data.numeroSerie,
+        estado: data.estado,
+        ubicacion: data.ubicacion,
+        clienteId: data.clienteId,
+        pedidoId: data.pedidoId,
+        fechaInstalacion: data.fechaInstalacion?.toDate(),
+        fotoInstalacion: data.fotoInstalacion,
+        observacionesInstalacion: data.observacionesInstalacion,
+        mantenimientoActual: data.mantenimientoActual ? {
+          mantenimientoId: data.mantenimientoActual.mantenimientoId,
+          fechaInicio: data.mantenimientoActual.fechaInicio?.toDate() || new Date(),
+          fechaEstimadaFin: data.mantenimientoActual.fechaEstimadaFin?.toDate() || new Date(),
+          tipoFalla: data.mantenimientoActual.tipoFalla,
+          servicioTecnico: data.mantenimientoActual.servicioTecnico
+        } : undefined,
+        createdBy: data.createdBy,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date()
+      } as Lavadora;
+    });
+  },
+
+  // Obtener lavadora por ID
+  async getLavadoraById(id: string): Promise<Lavadora | null> {
+    const docRef = doc(db, 'lavadoras', id);
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        codigoQR: data.codigoQR,
+        marca: data.marca,
+        modelo: data.modelo,
+        numeroSerie: data.numeroSerie,
+        estado: data.estado,
+        ubicacion: data.ubicacion,
+        clienteId: data.clienteId,
+        pedidoId: data.pedidoId,
+        fechaInstalacion: data.fechaInstalacion?.toDate(),
+        fotoInstalacion: data.fotoInstalacion,
+        observacionesInstalacion: data.observacionesInstalacion,
+        mantenimientoActual: data.mantenimientoActual ? {
+          mantenimientoId: data.mantenimientoActual.mantenimientoId,
+          fechaInicio: data.mantenimientoActual.fechaInicio?.toDate() || new Date(),
+          fechaEstimadaFin: data.mantenimientoActual.fechaEstimadaFin?.toDate() || new Date(),
+          tipoFalla: data.mantenimientoActual.tipoFalla,
+          servicioTecnico: data.mantenimientoActual.servicioTecnico
+        } : undefined,
+        createdBy: data.createdBy,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date()
+      } as Lavadora;
+    }
+    return null;
+  },
+
+  // Obtener lavadora por código QR
+  async getLavadoraByQR(codigoQR: string): Promise<Lavadora | null> {
+    const q = query(
+      collection(db, 'lavadoras'),
+      where('codigoQR', '==', codigoQR)
+    );
+    const querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+      const doc = querySnapshot.docs[0];
+      const data = doc.data();
+      return {
+        id: doc.id,
+        codigoQR: data.codigoQR,
+        marca: data.marca,
+        modelo: data.modelo,
+        numeroSerie: data.numeroSerie,
+        estado: data.estado,
+        ubicacion: data.ubicacion,
+        clienteId: data.clienteId,
+        pedidoId: data.pedidoId,
+        fechaInstalacion: data.fechaInstalacion?.toDate(),
+        fotoInstalacion: data.fotoInstalacion,
+        observacionesInstalacion: data.observacionesInstalacion,
+        createdBy: data.createdBy,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date()
+      } as Lavadora;
+    }
+    return null;
+  },
+
+  // Actualizar lavadora
+  async updateLavadora(id: string, updates: Partial<Lavadora>): Promise<void> {
+    const docRef = doc(db, 'lavadoras', id);
+    const updateData: any = {
+      ...updates,
+      updatedAt: Timestamp.now()
+    };
+
+    // Convertir fechas a Timestamp
+    if (updates.fechaInstalacion) {
+      updateData.fechaInstalacion = Timestamp.fromDate(updates.fechaInstalacion);
+    }
+
+    await updateDoc(docRef, updateData);
+  },
+
+  // Obtener lavadoras disponibles
+  async getLavadorasDisponibles(): Promise<Lavadora[]> {
+    const q = query(
+      collection(db, 'lavadoras'),
+      where('estado', '==', 'disponible')
+    );
+    const querySnapshot = await getDocs(q);
+    
+    return querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        codigoQR: data.codigoQR,
+        marca: data.marca,
+        modelo: data.modelo,
+        numeroSerie: data.numeroSerie,
+        estado: data.estado,
+        ubicacion: data.ubicacion,
+        clienteId: data.clienteId,
+        pedidoId: data.pedidoId,
+        fechaInstalacion: data.fechaInstalacion?.toDate(),
+        fotoInstalacion: data.fotoInstalacion,
+        observacionesInstalacion: data.observacionesInstalacion,
+        mantenimientoActual: data.mantenimientoActual ? {
+          mantenimientoId: data.mantenimientoActual.mantenimientoId,
+          fechaInicio: data.mantenimientoActual.fechaInicio?.toDate() || new Date(),
+          fechaEstimadaFin: data.mantenimientoActual.fechaEstimadaFin?.toDate() || new Date(),
+          tipoFalla: data.mantenimientoActual.tipoFalla,
+          servicioTecnico: data.mantenimientoActual.servicioTecnico
+        } : undefined,
+        createdBy: data.createdBy,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date()
+      } as Lavadora;
+    });
+  },
+
+  // Eliminar lavadora
+  async deleteLavadora(id: string): Promise<void> {
+    const docRef = doc(db, 'lavadoras', id);
+    await deleteDoc(docRef);
+  },
+
+  // Crear las 15 lavadoras iniciales
+  async createInitialLavadoras(userId: string): Promise<void> {
+    const lavadorasExistentes = await this.getAllLavadoras();
+    
+    // Solo crear si no hay lavadoras existentes
+    if (lavadorasExistentes.length > 0) {
+      console.log('Ya existen lavadoras en el sistema');
+      return;
+    }
+
+    console.log('Creando 15 lavadoras iniciales...');
+    
+    for (let i = 1; i <= 15; i++) {
+      const codigoQR = `G-${i.toString().padStart(2, '0')}`;
+      await this.createLavadoraWithCode({
+        codigoQR,
+        marca: 'LG',
+        modelo: '18kg',
+        numeroSerie: `LG18-${i.toString().padStart(2, '0')}`,
+        estado: 'disponible',
+        ubicacion: 'bodega',
+        createdBy: userId
+      });
+    }
+    
+    console.log('15 lavadoras iniciales creadas exitosamente');
   }
 };

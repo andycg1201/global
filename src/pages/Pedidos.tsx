@@ -8,11 +8,16 @@ import {
   CalendarIcon,
   XMarkIcon
 } from '@heroicons/react/24/outline';
-import { pedidoService, configService } from '../services/firebaseService';
+import { pedidoService, configService, lavadoraService } from '../services/firebaseService';
 import { Pedido } from '../types';
 import { formatDate, formatCurrency, calculatePickupDate, getCurrentDateColombia } from '../utils/dateUtils';
 import NuevoPedido from './NuevoPedido';
 import EditarPedido from '../components/EditarPedido';
+import ModalCancelacion from '../components/ModalCancelacion';
+import ModalFacturacion from '../components/ModalFacturacion';
+import ModalLiquidacion from '../components/ModalLiquidacion';
+import ModalValidacionQR from '../components/ModalValidacionQR';
+import CalendarPicker from '../components/CalendarPicker';
 
 interface FiltrosPedidos {
   fechaInicio: Date;
@@ -28,8 +33,24 @@ const Pedidos: React.FC = () => {
   const [mostrarNuevoPedido, setMostrarNuevoPedido] = useState(false);
   const [pedidoSeleccionado, setPedidoSeleccionado] = useState<Pedido | null>(null);
   const [mostrarModalDetalles, setMostrarModalDetalles] = useState(false);
+  const [mostrarModalCancelacion, setMostrarModalCancelacion] = useState(false);
+  const [pedidoACancelar, setPedidoACancelar] = useState<Pedido | null>(null);
   const [mostrarModalEditar, setMostrarModalEditar] = useState(false);
   const [pedidoAEditar, setPedidoAEditar] = useState<Pedido | null>(null);
+  
+  // Estados para modales de facturación
+  const [mostrarModalFacturacion, setMostrarModalFacturacion] = useState(false);
+  const [mostrarModalLiquidacion, setMostrarModalLiquidacion] = useState(false);
+  const [pedidoAFacturar, setPedidoAFacturar] = useState<Pedido | null>(null);
+  const [configuracion, setConfiguracion] = useState<any>(null);
+  
+  // Estados para validación QR
+  const [mostrarModalValidacionQR, setMostrarModalValidacionQR] = useState(false);
+  const [pedidoAValidar, setPedidoAValidar] = useState<Pedido | null>(null);
+  const [lavadoras, setLavadoras] = useState<any[]>([]);
+  
+  // Estados para calendario de horarios
+  const [mostrarCalendarioHorarios, setMostrarCalendarioHorarios] = useState(false);
   
   const [filtros, setFiltros] = useState<FiltrosPedidos>({
     fechaInicio: getCurrentDateColombia(),
@@ -40,6 +61,8 @@ const Pedidos: React.FC = () => {
 
   useEffect(() => {
     cargarPedidos();
+    cargarConfiguracion();
+    cargarLavadoras();
   }, [filtros]);
 
   const cargarPedidos = async () => {
@@ -64,6 +87,26 @@ const Pedidos: React.FC = () => {
       console.error('Error al cargar pedidos:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const cargarConfiguracion = async () => {
+    try {
+      console.log('Cargando configuración...');
+      const config = await configService.getConfiguracion();
+      console.log('Configuración cargada:', config);
+      setConfiguracion(config);
+    } catch (error) {
+      console.error('Error al cargar configuración:', error);
+    }
+  };
+
+  const cargarLavadoras = async () => {
+    try {
+      const lavadorasData = await lavadoraService.getAllLavadoras();
+      setLavadoras(lavadorasData);
+    } catch (error) {
+      console.error('Error al cargar lavadoras:', error);
     }
   };
 
@@ -116,6 +159,30 @@ const Pedidos: React.FC = () => {
     );
   };
 
+  const getEstadoPagoBadge = (estadoPago: string) => {
+    const badges = {
+      pendiente: 'badge-secondary',
+      pagado_anticipado: 'badge-success',
+      pagado_entrega: 'badge-info',
+      pagado_recogida: 'badge-primary',
+      debe: 'badge-danger'
+    };
+    
+    const labels = {
+      pendiente: 'Pendiente',
+      pagado_anticipado: 'Pagado Anticipado',
+      pagado_entrega: 'Pagado en Entrega',
+      pagado_recogida: 'Pagado en Recogida',
+      debe: 'Debe'
+    };
+
+    return (
+      <span className={`badge ${badges[estadoPago as keyof typeof badges]}`}>
+        {labels[estadoPago as keyof typeof labels]}
+      </span>
+    );
+  };
+
   const actualizarEstadoPedido = async (pedidoId: string, nuevoEstado: string) => {
     try {
       await pedidoService.updatePedido(pedidoId, { 
@@ -129,6 +196,39 @@ const Pedidos: React.FC = () => {
     }
   };
 
+  // Función para manejar la confirmación de cancelación
+  const handleConfirmarCancelacion = async (motivo: string) => {
+    if (!pedidoACancelar) return;
+
+    try {
+      const fechaActual = new Date();
+      const updateData: Partial<Pedido> = {
+        status: 'cancelado',
+        motivoCancelacion: motivo || undefined,
+        updatedAt: fechaActual
+      };
+
+      await pedidoService.updatePedido(pedidoACancelar.id, updateData);
+      
+      // Si el pedido cancelado tiene lavadora asignada, liberar la lavadora
+      if (pedidoACancelar.lavadoraAsignada) {
+        await lavadoraService.updateLavadora(pedidoACancelar.lavadoraAsignada.lavadoraId, {
+          estado: 'disponible'
+        });
+      }
+      
+      // Recargar pedidos
+      await cargarPedidos();
+      
+      alert('Pedido cancelado exitosamente');
+    } catch (error) {
+      console.error('Error al cancelar pedido:', error);
+      alert('Error al cancelar el pedido');
+    } finally {
+      setMostrarModalCancelacion(false);
+      setPedidoACancelar(null);
+    }
+  };
 
   const cambiarEstadoPedido = async (pedido: Pedido, nuevoEstado: 'pendiente' | 'entregado' | 'recogido' | 'cancelado') => {
     const nombresEstados = {
@@ -137,6 +237,13 @@ const Pedidos: React.FC = () => {
       recogido: 'Recogido',
       cancelado: 'Cancelado'
     };
+
+    // Si es cancelación, mostrar modal para motivo
+    if (nuevoEstado === 'cancelado') {
+      setPedidoACancelar(pedido);
+      setMostrarModalCancelacion(true);
+      return;
+    }
 
     if (!confirm(`¿Estás seguro de que quieres cambiar este pedido a estado "${nombresEstados[nuevoEstado]}"?`)) {
       return;
@@ -150,36 +257,39 @@ const Pedidos: React.FC = () => {
       };
 
       // Actualizar fechas según el estado
-      switch (nuevoEstado) {
-        case 'pendiente':
-          // Para pendiente, eliminamos las fechas usando undefined (se convertirá a deleteField en firebaseService)
-          updateData.fechaEntrega = undefined;
-          updateData.fechaRecogida = undefined;
-          updateData.fechaRecogidaCalculada = undefined;
-          break;
-        case 'entregado':
+      if (nuevoEstado === 'pendiente') {
+        // Para pendiente, eliminamos las fechas usando undefined (se convertirá a deleteField en firebaseService)
+        updateData.fechaEntrega = undefined;
+        updateData.fechaRecogida = undefined;
+        updateData.fechaRecogidaCalculada = undefined;
+      } else if (nuevoEstado === 'entregado') {
+        updateData.fechaEntrega = fechaActual;
+        updateData.fechaRecogida = undefined;
+        // Calcular fecha de recogida según el plan
+        updateData.fechaRecogidaCalculada = calculatePickupDate(fechaActual, pedido.plan.id, pedido.horasAdicionales);
+        // Recalcular total con horas adicionales y descuentos
+        updateData.total = pedido.plan.price + (pedido.horasAdicionales * 2000) - pedido.descuentos.reduce((sum, d) => sum + d.amount, 0);
+      } else if (nuevoEstado === 'recogido') {
+        // Si no tiene fecha de entrega, la asignamos también
+        if (!pedido.fechaEntrega) {
           updateData.fechaEntrega = fechaActual;
-          updateData.fechaRecogida = undefined;
-          // Calcular fecha de recogida según el plan
           updateData.fechaRecogidaCalculada = calculatePickupDate(fechaActual, pedido.plan.id, pedido.horasAdicionales);
-      // Recalcular total con horas adicionales y descuentos
           updateData.total = pedido.plan.price + (pedido.horasAdicionales * 2000) - pedido.descuentos.reduce((sum, d) => sum + d.amount, 0);
-          break;
-        case 'recogido':
-          // Si no tiene fecha de entrega, la asignamos también
-          if (!pedido.fechaEntrega) {
-            updateData.fechaEntrega = fechaActual;
-            updateData.fechaRecogidaCalculada = calculatePickupDate(fechaActual, pedido.plan.id, pedido.horasAdicionales);
-            updateData.total = pedido.plan.price + (pedido.horasAdicionales * 2000) - pedido.descuentos.reduce((sum, d) => sum + d.amount, 0);
-          }
-          updateData.fechaRecogida = fechaActual;
-          break;
-        case 'cancelado':
-          // Para cancelado, mantenemos las fechas existentes
-          break;
+        }
+        updateData.fechaRecogida = fechaActual;
+      } else if (nuevoEstado === 'cancelado') {
+        // Para cancelado, mantenemos las fechas existentes
       }
 
       await pedidoService.updatePedido(pedido.id, updateData);
+      
+      // Si se marca como recogido y tiene lavadora asignada, liberar la lavadora
+      if (nuevoEstado === 'recogido' && pedido.lavadoraAsignada) {
+        await lavadoraService.updateLavadora(pedido.lavadoraAsignada.lavadoraId, {
+          estado: 'disponible'
+        });
+      }
+      
       cargarPedidos();
       alert(`Pedido actualizado a estado "${nombresEstados[nuevoEstado]}"`);
     } catch (error) {
@@ -234,6 +344,14 @@ const Pedidos: React.FC = () => {
       }
 
       await pedidoService.updatePedido(pedido.id, updateData);
+      
+      // Si se marca como recogido y tiene lavadora asignada, liberar la lavadora
+      if (nuevoEstado === 'recogido' && pedido.lavadoraAsignada) {
+        await lavadoraService.updateLavadora(pedido.lavadoraAsignada.lavadoraId, {
+          estado: 'disponible'
+        });
+      }
+      
       cargarPedidos();
     } catch (error) {
       console.error('Error al avanzar estado del pedido:', error);
@@ -247,10 +365,12 @@ const Pedidos: React.FC = () => {
         <button
           onClick={(e) => {
             e.stopPropagation();
-            avanzarEstadoPedido(pedido);
+            console.log('Botón Entregar clickeado para pedido:', pedido.id);
+            setPedidoAValidar(pedido);
+            setMostrarModalValidacionQR(true);
           }}
           className="px-4 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors w-24"
-          title="Marcar como entregado"
+          title="Validar QR y entregar"
         >
           Entregar
         </button>
@@ -260,10 +380,11 @@ const Pedidos: React.FC = () => {
         <button
           onClick={(e) => {
             e.stopPropagation();
-            avanzarEstadoPedido(pedido);
+            setPedidoAFacturar(pedido);
+            setMostrarModalLiquidacion(true);
           }}
           className="px-4 py-3 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors w-24"
-          title="Marcar como recogido"
+          title="Liquidar y recoger"
         >
           Recoger
         </button>
@@ -309,6 +430,13 @@ const Pedidos: React.FC = () => {
 
   const eliminarPedido = async (pedido: Pedido) => {
     try {
+      // Liberar la lavadora asignada si existe
+      if (pedido.lavadoraAsignada) {
+        await lavadoraService.updateLavadora(pedido.lavadoraAsignada.lavadoraId, {
+          estado: 'disponible'
+        });
+      }
+      
       await pedidoService.deletePedido(pedido.id);
       cargarPedidos();
       setMostrarModalDetalles(false);
@@ -316,6 +444,246 @@ const Pedidos: React.FC = () => {
     } catch (error) {
       console.error('Error al eliminar pedido:', error);
       alert('Error al eliminar el pedido');
+    }
+  };
+
+  const handleFacturacion = async (facturacion: any) => {
+    console.log('handleFacturacion llamado con:', facturacion);
+    console.log('pedidoAFacturar:', pedidoAFacturar);
+    
+    if (!pedidoAFacturar) {
+      console.log('No hay pedido para facturar');
+      return;
+    }
+    
+    try {
+      console.log('Iniciando proceso de facturación...');
+      
+      const updateData: Partial<Pedido> = {
+        cobrosAdicionales: facturacion.cobrosAdicionales,
+        horasAdicionales: facturacion.horasAdicionales,
+        observacionesPago: facturacion.observacionesPago,
+        updatedAt: new Date(),
+        status: 'entregado', // Cambiar estado a entregado
+        fechaEntrega: new Date() // Agregar fecha de entrega
+      };
+
+      // Si no pagó anticipado, agregar método de pago
+      if (pedidoAFacturar.estadoPago !== 'pagado_anticipado' && facturacion.paymentMethod) {
+        updateData.paymentMethod = facturacion.paymentMethod;
+        updateData.estadoPago = 'pagado_entrega';
+      } else if (pedidoAFacturar.estadoPago === 'pagado_anticipado') {
+        updateData.estadoPago = 'pagado_entrega';
+      }
+
+      // Recalcular totales
+      const subtotal = pedidoAFacturar.plan.price;
+      const totalCobrosAdicionales = facturacion.cobrosAdicionales.reduce((sum: number, cobro: any) => sum + cobro.monto, 0);
+      const totalHorasAdicionales = facturacion.horasAdicionales * (configuracion?.horaAdicional || 2000);
+      
+      updateData.subtotal = subtotal;
+      updateData.totalCobrosAdicionales = totalCobrosAdicionales;
+      updateData.total = subtotal + totalCobrosAdicionales + totalHorasAdicionales;
+
+      console.log('Datos a actualizar:', updateData);
+
+      await pedidoService.updatePedido(pedidoAFacturar.id, updateData);
+      console.log('Pedido actualizado exitosamente');
+      
+      cargarPedidos();
+      setMostrarModalFacturacion(false);
+      setPedidoAFacturar(null);
+      alert('Facturación procesada exitosamente');
+    } catch (error) {
+      console.error('Error al procesar facturación:', error);
+      alert('Error al procesar la facturación: ' + (error instanceof Error ? error.message : 'Error desconocido'));
+    }
+  };
+
+  const handleLiquidacion = async (liquidacion: any) => {
+    console.log('handleLiquidacion llamado con:', liquidacion);
+    console.log('pedidoAFacturar:', pedidoAFacturar);
+    
+    if (!pedidoAFacturar) {
+      console.log('No hay pedido para liquidar');
+      return;
+    }
+    
+    try {
+      console.log('Iniciando proceso de liquidación...');
+      
+      const updateData: Partial<Pedido> = {
+        descuentos: liquidacion.descuentos,
+        reembolsos: liquidacion.reembolsos,
+        horasAdicionales: liquidacion.horasAdicionales,
+        observacionesPago: liquidacion.observacionesPago,
+        updatedAt: new Date(),
+        status: 'recogido', // Cambiar estado a recogido
+        fechaRecogida: new Date() // Agregar fecha de recogida
+      };
+
+      // Si no ha pagado, agregar método de pago
+      if (pedidoAFacturar.estadoPago === 'pendiente' && liquidacion.paymentMethod) {
+        updateData.paymentMethod = liquidacion.paymentMethod;
+        updateData.estadoPago = 'pagado_recogida';
+      } else if (pedidoAFacturar.estadoPago === 'pagado_entrega') {
+        updateData.estadoPago = 'pagado_recogida';
+      }
+
+      // Recalcular totales
+      const subtotal = pedidoAFacturar.plan.price;
+      const totalCobrosAdicionales = pedidoAFacturar.cobrosAdicionales.reduce((sum, cobro) => sum + cobro.monto, 0);
+      const totalHorasAdicionales = liquidacion.horasAdicionales * (configuracion?.horaAdicional || 2000);
+      const totalDescuentos = liquidacion.descuentos.reduce((sum: number, descuento: any) => sum + descuento.amount, 0);
+      const totalReembolsos = liquidacion.reembolsos.reduce((sum: number, reembolso: any) => sum + reembolso.monto, 0);
+      
+      updateData.subtotal = subtotal;
+      updateData.totalCobrosAdicionales = totalCobrosAdicionales;
+      updateData.totalDescuentos = totalDescuentos;
+      updateData.totalReembolsos = totalReembolsos;
+      updateData.total = subtotal + totalCobrosAdicionales + totalHorasAdicionales - totalDescuentos - totalReembolsos;
+
+      console.log('Datos a actualizar:', updateData);
+
+      await pedidoService.updatePedido(pedidoAFacturar.id, updateData);
+      console.log('Pedido actualizado exitosamente');
+      
+      // Si tiene lavadora asignada, liberar la lavadora
+      if (pedidoAFacturar.lavadoraAsignada) {
+        await lavadoraService.updateLavadora(pedidoAFacturar.lavadoraAsignada.lavadoraId, {
+          estado: 'disponible'
+        });
+        console.log('Lavadora liberada');
+      }
+      
+      cargarPedidos();
+      setMostrarModalLiquidacion(false);
+      setPedidoAFacturar(null);
+      alert('Liquidación procesada exitosamente');
+    } catch (error) {
+      console.error('Error al procesar liquidación:', error);
+      alert('Error al procesar la liquidación: ' + (error instanceof Error ? error.message : 'Error desconocido'));
+    }
+  };
+
+  const handleValidacionQR = async (validacionData: any) => {
+    console.log('handleValidacionQR llamado con:', validacionData);
+    console.log('pedidoAValidar:', pedidoAValidar);
+    
+    if (!pedidoAValidar) {
+      console.log('No hay pedido para validar');
+      return;
+    }
+    
+    try {
+      console.log('Iniciando proceso de validación QR...');
+      
+      // Buscar la lavadora escaneada
+      const lavadoraEscaneada = lavadoras.find(l => l.codigoQR === validacionData.lavadoraEscaneada);
+      if (!lavadoraEscaneada) {
+        alert('No se encontró la lavadora escaneada');
+        return;
+      }
+
+      // Verificar si la lavadora escaneada está disponible
+      if (lavadoraEscaneada.estado !== 'disponible' && lavadoraEscaneada.estado !== 'alquilada') {
+        alert('La lavadora escaneada no está disponible para alquiler');
+        return;
+      }
+
+      // Actualizar el pedido con la información de validación QR (estructura simplificada)
+      const updateData: any = {
+        validacionQR_lavadoraEscaneada: validacionData.lavadoraEscaneada,
+        validacionQR_lavadoraOriginal: pedidoAValidar.lavadoraAsignada?.codigoQR || '',
+        validacionQR_cambioRealizado: validacionData.cambioRealizado,
+        validacionQR_fechaValidacion: new Date(),
+        validacionQR_fotoInstalacion: validacionData.fotoInstalacion,
+        validacionQR_observacionesValidacion: validacionData.observacionesValidacion,
+        updatedAt: new Date()
+      };
+
+      // Si se cambió la lavadora, actualizar la asignación
+      if (validacionData.cambioRealizado) {
+        // Liberar la lavadora original si existe
+        if (pedidoAValidar.lavadoraAsignada) {
+          await lavadoraService.updateLavadora(pedidoAValidar.lavadoraAsignada.lavadoraId, {
+            estado: 'disponible'
+          });
+        }
+
+        // Asignar la nueva lavadora
+        await lavadoraService.updateLavadora(lavadoraEscaneada.id, {
+          estado: 'alquilada'
+        });
+
+        // Actualizar la asignación en el pedido (estructura simplificada)
+        updateData.lavadoraAsignada_lavadoraId = lavadoraEscaneada.id;
+        updateData.lavadoraAsignada_codigoQR = lavadoraEscaneada.codigoQR;
+        updateData.lavadoraAsignada_marca = lavadoraEscaneada.marca;
+        updateData.lavadoraAsignada_modelo = lavadoraEscaneada.modelo;
+        updateData.lavadoraAsignada_fotoInstalacion = validacionData.fotoInstalacion;
+        updateData.lavadoraAsignada_observacionesInstalacion = validacionData.observacionesValidacion;
+
+        console.log('Lavadora cambiada de', pedidoAValidar.lavadoraAsignada?.codigoQR, 'a', validacionData.lavadoraEscaneada);
+      } else {
+        // Solo actualizar la foto y observaciones de la lavadora original
+        if (pedidoAValidar.lavadoraAsignada) {
+          updateData.lavadoraAsignada_fotoInstalacion = validacionData.fotoInstalacion;
+          updateData.lavadoraAsignada_observacionesInstalacion = validacionData.observacionesValidacion;
+        }
+      }
+
+      console.log('Datos a actualizar:', updateData);
+
+      // Actualizar solo los campos básicos del pedido
+      const { doc, setDoc, collection, addDoc } = await import('firebase/firestore');
+      const { db } = await import('../lib/firebase');
+      
+      const pedidoRef = doc(db, 'pedidos', pedidoAValidar.id);
+      
+      // Actualizar campos básicos
+      await setDoc(pedidoRef, {
+        validacionQR_lavadoraEscaneada: validacionData.lavadoraEscaneada,
+        validacionQR_lavadoraOriginal: pedidoAValidar.lavadoraAsignada?.codigoQR || '',
+        validacionQR_cambioRealizado: validacionData.cambioRealizado,
+        validacionQR_fechaValidacion: new Date(),
+        validacionQR_fotoInstalacion: validacionData.fotoInstalacion,
+        validacionQR_observacionesValidacion: validacionData.observacionesValidacion,
+        updatedAt: new Date()
+      }, { merge: true });
+      
+      // Si hay cambios en lavadoraAsignada, actualizar por separado
+      if (validacionData.cambioRealizado) {
+        await setDoc(pedidoRef, {
+          lavadoraAsignada_lavadoraId: lavadoraEscaneada.id,
+          lavadoraAsignada_codigoQR: lavadoraEscaneada.codigoQR,
+          lavadoraAsignada_marca: lavadoraEscaneada.marca,
+          lavadoraAsignada_modelo: lavadoraEscaneada.modelo,
+          lavadoraAsignada_fotoInstalacion: validacionData.fotoInstalacion,
+          lavadoraAsignada_observacionesInstalacion: validacionData.observacionesValidacion
+        }, { merge: true });
+      } else if (pedidoAValidar.lavadoraAsignada) {
+        await setDoc(pedidoRef, {
+          lavadoraAsignada_fotoInstalacion: validacionData.fotoInstalacion,
+          lavadoraAsignada_observacionesInstalacion: validacionData.observacionesValidacion
+        }, { merge: true });
+      }
+      
+      console.log('Pedido actualizado exitosamente');
+      
+      // Cerrar modal de validación y abrir modal de facturación
+      setMostrarModalValidacionQR(false);
+      setPedidoAFacturar(pedidoAValidar);
+      setMostrarModalFacturacion(true);
+      setPedidoAValidar(null);
+      
+      // Recargar datos
+      cargarPedidos();
+      cargarLavadoras();
+      
+    } catch (error) {
+      console.error('Error al procesar validación QR:', error);
+      alert('Error al procesar la validación QR: ' + (error instanceof Error ? error.message : 'Error desconocido'));
     }
   };
 
@@ -408,6 +776,18 @@ const Pedidos: React.FC = () => {
           </button>
         </div>
 
+        {/* Botón para ver calendario de horarios */}
+        <div className="flex justify-center mb-4">
+          <button
+            onClick={() => setMostrarCalendarioHorarios(true)}
+            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors flex items-center gap-2"
+            title="Ver horarios de lavadoras"
+          >
+            <CalendarIcon className="h-4 w-4" />
+            Ver Horarios de Lavadoras
+          </button>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -454,7 +834,6 @@ const Pedidos: React.FC = () => {
               <option value="pendiente">Pendientes</option>
               <option value="entregado">Entregados</option>
               <option value="recogido">Recogidos</option>
-              <option value="cancelado">Cancelados</option>
             </select>
           </div>
 
@@ -528,6 +907,9 @@ const Pedidos: React.FC = () => {
                     Estado
                   </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Pago
+                  </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Entrega
                   </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
@@ -560,16 +942,6 @@ const Pedidos: React.FC = () => {
                         >
                           <PencilIcon className="h-4 w-4" />
                         </button>
-                        <button
-                          onClick={(e) => {
-                                e.stopPropagation();
-                                cambiarEstadoPedido(pedido, 'cancelado');
-                              }}
-                              className="p-2 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all duration-200"
-                              title="Cancelar"
-                            >
-                              <XMarkIcon className="h-4 w-4" />
-                            </button>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -587,11 +959,11 @@ const Pedidos: React.FC = () => {
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center space-x-4">
+                      <td className="px-3 py-4 whitespace-nowrap">
+                        <div className="flex items-center space-x-2">
                           <div className="flex-shrink-0">
-                            <div className="h-12 w-12 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
-                              <span className="text-lg font-bold text-white">
+                            <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
+                              <span className="text-sm font-bold text-white">
                                 {pedido.cliente.name.charAt(0).toUpperCase()}
                               </span>
                             </div>
@@ -618,6 +990,9 @@ const Pedidos: React.FC = () => {
                       </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(pedido.status)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {getEstadoPagoBadge(pedido.estadoPago)}
                     </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">
@@ -799,6 +1174,10 @@ const Pedidos: React.FC = () => {
                     <span className="text-gray-500">Estado:</span>
                     <span className="ml-2">{getStatusBadge(pedidoSeleccionado.status)}</span>
                   </div>
+                  <div>
+                    <span className="text-gray-500">Estado de Pago:</span>
+                    <span className="ml-2">{getEstadoPagoBadge(pedidoSeleccionado.estadoPago)}</span>
+                  </div>
                 </div>
               </div>
 
@@ -894,7 +1273,9 @@ const Pedidos: React.FC = () => {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-500">Método de Pago:</span>
-                    <span className="font-medium">{pedidoSeleccionado.paymentMethod.method}</span>
+                    <span className="font-medium">
+                      {pedidoSeleccionado.paymentMethod?.method || 'No especificado'}
+                    </span>
                   </div>
                   {pedidoSeleccionado.horasAdicionales > 0 && (
                     <div className="flex justify-between">
@@ -968,6 +1349,187 @@ const Pedidos: React.FC = () => {
                 setMostrarModalEditar(false);
               }}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Cancelación */}
+      {mostrarModalCancelacion && pedidoACancelar && (
+        <ModalCancelacion
+          isOpen={mostrarModalCancelacion}
+          onClose={() => {
+            setMostrarModalCancelacion(false);
+            setPedidoACancelar(null);
+          }}
+          onConfirm={handleConfirmarCancelacion}
+          pedidoInfo={{
+            cliente: pedidoACancelar.cliente.name,
+            plan: pedidoACancelar.plan.name
+          }}
+        />
+      )}
+
+      {/* Modal de Facturación */}
+      {mostrarModalFacturacion && pedidoAFacturar && (
+        <ModalFacturacion
+          isOpen={mostrarModalFacturacion}
+          onClose={() => {
+            console.log('Cerrando modal de facturación');
+            setMostrarModalFacturacion(false);
+            setPedidoAFacturar(null);
+          }}
+          onConfirm={handleFacturacion}
+          pedido={pedidoAFacturar}
+          precioHoraAdicional={configuracion?.horaAdicional || 2000}
+        />
+      )}
+      
+      {/* Debug info */}
+      {(() => {
+        console.log('Renderizando Pedidos - mostrarModalFacturacion:', mostrarModalFacturacion, 'pedidoAFacturar:', pedidoAFacturar?.id, 'configuracion:', !!configuracion);
+        return null;
+      })()}
+
+      {/* Modal de Liquidación */}
+      {mostrarModalLiquidacion && pedidoAFacturar && (
+        <ModalLiquidacion
+          isOpen={mostrarModalLiquidacion}
+          onClose={() => {
+            setMostrarModalLiquidacion(false);
+            setPedidoAFacturar(null);
+          }}
+          onConfirm={handleLiquidacion}
+          pedido={pedidoAFacturar}
+          precioHoraAdicional={configuracion?.horaAdicional || 2000}
+        />
+      )}
+
+      {/* Modal de Validación QR */}
+      {mostrarModalValidacionQR && pedidoAValidar && (
+        <ModalValidacionQR
+          isOpen={mostrarModalValidacionQR}
+          onClose={() => {
+            setMostrarModalValidacionQR(false);
+            setPedidoAValidar(null);
+          }}
+          onConfirm={handleValidacionQR}
+          pedido={pedidoAValidar}
+          lavadoras={lavadoras}
+        />
+      )}
+
+      {/* Modal de Horarios de Lavadoras */}
+      {mostrarCalendarioHorarios && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b">
+              <div className="flex items-center space-x-3">
+                <CalendarIcon className="h-6 w-6 text-blue-600" />
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Horarios de Lavadoras
+                </h2>
+              </div>
+              <button
+                onClick={() => setMostrarCalendarioHorarios(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XMarkIcon className="h-6 w-6" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              <div className="mb-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Estado de Lavadoras</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {lavadoras.map((lavadora) => (
+                    <div
+                      key={lavadora.id}
+                      className={`p-4 rounded-lg border-2 ${
+                        lavadora.estado === 'disponible'
+                          ? 'bg-green-50 border-green-200'
+                          : lavadora.estado === 'alquilada'
+                          ? 'bg-blue-50 border-blue-200'
+                          : lavadora.estado === 'mantenimiento'
+                          ? 'bg-yellow-50 border-yellow-200'
+                          : 'bg-red-50 border-red-200'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="font-bold text-lg text-gray-900 mb-1">
+                          {lavadora.codigoQR}
+                        </div>
+                        <div className="text-sm text-gray-600 mb-2">
+                          {lavadora.marca} {lavadora.modelo}
+                        </div>
+                        <div className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                          lavadora.estado === 'disponible'
+                            ? 'bg-green-100 text-green-800'
+                            : lavadora.estado === 'alquilada'
+                            ? 'bg-blue-100 text-blue-800'
+                            : lavadora.estado === 'mantenimiento'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {lavadora.estado === 'disponible' ? 'Disponible' :
+                           lavadora.estado === 'alquilada' ? 'Alquilada' :
+                           lavadora.estado === 'mantenimiento' ? 'Mantenimiento' : 'Retirada'}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Pedidos Activos</h3>
+                <div className="space-y-3">
+                  {pedidos
+                    .filter(p => p.status === 'pendiente' || p.status === 'entregado')
+                    .map((pedido) => (
+                      <div key={pedido.id} className="bg-gray-50 p-4 rounded-lg">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="font-medium text-gray-900">
+                              {pedido.cliente.name}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              Plan: {pedido.plan.name}
+                            </div>
+                            {pedido.lavadoraAsignada && (
+                              <div className="text-sm text-blue-600">
+                                Lavadora: {pedido.lavadoraAsignada.codigoQR}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <div className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                              pedido.status === 'pendiente'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-green-100 text-green-800'
+                            }`}>
+                              {pedido.status === 'pendiente' ? 'Pendiente' : 'Entregado'}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {formatDate(pedido.fechaEntrega, 'dd/MM/yyyy HH:mm')}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+              <div className="text-center">
+                <button
+                  onClick={() => setMostrarCalendarioHorarios(false)}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -4,17 +4,157 @@ import {
   UserGroupIcon, 
   CurrencyDollarIcon,
   ClockIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  CalendarIcon,
+  FunnelIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
 import { formatCurrency, formatDate, getCurrentDateColombia } from '../utils/dateUtils';
-import { pedidoService, reporteService, gastoService, clienteService } from '../services/firebaseService';
-import { Pedido, ReporteDiario } from '../types';
+import { pedidoService, reporteService, gastoService, clienteService, lavadoraService, configService } from '../services/firebaseService';
+import { Pedido, ReporteDiario, Lavadora, Configuracion } from '../types';
+import PedidosPendientes from '../components/PedidosPendientes';
+import ModalValidacionQR from '../components/ModalValidacionQR';
+import ModalFacturacion from '../components/ModalFacturacion';
+import ModalLiquidacion from '../components/ModalLiquidacion';
 
 const Dashboard: React.FC = () => {
   const [reporteDiario, setReporteDiario] = useState<ReporteDiario | null>(null);
   const [pedidosPendientes, setPedidosPendientes] = useState<Pedido[]>([]);
+  const [pedidosPendientesEntregar, setPedidosPendientesEntregar] = useState<Pedido[]>([]);
+  const [pedidosPendientesRecoger, setPedidosPendientesRecoger] = useState<Pedido[]>([]);
   const [totalClientes, setTotalClientes] = useState(0);
+  const [ingresosPorPlan, setIngresosPorPlan] = useState<{ [key: string]: { name: string; amount: number; count: number } }>({});
   const [loading, setLoading] = useState(true);
+  
+  // Estados para modales de validación y facturación
+  const [mostrarModalValidacionQR, setMostrarModalValidacionQR] = useState(false);
+  const [mostrarModalFacturacion, setMostrarModalFacturacion] = useState(false);
+  const [mostrarModalLiquidacion, setMostrarModalLiquidacion] = useState(false);
+  const [pedidoAValidar, setPedidoAValidar] = useState<Pedido | null>(null);
+  const [pedidoAFacturar, setPedidoAFacturar] = useState<Pedido | null>(null);
+  const [lavadoras, setLavadoras] = useState<Lavadora[]>([]);
+  const [configuracion, setConfiguracion] = useState<Configuracion | null>(null);
+  
+  // Estados para filtro de fechas del resumen financiero
+  const [filtroFinanciero, setFiltroFinanciero] = useState({
+    tipo: 'hoy' as 'hoy' | 'ayer' | 'personalizado',
+    fechaInicio: getCurrentDateColombia(),
+    fechaFin: getCurrentDateColombia()
+  });
+  
+  // Estados para datos financieros filtrados
+  const [datosFinancieros, setDatosFinancieros] = useState({
+    ingresos: 0,
+    gastos: 0,
+    neto: 0,
+    ingresosPorPlan: {} as { [key: string]: { name: string; amount: number; count: number } },
+    pedidosCompletados: 0
+  });
+
+  // Función para calcular datos financieros basados en el filtro
+  const calcularDatosFinancieros = async (filtro: typeof filtroFinanciero) => {
+    try {
+      let fechaInicio: Date;
+      let fechaFin: Date;
+
+      // Determinar fechas según el tipo de filtro
+      if (filtro.tipo === 'hoy') {
+        const hoy = getCurrentDateColombia();
+        fechaInicio = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+        fechaFin = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59);
+      } else if (filtro.tipo === 'ayer') {
+        const ayer = new Date(getCurrentDateColombia());
+        ayer.setDate(ayer.getDate() - 1);
+        fechaInicio = new Date(ayer.getFullYear(), ayer.getMonth(), ayer.getDate());
+        fechaFin = new Date(ayer.getFullYear(), ayer.getMonth(), ayer.getDate(), 23, 59, 59);
+      } else {
+        fechaInicio = filtro.fechaInicio;
+        fechaFin = filtro.fechaFin;
+      }
+
+      // Debug: Verificar fechas
+      console.log('🔍 Debug Filtro Financiero:');
+      console.log('Tipo de filtro:', filtro.tipo);
+      console.log('Fecha inicio:', fechaInicio.toISOString());
+      console.log('Fecha fin:', fechaFin.toISOString());
+
+      // Obtener pedidos del rango de fechas
+      const todosLosPedidos = await pedidoService.getAllPedidos();
+      console.log('Total pedidos:', todosLosPedidos.length);
+      
+      const pedidosFiltrados = todosLosPedidos.filter(pedido => {
+        if (!pedido.fechaEntrega) return false;
+        const fechaPedido = new Date(pedido.fechaEntrega);
+        const cumpleFiltro = fechaPedido >= fechaInicio && fechaPedido <= fechaFin;
+        
+        // Debug: Mostrar algunos pedidos para verificar
+        if (todosLosPedidos.indexOf(pedido) < 3) {
+          console.log('Pedido ejemplo:', {
+            id: pedido.id,
+            fechaEntrega: pedido.fechaEntrega,
+            fechaPedido: fechaPedido.toISOString(),
+            status: pedido.status,
+            cumpleFiltro
+          });
+        }
+        
+        return cumpleFiltro;
+      });
+      
+      console.log('Pedidos filtrados:', pedidosFiltrados.length);
+
+      // Obtener gastos del rango de fechas
+      const todosLosGastos = await gastoService.getGastosDelRango(fechaInicio, fechaFin);
+      const totalGastos = todosLosGastos.reduce((sum, gasto) => sum + gasto.amount, 0);
+
+      // Calcular ingresos
+      const ingresos = pedidosFiltrados
+        .filter(p => p.status === 'recogido')
+        .reduce((sum, p) => sum + (p.total || 0), 0);
+
+      // Calcular ingresos por plan
+      const ingresosPorPlanCalculado: { [key: string]: { name: string; amount: number; count: number } } = {};
+      
+      pedidosFiltrados
+        .filter(p => p.status === 'recogido')
+        .forEach(pedido => {
+          const total = pedido.total || 0;
+          const planId = pedido.plan.id;
+          const planName = pedido.plan.name;
+          
+          if (!ingresosPorPlanCalculado[planId]) {
+            ingresosPorPlanCalculado[planId] = {
+              name: planName,
+              amount: 0,
+              count: 0
+            };
+          }
+          
+          ingresosPorPlanCalculado[planId].amount += total;
+          ingresosPorPlanCalculado[planId].count += 1;
+        });
+
+      const resultado = {
+        ingresos,
+        gastos: totalGastos,
+        neto: ingresos - totalGastos,
+        ingresosPorPlan: ingresosPorPlanCalculado,
+        pedidosCompletados: pedidosFiltrados.filter(p => p.status === 'recogido').length
+      };
+
+      console.log('Resultado final:', resultado);
+      return resultado;
+    } catch (error) {
+      console.error('Error al calcular datos financieros:', error);
+      return {
+        ingresos: 0,
+        gastos: 0,
+        neto: 0,
+        ingresosPorPlan: {},
+        pedidosCompletados: 0
+      };
+    }
+  };
 
   useEffect(() => {
     const cargarDatos = async () => {
@@ -48,17 +188,37 @@ const Dashboard: React.FC = () => {
           daviplata: 0
         };
         
+        // Calcular ingresos por plan
+        const ingresosPorPlan: { [key: string]: { name: string; amount: number; count: number } } = {};
+        
         todosLosPedidos
           .filter(p => p.status === 'recogido')
           .forEach(pedido => {
             const total = pedido.total || 0;
-            if (pedido.paymentMethod.type === 'efectivo') {
+            
+            // Ingresos por método de pago
+            if (pedido.paymentMethod?.type === 'efectivo') {
               ingresosPorMetodo.efectivo += total;
-            } else if (pedido.paymentMethod.type === 'nequi') {
+            } else if (pedido.paymentMethod?.type === 'nequi') {
               ingresosPorMetodo.nequi += total;
-            } else if (pedido.paymentMethod.type === 'daviplata') {
+            } else if (pedido.paymentMethod?.type === 'daviplata') {
               ingresosPorMetodo.daviplata += total;
             }
+            
+            // Ingresos por plan
+            const planId = pedido.plan.id;
+            const planName = pedido.plan.name;
+            
+            if (!ingresosPorPlan[planId]) {
+              ingresosPorPlan[planId] = {
+                name: planName,
+                amount: 0,
+                count: 0
+              };
+            }
+            
+            ingresosPorPlan[planId].amount += total;
+            ingresosPorPlan[planId].count += 1;
           });
         
         // Crear reporte personalizado con datos históricos
@@ -72,12 +232,28 @@ const Dashboard: React.FC = () => {
           ingresosPorMetodo
         };
         
-        // Obtener pedidos pendientes de recogida de los datos ya cargados
-        const pendientes = todosLosPedidos.filter(p => p.status === 'entregado');
+        // Separar pedidos por estado
+        const pendientesRecoger = todosLosPedidos.filter(p => p.status === 'entregado');
+        const pendientesEntregar = todosLosPedidos.filter(p => p.status === 'pendiente');
+        
+        // Ordenar pedidos pendientes de entregar por prioridad y fecha
+        pendientesEntregar.sort((a, b) => {
+          // Primero por prioridad (prioritarios primero)
+          if (a.isPrioritario && !b.isPrioritario) return -1;
+          if (!a.isPrioritario && b.isPrioritario) return 1;
+          
+          // Luego por fecha de entrega
+          const fechaA = a.fechaEntrega?.getTime() || 0;
+          const fechaB = b.fechaEntrega?.getTime() || 0;
+          return fechaA - fechaB;
+        });
         
         setReporteDiario(reportePersonalizado);
-        setPedidosPendientes(pendientes);
+        setPedidosPendientes(pendientesRecoger); // Mantener para compatibilidad
+        setPedidosPendientesEntregar(pendientesEntregar);
+        setPedidosPendientesRecoger(pendientesRecoger);
         setTotalClientes(totalClientesCount);
+        setIngresosPorPlan(ingresosPorPlan);
       } catch (error) {
         console.error('Error al cargar datos del dashboard:', error);
       } finally {
@@ -86,7 +262,234 @@ const Dashboard: React.FC = () => {
     };
 
     cargarDatos();
+    cargarLavadoras();
+    cargarConfiguracion();
   }, []);
+
+  // Función para cargar lavadoras
+  const cargarLavadoras = async () => {
+    try {
+      const lavadorasData = await lavadoraService.getAllLavadoras();
+      setLavadoras(lavadorasData);
+    } catch (error) {
+      console.error('Error al cargar lavadoras:', error);
+    }
+  };
+
+  // Función para cargar configuración
+  const cargarConfiguracion = async () => {
+    try {
+      const configData = await configService.getConfiguracion();
+      setConfiguracion(configData);
+    } catch (error) {
+      console.error('Error al cargar configuración:', error);
+    }
+  };
+
+  // Cargar datos financieros cuando cambie el filtro
+  useEffect(() => {
+    const cargarDatosFinancieros = async () => {
+      const datos = await calcularDatosFinancieros(filtroFinanciero);
+      setDatosFinancieros(datos);
+    };
+    
+    cargarDatosFinancieros();
+  }, [filtroFinanciero]);
+
+  // Funciones para manejar validación QR y facturación
+  const handleValidacionQR = async (validacionData: any) => {
+    if (!pedidoAValidar) return;
+
+    try {
+      // Buscar la lavadora escaneada
+      const lavadoraEscaneada = lavadoras.find(l => l.codigoQR === validacionData.lavadoraEscaneada);
+      if (!lavadoraEscaneada) {
+        alert('No se encontró la lavadora escaneada');
+        return;
+      }
+
+      // Verificar si la lavadora escaneada está disponible
+      if (lavadoraEscaneada.estado !== 'disponible' && lavadoraEscaneada.estado !== 'alquilada') {
+        alert('La lavadora escaneada no está disponible para alquiler');
+        return;
+      }
+
+      // Actualizar el pedido con la información de validación QR
+      const { doc, setDoc } = await import('firebase/firestore');
+      const { db } = await import('../lib/firebase');
+      
+      const pedidoRef = doc(db, 'pedidos', pedidoAValidar.id);
+      
+      // Actualizar campos básicos
+      await setDoc(pedidoRef, {
+        validacionQR_lavadoraEscaneada: validacionData.lavadoraEscaneada,
+        validacionQR_lavadoraOriginal: pedidoAValidar.lavadoraAsignada?.codigoQR || '',
+        validacionQR_cambioRealizado: validacionData.cambioRealizado,
+        validacionQR_fechaValidacion: new Date(),
+        validacionQR_fotoInstalacion: validacionData.fotoInstalacion,
+        validacionQR_observacionesValidacion: validacionData.observacionesValidacion,
+        updatedAt: new Date()
+      }, { merge: true });
+      
+      // Si hay cambios en lavadoraAsignada, actualizar por separado
+      if (validacionData.cambioRealizado) {
+        // Liberar la lavadora original si existe
+        if (pedidoAValidar.lavadoraAsignada) {
+          await lavadoraService.updateLavadora(pedidoAValidar.lavadoraAsignada.lavadoraId, {
+            estado: 'disponible'
+          });
+        }
+
+        // Asignar la nueva lavadora
+        await lavadoraService.updateLavadora(lavadoraEscaneada.id, {
+          estado: 'alquilada'
+        });
+
+        await setDoc(pedidoRef, {
+          lavadoraAsignada_lavadoraId: lavadoraEscaneada.id,
+          lavadoraAsignada_codigoQR: lavadoraEscaneada.codigoQR,
+          lavadoraAsignada_marca: lavadoraEscaneada.marca,
+          lavadoraAsignada_modelo: lavadoraEscaneada.modelo,
+          lavadoraAsignada_fotoInstalacion: validacionData.fotoInstalacion,
+          lavadoraAsignada_observacionesInstalacion: validacionData.observacionesValidacion
+        }, { merge: true });
+      } else if (pedidoAValidar.lavadoraAsignada) {
+        await setDoc(pedidoRef, {
+          lavadoraAsignada_fotoInstalacion: validacionData.fotoInstalacion,
+          lavadoraAsignada_observacionesInstalacion: validacionData.observacionesValidacion
+        }, { merge: true });
+      }
+
+      // Cerrar modal de validación y abrir modal de facturación
+      setMostrarModalValidacionQR(false);
+      setPedidoAFacturar(pedidoAValidar);
+      setMostrarModalFacturacion(true);
+      setPedidoAValidar(null);
+      
+      // Recargar datos
+      cargarDatos();
+      cargarLavadoras();
+      
+    } catch (error) {
+      console.error('Error al procesar validación QR:', error);
+      alert('Error al procesar la validación QR: ' + (error instanceof Error ? error.message : 'Error desconocido'));
+    }
+  };
+
+  const handleFacturacion = async (facturacionData: any) => {
+    if (!pedidoAFacturar) return;
+
+    try {
+      const updateData: any = {
+        status: 'entregado',
+        fechaEntrega: new Date(),
+        cobrosAdicionales: facturacionData.cobrosAdicionales || [],
+        horasAdicionales: facturacionData.horasAdicionales || 0,
+        paymentMethod: facturacionData.paymentMethod,
+        observacionesPago: facturacionData.observacionesPago,
+        updatedAt: new Date()
+      };
+
+      // Calcular totales
+      const subtotal = pedidoAFacturar.subtotal || 0;
+      const totalCobrosAdicionales = (facturacionData.cobrosAdicionales || []).reduce((sum: number, cobro: any) => sum + cobro.amount, 0);
+      const totalHorasAdicionales = (facturacionData.horasAdicionales || 0) * (configuracion?.horaAdicional || 2000);
+      const total = subtotal + totalCobrosAdicionales + totalHorasAdicionales;
+
+      updateData.totalCobrosAdicionales = totalCobrosAdicionales;
+      updateData.total = total;
+
+      // Determinar estado de pago
+      if (pedidoAFacturar.estadoPago === 'pagado_anticipado') {
+        updateData.estadoPago = 'pagado_anticipado';
+      } else {
+        updateData.estadoPago = 'pagado_entrega';
+      }
+
+      await pedidoService.updatePedido(pedidoAFacturar.id, updateData);
+      
+      setMostrarModalFacturacion(false);
+      setPedidoAFacturar(null);
+      cargarDatos();
+      
+    } catch (error) {
+      console.error('Error al procesar facturación:', error);
+      alert('Error al procesar la facturación');
+    }
+  };
+
+  const handleLiquidacion = async (liquidacionData: any) => {
+    if (!pedidoAFacturar) return;
+
+    try {
+      const updateData: any = {
+        status: 'recogido',
+        fechaRecogida: new Date(),
+        descuentos: liquidacionData.descuentos || [],
+        reembolsos: liquidacionData.reembolsos || [],
+        horasAdicionales: liquidacionData.horasAdicionales || 0,
+        paymentMethod: liquidacionData.paymentMethod,
+        observacionesPago: liquidacionData.observacionesPago,
+        updatedAt: new Date()
+      };
+
+      // Calcular totales finales
+      const subtotal = pedidoAFacturar.subtotal || 0;
+      const totalCobrosAdicionales = pedidoAFacturar.totalCobrosAdicionales || 0;
+      const totalHorasAdicionales = (liquidacionData.horasAdicionales || 0) * (configuracion?.horaAdicional || 2000);
+      const totalDescuentos = (liquidacionData.descuentos || []).reduce((sum: number, descuento: any) => sum + descuento.amount, 0);
+      const totalReembolsos = (liquidacionData.reembolsos || []).reduce((sum: number, reembolso: any) => sum + reembolso.amount, 0);
+      const total = subtotal + totalCobrosAdicionales + totalHorasAdicionales - totalDescuentos - totalReembolsos;
+
+      updateData.totalDescuentos = totalDescuentos;
+      updateData.totalReembolsos = totalReembolsos;
+      updateData.total = total;
+
+      // Determinar estado de pago final
+      if (pedidoAFacturar.estadoPago === 'pagado_anticipado' && totalReembolsos > 0) {
+        updateData.estadoPago = 'pagado_anticipado'; // Con reembolsos
+      } else if (pedidoAFacturar.estadoPago === 'pagado_anticipado') {
+        updateData.estadoPago = 'pagado_anticipado';
+      } else {
+        updateData.estadoPago = 'pagado_recogida';
+      }
+
+      await pedidoService.updatePedido(pedidoAFacturar.id, updateData);
+
+      // Liberar la lavadora si está asignada
+      if (pedidoAFacturar.lavadoraAsignada) {
+        await lavadoraService.updateLavadora(pedidoAFacturar.lavadoraAsignada.lavadoraId, {
+          estado: 'disponible'
+        });
+      }
+      
+      setMostrarModalLiquidacion(false);
+      setPedidoAFacturar(null);
+      cargarDatos();
+      cargarLavadoras();
+      
+    } catch (error) {
+      console.error('Error al procesar liquidación:', error);
+      alert('Error al procesar la liquidación');
+    }
+  };
+
+  // Funciones para manejar cambios de estado de pedidos (nuevo flujo)
+  const handleMarcarEntregado = async (pedidoId: string) => {
+    const pedido = pedidosPendientesEntregar.find(p => p.id === pedidoId);
+    if (pedido) {
+      setPedidoAValidar(pedido);
+      setMostrarModalValidacionQR(true);
+    }
+  };
+
+  const handleMarcarRecogido = async (pedidoId: string) => {
+    const pedido = pedidosPendientesRecoger.find(p => p.id === pedidoId);
+    if (pedido) {
+      setPedidoAFacturar(pedido);
+      setMostrarModalLiquidacion(true);
+    }
+  };
 
   if (loading) {
     return (
@@ -241,68 +644,171 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Resumen financiero */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Resumen Financiero</h3>
-          <dl className="space-y-3">
-            <div className="flex justify-between">
-              <dt className="text-sm text-gray-500">Ingresos:</dt>
-              <dd className="text-sm font-medium text-success-600">
-                {formatCurrency(reporteDiario?.ingresos || 0)}
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-sm text-gray-500">Gastos:</dt>
-              <dd className="text-sm font-medium text-danger-600">
-                {formatCurrency(reporteDiario?.gastos || 0)}
-              </dd>
-            </div>
-            <div className="border-t pt-3">
-              <div className="flex justify-between">
-                <dt className="text-sm font-medium text-gray-900">Neto:</dt>
-                <dd className={`text-sm font-bold ${
-                  (reporteDiario?.neto || 0) >= 0 ? 'text-success-600' : 'text-danger-600'
-                }`}>
-                  {formatCurrency(reporteDiario?.neto || 0)}
-                </dd>
-              </div>
-            </div>
-          </dl>
-        </div>
+      {/* Sección de Pedidos Pendientes */}
+      <PedidosPendientes
+        pedidosPendientesEntregar={pedidosPendientesEntregar}
+        pedidosPendientesRecoger={pedidosPendientesRecoger}
+        onMarcarEntregado={handleMarcarEntregado}
+        onMarcarRecogido={handleMarcarRecogido}
+      />
 
-        {/* Pedidos pendientes de recogida */}
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Pedidos Pendientes de Recogida</h3>
-          {pedidosPendientes.length === 0 ? (
-            <p className="text-sm text-gray-500">No hay pedidos pendientes de recogida</p>
-          ) : (
-            <div className="space-y-3">
-              {pedidosPendientes.slice(0, 5).map((pedido) => (
-                <div key={pedido.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{pedido.cliente.name}</p>
-                    <p className="text-xs text-gray-500">{pedido.cliente.phone}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">
-                      {pedido.fechaRecogidaCalculada ? formatDate(pedido.fechaRecogidaCalculada, 'HH:mm') : '-'}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {pedido.fechaRecogidaCalculada ? formatDate(pedido.fechaRecogidaCalculada, 'dd/MM') : '-'}
-                    </p>
-                  </div>
+      {/* Resumen financiero */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-900">Resumen Financiero</h3>
+          
+          {/* Controles de filtro */}
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
+              <FunnelIcon className="h-4 w-4 text-gray-500" />
+              <select
+                className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:ring-primary-500 focus:border-primary-500"
+                value={filtroFinanciero.tipo}
+                onChange={(e) => {
+                  const tipo = e.target.value as 'hoy' | 'ayer' | 'personalizado';
+                  setFiltroFinanciero(prev => ({
+                    ...prev,
+                    tipo,
+                    fechaInicio: tipo === 'hoy' ? getCurrentDateColombia() : 
+                                 tipo === 'ayer' ? (() => {
+                                   const ayer = new Date(getCurrentDateColombia());
+                                   ayer.setDate(ayer.getDate() - 1);
+                                   return ayer;
+                                 })() : prev.fechaInicio,
+                    fechaFin: tipo === 'hoy' ? getCurrentDateColombia() : 
+                              tipo === 'ayer' ? (() => {
+                                const ayer = new Date(getCurrentDateColombia());
+                                ayer.setDate(ayer.getDate() - 1);
+                                return ayer;
+                              })() : prev.fechaFin
+                  }));
+                }}
+              >
+                <option value="hoy">Hoy</option>
+                <option value="ayer">Ayer</option>
+                <option value="personalizado">Personalizado</option>
+              </select>
+            </div>
+            
+            {filtroFinanciero.tipo === 'personalizado' && (
+              <div className="flex items-center space-x-2">
+                <CalendarIcon className="h-4 w-4 text-gray-500" />
+                <input
+                  type="date"
+                  className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:ring-primary-500 focus:border-primary-500"
+                  value={filtroFinanciero.fechaInicio.toISOString().split('T')[0]}
+                  onChange={(e) => setFiltroFinanciero(prev => ({
+                    ...prev,
+                    fechaInicio: new Date(e.target.value)
+                  }))}
+                />
+                <span className="text-gray-500">a</span>
+                <input
+                  type="date"
+                  className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:ring-primary-500 focus:border-primary-500"
+                  value={filtroFinanciero.fechaFin.toISOString().split('T')[0]}
+                  onChange={(e) => setFiltroFinanciero(prev => ({
+                    ...prev,
+                    fechaFin: new Date(e.target.value)
+                  }))}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+        <dl className="space-y-3">
+          <div className="flex justify-between">
+            <dt className="text-sm text-gray-500">Ingresos Totales:</dt>
+            <dd className="text-sm font-medium text-success-600">
+              {formatCurrency(datosFinancieros.ingresos)}
+            </dd>
+          </div>
+          
+          {/* Desglose por plan */}
+          {Object.keys(datosFinancieros.ingresosPorPlan).length > 0 && (
+            <div className="ml-4 space-y-2 border-l-2 border-gray-200 pl-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs font-medium text-gray-600">Por Plan:</div>
+                <div className="text-xs text-blue-600 font-medium">
+                  Total: {Object.values(datosFinancieros.ingresosPorPlan).reduce((sum, plan) => sum + plan.count, 0)} servicios
                 </div>
-              ))}
-              {pedidosPendientes.length > 5 && (
-                <p className="text-xs text-gray-500 text-center">
-                  Y {pedidosPendientes.length - 5} más...
-                </p>
-              )}
+              </div>
+              {Object.entries(datosFinancieros.ingresosPorPlan)
+                .sort(([,a], [,b]) => b.amount - a.amount) // Ordenar por monto descendente
+                .map(([planId, planData]) => (
+                  <div key={planId} className="flex justify-between items-center">
+                    <div className="flex items-center space-x-2">
+                      <dt className="text-xs text-gray-500">{planData.name}:</dt>
+                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                        {planData.count} servicios
+                      </span>
+                    </div>
+                    <dd className="text-xs font-medium text-success-600">
+                      {formatCurrency(planData.amount)}
+                    </dd>
+                  </div>
+                ))}
             </div>
           )}
-        </div>
+          
+          <div className="flex justify-between">
+            <dt className="text-sm text-gray-500">Gastos:</dt>
+            <dd className="text-sm font-medium text-danger-600">
+              {formatCurrency(datosFinancieros.gastos)}
+            </dd>
+          </div>
+          <div className="border-t pt-3">
+            <div className="flex justify-between">
+              <dt className="text-sm font-medium text-gray-900">Neto:</dt>
+              <dd className={`text-sm font-bold ${
+                datosFinancieros.neto >= 0 ? 'text-success-600' : 'text-danger-600'
+              }`}>
+                {formatCurrency(datosFinancieros.neto)}
+              </dd>
+            </div>
+          </div>
+        </dl>
       </div>
+
+      {/* Modales de validación y facturación */}
+      {mostrarModalValidacionQR && pedidoAValidar && (
+        <ModalValidacionQR
+          isOpen={mostrarModalValidacionQR}
+          onClose={() => {
+            setMostrarModalValidacionQR(false);
+            setPedidoAValidar(null);
+          }}
+          onConfirm={handleValidacionQR}
+          pedido={pedidoAValidar}
+          lavadoras={lavadoras}
+        />
+      )}
+
+      {mostrarModalFacturacion && pedidoAFacturar && (
+        <ModalFacturacion
+          isOpen={mostrarModalFacturacion}
+          onClose={() => {
+            setMostrarModalFacturacion(false);
+            setPedidoAFacturar(null);
+          }}
+          onConfirm={handleFacturacion}
+          pedido={pedidoAFacturar}
+          precioHoraAdicional={configuracion?.horaAdicional || 2000}
+        />
+      )}
+
+      {mostrarModalLiquidacion && pedidoAFacturar && (
+        <ModalLiquidacion
+          isOpen={mostrarModalLiquidacion}
+          onClose={() => {
+            setMostrarModalLiquidacion(false);
+            setPedidoAFacturar(null);
+          }}
+          onConfirm={handleLiquidacion}
+          pedido={pedidoAFacturar}
+          precioHoraAdicional={configuracion?.horaAdicional || 2000}
+        />
+      )}
 
     </div>
   );

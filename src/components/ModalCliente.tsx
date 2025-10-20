@@ -3,6 +3,7 @@ import { XMarkIcon } from '@heroicons/react/24/outline';
 import { clienteService } from '../services/firebaseService';
 import { Cliente } from '../types';
 import LocationPicker from './LocationPicker';
+import { formatColombianPhone } from '../utils/dateUtils';
 
 interface ModalClienteProps {
   isOpen: boolean;
@@ -150,10 +151,16 @@ const ModalCliente: React.FC<ModalClienteProps> = ({
                 type="tel"
                 className="input-field"
                 value={nuevoCliente.phone}
-                onChange={(e) => setNuevoCliente(prev => ({ ...prev, phone: e.target.value }))}
+                onChange={(e) => {
+                  const formattedPhone = formatColombianPhone(e.target.value);
+                  setNuevoCliente(prev => ({ ...prev, phone: formattedPhone }));
+                }}
                 required
-                placeholder="Ej: 3001234567"
+                placeholder="Ej: 3001234567 o 3172478520"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                Se formateará automáticamente a formato colombiano (+57)
+              </p>
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">

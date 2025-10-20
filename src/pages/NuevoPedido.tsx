@@ -4,7 +4,8 @@ import {
   planService, 
   clienteService, 
   pedidoService, 
-  configService 
+  configService,
+  lavadoraService
 } from '../services/firebaseService';
 import { 
   formatDate, 
@@ -15,9 +16,11 @@ import {
   canUsePlan,
   getAvailablePlans
 } from '../utils/dateUtils';
-import { Plan, Cliente, Pedido, PaymentMethod, Descuento, Configuracion } from '../types';
-import { MagnifyingGlassIcon, PlusIcon, MapPinIcon } from '@heroicons/react/24/outline';
+import { Plan, Cliente, Pedido, PagoAnticipado, Configuracion } from '../types';
+import { MagnifyingGlassIcon, PlusIcon, MapPinIcon, CalendarIcon, CreditCardIcon } from '@heroicons/react/24/outline';
 import ModalCliente from '../components/ModalCliente';
+import SelectorLavadoras from '../components/SelectorLavadoras';
+import ModalPagoAnticipado from '../components/ModalPagoAnticipado';
 
 interface NuevoPedidoProps {
   onClose?: () => void;
@@ -28,23 +31,17 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   
-  // Estados del formulario
+  // Estados del formulario (solo datos básicos del pedido)
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [fechaEntrega, setFechaEntrega] = useState<Date>(getCurrentDateColombia());
-  const [horasAdicionales, setHorasAdicionales] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>({
-    type: 'efectivo',
-    method: 'efectivo',
-    amount: 0
-  });
-  const [descuentos, setDescuentos] = useState<Descuento[]>([]);
   const [observaciones, setObservaciones] = useState('');
-  const [mostrarFormularioDescuento, setMostrarFormularioDescuento] = useState(false);
-  const [nuevoDescuento, setNuevoDescuento] = useState({
-    type: '',
-    amount: 0
-  });
+  const [isPrioritario, setIsPrioritario] = useState(false);
+  const [motivoPrioridad, setMotivoPrioridad] = useState('');
+  const [lavadoraSeleccionada, setLavadoraSeleccionada] = useState<any | null>(null);
+  
+  // Estados para pago anticipado
+  const [mostrarModalPagoAnticipado, setMostrarModalPagoAnticipado] = useState(false);
   
   // Estados para búsqueda y datos
   const [planes, setPlanes] = useState<Plan[]>([]);
@@ -53,29 +50,20 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
   const [configuracion, setConfiguracion] = useState<Configuracion | null>(null);
   const [mostrarModalCliente, setMostrarModalCliente] = useState(false);
 
+
   useEffect(() => {
     cargarDatos();
   }, []);
 
-  useEffect(() => {
-    if (plan && fechaEntrega) {
-      const fechaRecogida = calculatePickupDate(fechaEntrega, plan.id, horasAdicionales);
-      const total = calculateOrderTotal(
-        plan.price,
-        horasAdicionales,
-        configuracion?.horaAdicional || 2000,
-        descuentos
-      );
-      setPaymentMethod(prev => ({ ...prev, amount: total }));
-    }
-  }, [plan, fechaEntrega, horasAdicionales, descuentos, configuracion]);
+  // Removido: cálculo automático de totales (ahora se hace en los modales de facturación)
 
   const cargarDatos = async () => {
     setLoading(true);
     try {
-      const [planesData, configData] = await Promise.all([
+      const [planesData, configData, pedidosData] = await Promise.all([
         planService.getActivePlans(),
-        configService.getConfiguracion()
+        configService.getConfiguracion(),
+        pedidoService.getAllPedidos()
       ]);
       
       setPlanes(planesData);
@@ -112,76 +100,85 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
     setMostrarModalCliente(false);
   };
 
-  const agregarDescuento = () => {
-    if (!nuevoDescuento.type || !nuevoDescuento.amount) {
-      alert('Todos los campos son obligatorios');
-      return;
-    }
-
-    setDescuentos(prev => [...prev, {
-      type: nuevoDescuento.type,
-      amount: nuevoDescuento.amount,
-      reason: '' // Razón vacía por defecto
-    }]);
-    
-    setNuevoDescuento({ type: '', amount: 0 });
-    setMostrarFormularioDescuento(false);
-  };
-
-  const eliminarDescuento = (index: number) => {
-    setDescuentos(prev => prev.filter((_, i) => i !== index));
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!cliente || !plan || !user) {
-      alert('Faltan datos obligatorios');
+    if (!cliente) {
+      alert('Debe seleccionar un cliente');
+      return;
+    }
+    
+    if (!plan) {
+      alert('Debe seleccionar un plan');
+      return;
+    }
+    
+    if (!fechaEntrega) {
+      alert('Debe seleccionar una fecha de entrega');
+      return;
+    }
+    
+    if (!user) {
+      alert('Error de autenticación');
       return;
     }
 
     setSaving(true);
     try {
-      // Calcular total incluyendo horas adicionales y descuentos
-      let total = plan.price;
-      
-      // Agregar horas adicionales
-      if (horasAdicionales > 0) {
-        const precioHoraAdicional = configuracion?.horaAdicional || 2000;
-        total += horasAdicionales * precioHoraAdicional;
-      }
-      
-      // Restar descuentos
-      const totalDescuentos = descuentos.reduce((sum, descuento) => sum + descuento.amount, 0);
-      total = Math.max(0, total - totalDescuentos);
-
       const nuevoPedido: Omit<Pedido, 'id' | 'createdAt' | 'updatedAt'> = {
         clienteId: cliente.id,
         cliente,
         planId: plan.id,
         plan,
-        status: 'pendiente', // Nuevo estado inicial
+        status: 'pendiente',
+        isPrioritario,
+        ...(isPrioritario && motivoPrioridad && { motivoPrioridad }),
         fechaAsignacion: getCurrentDateColombia(),
-        fechaEntrega, // Hora tentativa de entrega
-        // No calculamos fechaRecogidaCalculada hasta que se entregue
-        horasAdicionales,
-        paymentMethod: { ...paymentMethod, amount: total },
-        descuentos,
-        total,
+        fechaEntrega,
+        horasAdicionales: 0, // Se ajustará en facturación
+        
+        // Sistema de facturación separado
+        estadoPago: 'pendiente',
+        cobrosAdicionales: [],
+        descuentos: [],
+        reembolsos: [],
+        
+        // Totales iniciales
+        subtotal: plan.price,
+        totalCobrosAdicionales: 0,
+        totalDescuentos: 0,
+        totalReembolsos: 0,
+        total: plan.price,
+        
         observaciones,
+        ...(lavadoraSeleccionada && lavadoraSeleccionada.id && {
+          lavadoraAsignada: {
+            lavadoraId: lavadoraSeleccionada.id,
+            codigoQR: lavadoraSeleccionada.codigoQR,
+            marca: lavadoraSeleccionada.marca,
+            modelo: lavadoraSeleccionada.modelo
+          }
+        }),
         createdBy: user.id
       };
 
       await pedidoService.createPedido(nuevoPedido);
       
+      // Si se asignó una lavadora, actualizar su estado a "alquilada"
+      if (lavadoraSeleccionada && lavadoraSeleccionada.id) {
+        await lavadoraService.updateLavadora(lavadoraSeleccionada.id, {
+          estado: 'alquilada'
+        });
+      }
+      
       // Limpiar formulario
       setCliente(null);
       setPlan(null);
       setFechaEntrega(getCurrentDateColombia());
-      setHorasAdicionales(0);
-      setDescuentos([]);
       setObservaciones('');
-      setPaymentMethod({ type: 'efectivo', method: 'efectivo', amount: 0 });
+      setIsPrioritario(false);
+      setMotivoPrioridad('');
+      setLavadoraSeleccionada(null);
       
       alert('Pedido creado exitosamente');
       
@@ -197,7 +194,15 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
     }
   };
 
-  const planesDisponibles = planes.filter(p => canUsePlan(p.id, fechaEntrega));
+  const handlePagoAnticipado = async (pagoAnticipado: PagoAnticipado) => {
+    // Esta función se llamará desde el modal de pago anticipado
+    // Por ahora solo mostramos el modal, la lógica se implementará después
+    console.log('Pago anticipado:', pagoAnticipado);
+    setMostrarModalPagoAnticipado(false);
+  };
+
+  // Temporalmente mostrar todos los planes para permitir crear pedidos
+  const planesDisponibles = planes; // planes.filter(p => canUsePlan(p.id, fechaEntrega, p.name));
 
   if (loading) {
     return (
@@ -292,7 +297,8 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
         <div className="card">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Plan de Alquiler</h3>
           
-          <div className="flex gap-2">
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {planesDisponibles.map((p, index) => {
               const colors = [
                 'from-blue-50 to-blue-100 border-blue-200 hover:from-blue-100 hover:to-blue-200',
@@ -316,14 +322,14 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
                   key={p.id}
                   type="button"
                   onClick={() => setPlan(p)}
-                  className={`flex-1 px-2 py-2 border-2 rounded-lg text-center transition-all duration-200 shadow-sm hover:shadow-md ${
+                  className={`w-full px-3 py-3 border-2 rounded-lg text-center transition-all duration-200 shadow-sm hover:shadow-md ${
                     isSelected
                       ? `bg-gradient-to-br ${selectedColors[colorIndex]} shadow-md scale-105`
                       : `bg-gradient-to-br ${colors[colorIndex]} hover:shadow-md`
                   }`}
                 >
-                  <div className="font-semibold text-xs text-gray-900 mb-1">{p.name}</div>
-                  <div className="text-xs text-gray-600 mb-1 leading-tight whitespace-normal break-words">{p.description}</div>
+                  <div className="font-semibold text-sm text-gray-900 mb-2">{p.name}</div>
+                  <div className="text-xs text-gray-600 mb-2 leading-tight break-words line-clamp-2">{p.description}</div>
                   <div className="text-sm font-bold text-primary-600">
                     {formatCurrency(p.price)}
                   </div>
@@ -339,282 +345,145 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
           )}
         </div>
 
-        {/* Fecha y Hora de Entrega */}
+        {/* Selección de Lavadora */}
         <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Fecha y Hora de Entrega</h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Fecha
-              </label>
-              <input
-                type="date"
-                className="input-field"
-                value={fechaEntrega.toISOString().split('T')[0]}
-                onChange={(e) => setFechaEntrega(new Date(e.target.value))}
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Hora
-              </label>
-              <input
-                type="time"
-                className="input-field"
-                value={fechaEntrega.toTimeString().slice(0, 5)}
-                onChange={(e) => {
-                  const [hours, minutes] = e.target.value.split(':');
-                  const newDate = new Date(fechaEntrega);
-                  newDate.setHours(parseInt(hours), parseInt(minutes));
-                  setFechaEntrega(newDate);
-                }}
-                required
-              />
-            </div>
-          </div>
-          
-          {plan && (
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <strong>Recogida programada:</strong> {formatDate(calculatePickupDate(fechaEntrega, plan.id, horasAdicionales), 'dd/MM/yyyy HH:mm')}
-              </p>
-            </div>
-          )}
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Seleccionar Lavadora</h3>
+          <SelectorLavadoras
+            lavadoraSeleccionada={lavadoraSeleccionada}
+            onLavadoraSeleccionada={setLavadoraSeleccionada}
+            disabled={saving}
+          />
         </div>
 
-        {/* Horas Adicionales */}
+        {/* Calendario y Selección de Fecha */}
         <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Horas Adicionales</h3>
-          
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-3">
-              <label className="text-sm font-medium text-gray-700">Cantidad:</label>
-              <input
-                type="number"
-                min="0"
-                className="input-field w-20"
-                value={horasAdicionales}
-                onChange={(e) => setHorasAdicionales(parseInt(e.target.value) || 0)}
-                placeholder="0"
-              />
-            </div>
-            {horasAdicionales > 0 && (
-              <div className="text-sm text-gray-600">
-                × {formatCurrency(configuracion?.horaAdicional || 2000)} = 
-                <span className="font-semibold text-primary-600 ml-1">
-                  {formatCurrency(horasAdicionales * (configuracion?.horaAdicional || 2000))}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Método de Pago */}
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Método de Pago</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Seleccionar Fecha y Hora</h3>
           
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Tipo de Pago
-              </label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod(prev => ({ 
-                    ...prev, 
-                    type: 'efectivo',
-                    method: 'efectivo'
-                  }))}
-                  className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                    paymentMethod.type === 'efectivo'
-                      ? 'bg-primary-50 border-primary-500 text-primary-700'
-                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  Efectivo
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod(prev => ({ 
-                    ...prev, 
-                    type: 'nequi',
-                    method: 'deposito'
-                  }))}
-                  className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                    paymentMethod.type === 'nequi'
-                      ? 'bg-primary-50 border-primary-500 text-primary-700'
-                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  Nequi
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod(prev => ({ 
-                    ...prev, 
-                    type: 'daviplata',
-                    method: 'deposito'
-                  }))}
-                  className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                    paymentMethod.type === 'daviplata'
-                      ? 'bg-primary-50 border-primary-500 text-primary-700'
-                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  Daviplata
-                </button>
+            {/* Botón del calendario */}
+
+            {/* Selector de fecha actual */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Fecha Seleccionada
+                </label>
+                <input
+                  type="date"
+                  className="input-field"
+                  value={fechaEntrega.toISOString().split('T')[0]}
+                  onChange={(e) => {
+                    const newDate = new Date(e.target.value);
+                    setFechaEntrega(newDate);
+                  }}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Hora
+                </label>
+                <input
+                  type="time"
+                  className="input-field"
+                  value={fechaEntrega.toTimeString().slice(0, 5)}
+                  onChange={(e) => {
+                    const [hours, minutes] = e.target.value.split(':');
+                    const newDate = new Date(fechaEntrega);
+                    newDate.setHours(parseInt(hours), parseInt(minutes));
+                    setFechaEntrega(newDate);
+                  }}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Información de la fecha seleccionada */}
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">
+                    Fecha y hora seleccionada:
+                  </p>
+                  <p className="text-lg font-semibold text-primary-600">
+                    {formatDate(fechaEntrega, 'dd/MM/yyyy HH:mm')}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-600">
+                    {fechaEntrega.toLocaleDateString('es-ES', { weekday: 'long' })}
+                  </p>
+                </div>
               </div>
             </div>
             
-            {paymentMethod.type !== 'efectivo' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Método
-                </label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod(prev => ({ 
-                      ...prev, 
-                      method: 'deposito'
-                    }))}
-                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                      paymentMethod.method === 'deposito'
-                        ? 'bg-primary-50 border-primary-500 text-primary-700'
-                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    Depósito
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod(prev => ({ 
-                      ...prev, 
-                      method: 'transferencia'
-                    }))}
-                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                      paymentMethod.method === 'transferencia'
-                        ? 'bg-primary-50 border-primary-500 text-primary-700'
-                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    Transferencia
-                  </button>
-                </div>
+            {plan && (
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-sm text-blue-800">
+                  <strong>Recogida programada:</strong> {formatDate(calculatePickupDate(fechaEntrega, plan.id, 0), 'dd/MM/yyyy HH:mm')}
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  Duración del plan: {plan.duration} horas (las horas adicionales se ajustarán en la entrega)
+                </p>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Pedido Prioritario */}
+        <div className="card">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Prioridad del Pedido</h3>
+          
+          <div className="space-y-4">
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="isPrioritario"
+                className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                checked={isPrioritario}
+                onChange={(e) => setIsPrioritario(e.target.checked)}
+              />
+              <label htmlFor="isPrioritario" className="ml-2 block text-sm font-medium text-gray-700">
+                Marcar como pedido prioritario
+              </label>
+            </div>
             
-            {paymentMethod.type !== 'efectivo' && (
-              <div>
+            {isPrioritario && (
+              <div className="mt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Número de Comprobante
+                  Motivo de la prioridad
                 </label>
                 <input
                   type="text"
                   className="input-field"
-                  value={paymentMethod.reference || ''}
-                  onChange={(e) => setPaymentMethod(prev => ({ 
-                    ...prev, 
-                    reference: e.target.value 
-                  }))}
-                  placeholder="Número de comprobante"
+                  value={motivoPrioridad}
+                  onChange={(e) => setMotivoPrioridad(e.target.value)}
+                  placeholder="Ej: Cliente sale a las 8 AM, entrega urgente, etc."
+                  required={isPrioritario}
                 />
               </div>
             )}
           </div>
         </div>
 
-        {/* Descuentos */}
+        {/* Pago Anticipado */}
         <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Descuentos</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Pago Anticipado</h3>
           
-          {!mostrarFormularioDescuento ? (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              El cliente puede pagar ahora o en el momento de la entrega. Si paga ahora, se procesará el pago completo del plan.
+            </p>
+            
             <button
               type="button"
-              onClick={() => setMostrarFormularioDescuento(true)}
-              className="btn-secondary mb-4"
+              onClick={() => setMostrarModalPagoAnticipado(true)}
+              className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
             >
-              Agregar Descuento
+              <CreditCardIcon className="h-5 w-5" />
+              <span>Pagar Ahora</span>
             </button>
-          ) : (
-            <div className="mb-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
-              <h4 className="font-medium text-gray-900 mb-3">Nuevo Descuento</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tipo de Descuento
-                  </label>
-                  <input
-                    type="text"
-                    className="input-field"
-                    value={nuevoDescuento.type}
-                    onChange={(e) => setNuevoDescuento(prev => ({ ...prev, type: e.target.value }))}
-                    placeholder="Ej: corte_agua, problema_tecnico"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Monto
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    className="input-field"
-                    value={nuevoDescuento.amount}
-                    onChange={(e) => setNuevoDescuento(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-              <div className="mt-4 flex space-x-3">
-                <button
-                  type="button"
-                  onClick={agregarDescuento}
-                  className="btn-primary"
-                >
-                  Agregar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMostrarFormularioDescuento(false);
-                    setNuevoDescuento({ type: '', amount: 0 });
-                  }}
-                  className="btn-secondary"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          )}
-          
-          {descuentos.length > 0 && (
-            <div className="space-y-2">
-              {descuentos.map((descuento, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <div className="font-medium text-gray-900">{descuento.type}</div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="font-medium text-danger-600">
-                      -{formatCurrency(descuento.amount)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => eliminarDescuento(index)}
-                      className="text-danger-600 hover:text-danger-700"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          </div>
         </div>
 
         {/* Observaciones */}
@@ -629,7 +498,7 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
           />
         </div>
 
-        {/* Resumen y Total */}
+        {/* Resumen del Pedido */}
         {plan && (
           <div className="card bg-gray-50">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Resumen del Pedido</h3>
@@ -640,30 +509,20 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
                 <span className="font-medium">{formatCurrency(plan.price)}</span>
               </div>
               
-              {horasAdicionales > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Horas adicionales ({horasAdicionales}):</span>
-                  <span className="font-medium">
-                    {formatCurrency(horasAdicionales * (configuracion?.horaAdicional || 2000))}
-                  </span>
-                </div>
-              )}
-              
-              {descuentos.map((descuento, index) => (
-                <div key={index} className="flex justify-between text-danger-600">
-                  <span>Descuento ({descuento.type}):</span>
-                  <span className="font-medium">-{formatCurrency(descuento.amount)}</span>
-                </div>
-              ))}
-              
               <div className="border-t pt-2">
                 <div className="flex justify-between text-lg font-bold">
-                  <span>Total:</span>
+                  <span>Total del Plan:</span>
                   <span className="text-primary-600">
-                    {formatCurrency(paymentMethod.amount)}
+                    {formatCurrency(plan.price)}
                   </span>
                 </div>
               </div>
+            </div>
+            
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <p className="text-sm text-blue-800">
+                <strong>Nota:</strong> Los cobros adicionales, horas extra, descuentos y reembolsos se manejarán en el momento de la entrega y recogida.
+              </p>
             </div>
           </div>
         )}
@@ -679,7 +538,7 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
           </button>
           <button
             type="submit"
-            disabled={!cliente || !plan || saving}
+            disabled={!cliente || !plan || !fechaEntrega || saving}
             className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? 'Guardando...' : 'Crear Pedido'}
@@ -694,6 +553,21 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
         onClienteCreated={handleClienteCreated}
         title="Crear Nuevo Cliente"
       />
+
+      {/* Modal de Pago Anticipado */}
+      {plan && cliente && (
+        <ModalPagoAnticipado
+          isOpen={mostrarModalPagoAnticipado}
+          onClose={() => setMostrarModalPagoAnticipado(false)}
+          onConfirm={handlePagoAnticipado}
+          montoTotal={plan.price}
+          clienteInfo={{
+            name: cliente.name,
+            plan: plan.name
+          }}
+        />
+      )}
+
     </div>
   );
 };

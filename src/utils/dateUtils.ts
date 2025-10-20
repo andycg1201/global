@@ -21,7 +21,33 @@ export const formatCurrency = (amount: number): string => {
 
 // Obtener fecha actual en Colombia
 export const getCurrentDateColombia = (): Date => {
-  return new Date(new Date().toLocaleString("en-US", {timeZone: COLOMBIA_TIMEZONE}));
+  // Simplemente usar la fecha local del sistema
+  // Esto evita problemas de zona horaria complejos
+  const now = new Date();
+  
+  // Crear una nueva fecha con solo la fecha (sin hora)
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  return today;
+};
+
+// Función de debug para verificar fechas (solo para desarrollo)
+export const debugFechaColombia = () => {
+  const now = new Date();
+  const colombiaTime = getCurrentDateColombia();
+  
+  console.log('🔍 Debug de Fechas:');
+  console.log('Fecha local del sistema:', now.toLocaleString());
+  console.log('Zona horaria local:', Intl.DateTimeFormat().resolvedOptions().timeZone);
+  console.log('Offset local (minutos):', now.getTimezoneOffset());
+  console.log('Fecha Colombia calculada:', colombiaTime.toLocaleString());
+  console.log('Diferencia (horas):', (colombiaTime.getTime() - now.getTime()) / (1000 * 60 * 60));
+  
+  return {
+    fechaLocal: now,
+    fechaColombia: colombiaTime,
+    diferenciaHoras: (colombiaTime.getTime() - now.getTime()) / (1000 * 60 * 60)
+  };
 };
 
 // Calcular fecha de recogida según el plan
@@ -91,6 +117,46 @@ export const isNonWorkingDay = (date: Date): boolean => {
   return date.getDay() === 0; // Domingo
 };
 
+// Formatear número de teléfono colombiano
+export const formatColombianPhone = (phone: string): string => {
+  // Remover todos los caracteres no numéricos
+  const cleanPhone = phone.replace(/\D/g, '');
+  
+  // Si ya tiene código de país colombiano (57), mantenerlo
+  if (cleanPhone.startsWith('57') && cleanPhone.length === 12) {
+    return `+${cleanPhone}`;
+  }
+  
+  // Si tiene 10 dígitos (número colombiano sin código de país)
+  if (cleanPhone.length === 10) {
+    return `+57${cleanPhone}`;
+  }
+  
+  // Si tiene 11 dígitos y empieza con 3 (celular colombiano)
+  if (cleanPhone.length === 11 && cleanPhone.startsWith('3')) {
+    return `+57${cleanPhone}`;
+  }
+  
+  // Si ya tiene +57, mantenerlo
+  if (cleanPhone.startsWith('57') && cleanPhone.length === 12) {
+    return `+${cleanPhone}`;
+  }
+  
+  // Para otros casos, devolver tal como está
+  return phone;
+};
+
+// Generar enlace de WhatsApp para recogida
+export const generateWhatsAppLink = (phone: string, clientName: string): string => {
+  const formattedPhone = formatColombianPhone(phone);
+  const cleanPhone = formattedPhone.replace('+', '');
+  
+  const message = `Hola ${clientName}, queremos informarle que la lavadora que alquiló se recogerá en breve. Si desea incrementar una hora adicional, por favor infórmenos a este número. ¡Gracias por utilizar nuestros servicios! 😊`;
+  
+  const encodedMessage = encodeURIComponent(message);
+  return `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+};
+
 // Obtener el siguiente día laboral
 export const getNextWorkingDay = (date: Date): Date => {
   let nextDay = addDays(date, 1);
@@ -101,11 +167,14 @@ export const getNextWorkingDay = (date: Date): Date => {
 };
 
 // Validar si un plan se puede usar en la fecha actual
-export const canUsePlan = (planId: string, date: Date): boolean => {
+export const canUsePlan = (planId: string, date: Date, planName?: string): boolean => {
   const dayOfWeek = date.getDay();
   
-  // Planes 4 y 5 solo se pueden usar los sábados
-  if ((planId === 'plan4' || planId === 'plan5') && dayOfWeek !== 6) {
+  // Planes 4 y 5 solo se pueden usar los sábados (verificar por nombre también)
+  const isWeekendPlan = planId === 'plan4' || planId === 'plan5' || 
+                       planName === 'PLAN 4' || planName === 'PLAN 5';
+  
+  if (isWeekendPlan && dayOfWeek !== 6) {
     return false;
   }
   

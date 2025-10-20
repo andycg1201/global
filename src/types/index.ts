@@ -56,6 +56,30 @@ export interface Descuento {
   reason: string;
 }
 
+// Tipos de cobros adicionales
+export interface CobroAdicional {
+  concepto: string; // "zona_alejada", "instalacion_especial", etc.
+  monto: number;
+  descripcion?: string;
+}
+
+// Tipos de reembolso
+export interface Reembolso {
+  monto: number;
+  motivo: string;
+  fecha: Date;
+  metodo: 'efectivo' | 'nequi' | 'daviplata';
+  referencia?: string;
+}
+
+// Tipos de pago anticipado
+export interface PagoAnticipado {
+  monto: number;
+  metodo: PaymentMethod;
+  fecha: Date;
+  referencia?: string;
+}
+
 // Tipos de pedido
 export interface Pedido {
   id: string;
@@ -64,6 +88,10 @@ export interface Pedido {
   planId: string;
   plan: Plan; // datos del plan
   status: 'pendiente' | 'entregado' | 'recogido' | 'cancelado';
+  
+  // Sistema de prioridades
+  isPrioritario: boolean; // true = pedido prioritario, false = normal
+  motivoPrioridad?: string; // motivo de la prioridad (ej: "cliente sale a las 8 AM")
   
   // Timestamps editables
   fechaAsignacion: Date;
@@ -74,16 +102,102 @@ export interface Pedido {
   fechaRecogidaCalculada?: Date; // opcional hasta que se entregue
   horasAdicionales: number;
   
-  // Pagos y descuentos (siempre editables)
-  paymentMethod: PaymentMethod;
+  // Sistema de facturación separado
+  estadoPago: 'pendiente' | 'pagado_anticipado' | 'pagado_entrega' | 'pagado_recogida' | 'debe';
+  pagoAnticipado?: PagoAnticipado;
+  cobrosAdicionales: CobroAdicional[];
   descuentos: Descuento[];
-  total: number;
+  reembolsos: Reembolso[];
+  
+  // Totales (calculados dinámicamente)
+  subtotal: number; // precio del plan
+  totalCobrosAdicionales: number;
+  totalDescuentos: number;
+  totalReembolsos: number;
+  total: number; // subtotal + cobros - descuentos - reembolsos
+  
+  // Método de pago (solo si no pagó anticipado)
+  paymentMethod?: PaymentMethod;
   
   // Observaciones
   observaciones?: string;
+  observacionesPago?: string; // observaciones específicas del pago
+  
+  // Gestión de lavadoras
+  lavadoraAsignada?: {
+    lavadoraId: string;
+    codigoQR: string;
+    marca: string;
+    modelo: string;
+    fotoInstalacion?: string;
+    observacionesInstalacion?: string;
+  };
+  
+  // Validación QR en entrega
+  validacionQR?: {
+    lavadoraEscaneada: string; // Código QR escaneado
+    lavadoraOriginal: string; // Código QR originalmente asignado
+    cambioRealizado: boolean; // Si se cambió la lavadora
+    fechaValidacion: Date;
+    fotoInstalacion?: string; // URL de la foto
+    observacionesValidacion?: string;
+  };
+  
+  // Cancelación
+  motivoCancelacion?: string; // motivo de la cancelación (opcional)
   
   // Metadatos
   createdBy: string; // ID del usuario que creó el pedido
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Tipos de mantenimiento
+export interface Mantenimiento {
+  id: string;
+  lavadoraId: string;
+  tipoFalla: string; // "motor", "bomba", "electrónica", etc.
+  descripcion: string; // descripción detallada del problema
+  costoReparacion: number;
+  servicioTecnico: string; // nombre del servicio técnico
+  fechaInicio: Date;
+  fechaEstimadaFin: Date;
+  fechaFin?: Date; // cuando se marca como disponible
+  fotos?: string[]; // URLs de fotos del daño
+  observaciones?: string;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Tipos de lavadoras
+export interface Lavadora {
+  id: string;
+  codigoQR: string; // Código único para identificar la lavadora
+  marca: string; // "LG"
+  modelo: string; // "18kg"
+  numeroSerie: string;
+  estado: 'disponible' | 'alquilada' | 'mantenimiento' | 'retirada' | 'fuera_servicio';
+  ubicacion: 'bodega' | 'cliente' | 'taller';
+  
+  // Información del alquiler actual (si está alquilada)
+  clienteId?: string; // ID del cliente que la tiene alquilada
+  pedidoId?: string; // ID del pedido asociado
+  fechaInstalacion?: Date;
+  fotoInstalacion?: string; // URL de la foto de instalación
+  observacionesInstalacion?: string;
+  
+  // Información de mantenimiento actual (si está en mantenimiento)
+  mantenimientoActual?: {
+    mantenimientoId: string;
+    fechaInicio: Date;
+    fechaEstimadaFin: Date;
+    tipoFalla: string;
+    servicioTecnico: string;
+  };
+  
+  // Metadatos
+  createdBy: string; // ID del usuario que registró la lavadora
   createdAt: Date;
   updatedAt: Date;
 }

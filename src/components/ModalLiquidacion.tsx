@@ -26,7 +26,7 @@ const ModalLiquidacion: React.FC<ModalLiquidacionProps> = ({
 }) => {
   const [descuentos, setDescuentos] = useState<Descuento[]>([]);
   const [reembolsos, setReembolsos] = useState<Reembolso[]>([]);
-  const [horasAdicionales, setHorasAdicionales] = useState(pedido.horasAdicionales);
+  const [horasAdicionales, setHorasAdicionales] = useState<string>(pedido.horasAdicionales.toString());
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>({
     type: 'efectivo',
     method: 'efectivo',
@@ -40,11 +40,11 @@ const ModalLiquidacion: React.FC<ModalLiquidacionProps> = ({
   const [mostrarFormularioReembolso, setMostrarFormularioReembolso] = useState(false);
   const [nuevoDescuento, setNuevoDescuento] = useState({
     type: '',
-    amount: 0,
+    amount: '',
     reason: ''
   });
   const [nuevoReembolso, setNuevoReembolso] = useState({
-    monto: 0,
+    monto: '',
     motivo: '',
     metodo: 'efectivo' as 'efectivo' | 'nequi' | 'daviplata',
     referencia: ''
@@ -52,7 +52,8 @@ const ModalLiquidacion: React.FC<ModalLiquidacionProps> = ({
 
   // Calcular totales
   const subtotal = pedido.plan.price;
-  const totalHorasAdicionales = horasAdicionales * precioHoraAdicional;
+  const horasAdicionalesNum = parseInt(horasAdicionales) || 0;
+  const totalHorasAdicionales = horasAdicionalesNum * precioHoraAdicional;
   const totalCobrosAdicionales = pedido.cobrosAdicionales.reduce((sum, cobro) => sum + cobro.monto, 0);
   const totalDescuentos = descuentos.reduce((sum, descuento) => sum + descuento.amount, 0);
   const totalReembolsos = reembolsos.reduce((sum, reembolso) => sum + reembolso.monto, 0);
@@ -66,7 +67,7 @@ const ModalLiquidacion: React.FC<ModalLiquidacionProps> = ({
       const liquidacion = {
         descuentos,
         reembolsos,
-        horasAdicionales,
+        horasAdicionales: horasAdicionalesNum,
         paymentMethod: pedido.estadoPago === 'pagado_anticipado' || pedido.estadoPago === 'pagado_entrega' ? undefined : paymentMethod,
         observacionesPago
       };
@@ -86,7 +87,7 @@ const ModalLiquidacion: React.FC<ModalLiquidacionProps> = ({
   const handleClose = () => {
     setDescuentos([]);
     setReembolsos([]);
-    setHorasAdicionales(pedido.horasAdicionales);
+    setHorasAdicionales(pedido.horasAdicionales.toString());
     setPaymentMethod({
       type: 'efectivo',
       method: 'efectivo',
@@ -95,24 +96,25 @@ const ModalLiquidacion: React.FC<ModalLiquidacionProps> = ({
     setObservacionesPago('');
     setMostrarFormularioDescuento(false);
     setMostrarFormularioReembolso(false);
-    setNuevoDescuento({ type: '', amount: 0, reason: '' });
-    setNuevoReembolso({ monto: 0, motivo: '', metodo: 'efectivo', referencia: '' });
+    setNuevoDescuento({ type: '', amount: '', reason: '' });
+    setNuevoReembolso({ monto: '', motivo: '', metodo: 'efectivo', referencia: '' });
     onClose();
   };
 
   const agregarDescuento = () => {
-    if (!nuevoDescuento.type || !nuevoDescuento.amount) {
-      alert('Todos los campos son obligatorios');
+    const amountNumerico = parseFloat(nuevoDescuento.amount) || 0;
+    if (!nuevoDescuento.type || amountNumerico <= 0) {
+      alert('Todos los campos son obligatorios y el monto debe ser mayor a 0');
       return;
     }
 
     setDescuentos(prev => [...prev, {
       type: nuevoDescuento.type,
-      amount: nuevoDescuento.amount,
+      amount: amountNumerico,
       reason: nuevoDescuento.reason
     }]);
     
-    setNuevoDescuento({ type: '', amount: 0, reason: '' });
+    setNuevoDescuento({ type: '', amount: '', reason: '' });
     setMostrarFormularioDescuento(false);
   };
 
@@ -121,20 +123,21 @@ const ModalLiquidacion: React.FC<ModalLiquidacionProps> = ({
   };
 
   const agregarReembolso = () => {
-    if (!nuevoReembolso.monto || !nuevoReembolso.motivo) {
-      alert('Monto y motivo son obligatorios');
+    const montoNumerico = parseFloat(nuevoReembolso.monto) || 0;
+    if (!nuevoReembolso.motivo || montoNumerico <= 0) {
+      alert('Motivo es obligatorio y el monto debe ser mayor a 0');
       return;
     }
 
     setReembolsos(prev => [...prev, {
-      monto: nuevoReembolso.monto,
+      monto: montoNumerico,
       motivo: nuevoReembolso.motivo,
       fecha: new Date(),
       metodo: nuevoReembolso.metodo,
       referencia: nuevoReembolso.referencia
     }]);
     
-    setNuevoReembolso({ monto: 0, motivo: '', metodo: 'efectivo', referencia: '' });
+    setNuevoReembolso({ monto: '', motivo: '', metodo: 'efectivo', referencia: '' });
     setMostrarFormularioReembolso(false);
   };
 
@@ -190,7 +193,7 @@ const ModalLiquidacion: React.FC<ModalLiquidacionProps> = ({
                 <span className="font-medium">Lavadora:</span> {pedido.lavadoraAsignada?.codigoQR || 'No asignada'}
               </div>
               <div>
-                <span className="font-medium">Fecha recogida:</span> {formatDate(new Date(), 'dd/MM/yyyy HH:mm')}
+                <span className="font-medium">Fecha recogida:</span> {pedido.fechaRecogida ? formatDate(pedido.fechaRecogida, 'dd/MM/yyyy HH:mm') : 'No recogido'}
               </div>
             </div>
           </div>
@@ -220,21 +223,21 @@ const ModalLiquidacion: React.FC<ModalLiquidacionProps> = ({
                     min="0"
                     className="w-20 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                     value={horasAdicionales}
-                    onChange={(e) => setHorasAdicionales(parseInt(e.target.value) || 0)}
+                    onChange={(e) => setHorasAdicionales(e.target.value)}
                     placeholder="0"
                   />
                 </div>
-                {horasAdicionales > 0 && (
+                {horasAdicionalesNum > 0 && (
                   <div className="text-sm text-gray-600">
                     × {formatCurrency(precioHoraAdicional)} = 
                     <span className="font-semibold text-primary-600 ml-1">
-                      {formatCurrency(horasAdicionales * precioHoraAdicional)}
+                      {formatCurrency(horasAdicionalesNum * precioHoraAdicional)}
                     </span>
                   </div>
                 )}
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Horas originales: {pedido.horasAdicionales} | Nuevas: {horasAdicionales}
+                Horas originales: {pedido.horasAdicionales} | Nuevas: {horasAdicionalesNum}
               </p>
             </div>
 
@@ -281,7 +284,7 @@ const ModalLiquidacion: React.FC<ModalLiquidacionProps> = ({
                         step="0.01"
                         className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                         value={nuevoDescuento.amount}
-                        onChange={(e) => setNuevoDescuento(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
+                        onChange={(e) => setNuevoDescuento(prev => ({ ...prev, amount: e.target.value }))}
                         placeholder="0"
                       />
                     </div>
@@ -310,7 +313,7 @@ const ModalLiquidacion: React.FC<ModalLiquidacionProps> = ({
                       type="button"
                       onClick={() => {
                         setMostrarFormularioDescuento(false);
-                        setNuevoDescuento({ type: '', amount: 0, reason: '' });
+                        setNuevoDescuento({ type: '', amount: '', reason: '' });
                       }}
                       className="px-3 py-1 text-sm bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
                     >
@@ -378,7 +381,7 @@ const ModalLiquidacion: React.FC<ModalLiquidacionProps> = ({
                         step="0.01"
                         className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                         value={nuevoReembolso.monto}
-                        onChange={(e) => setNuevoReembolso(prev => ({ ...prev, monto: parseFloat(e.target.value) || 0 }))}
+                        onChange={(e) => setNuevoReembolso(prev => ({ ...prev, monto: e.target.value }))}
                         placeholder="0"
                       />
                     </div>
@@ -435,7 +438,7 @@ const ModalLiquidacion: React.FC<ModalLiquidacionProps> = ({
                       type="button"
                       onClick={() => {
                         setMostrarFormularioReembolso(false);
-                        setNuevoReembolso({ monto: 0, motivo: '', metodo: 'efectivo', referencia: '' });
+                        setNuevoReembolso({ monto: '', motivo: '', metodo: 'efectivo', referencia: '' });
                       }}
                       className="px-3 py-1 text-sm bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
                     >
@@ -574,7 +577,7 @@ const ModalLiquidacion: React.FC<ModalLiquidacionProps> = ({
                   <span className="font-medium">{formatCurrency(subtotal)}</span>
                 </div>
                 
-                {horasAdicionales > 0 && (
+                {horasAdicionalesNum > 0 && (
                   <div className="flex justify-between">
                     <span className="text-gray-600">Horas adicionales ({horasAdicionales}):</span>
                     <span className="font-medium">{formatCurrency(totalHorasAdicionales)}</span>

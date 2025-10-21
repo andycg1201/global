@@ -9,8 +9,8 @@ import { lavadoraService } from '../services/firebaseService';
 import { Lavadora } from '../types';
 
 interface SelectorLavadorasProps {
-  lavadoraSeleccionada: string | null;
-  onLavadoraSeleccionada: (lavadoraId: string | null) => void;
+  lavadoraSeleccionada: Lavadora | null;
+  onLavadoraSeleccionada: (lavadora: Lavadora | null) => void;
   disabled?: boolean;
 }
 
@@ -31,11 +31,10 @@ const SelectorLavadoras: React.FC<SelectorLavadorasProps> = ({
       setLoading(true);
       // Cargar todas las lavadoras
       const lavadorasData = await lavadoraService.getAllLavadoras();
-      // Filtrar solo las lavadoras que están disponibles para alquilar
-      // (disponible o alquilada - para mostrar cuáles están ocupadas)
-      const lavadorasDisponibles = lavadorasData.filter(lavadora => 
-        lavadora.estado === 'disponible' || lavadora.estado === 'alquilada'
-      );
+      
+      // Mostrar todas las lavadoras con colores según su estado
+      const lavadorasDisponibles = lavadorasData;
+      
       // Ordenar por código QR ascendente
       const lavadorasOrdenadas = lavadorasDisponibles.sort((a, b) => 
         a.codigoQR.localeCompare(b.codigoQR)
@@ -68,6 +67,12 @@ const SelectorLavadoras: React.FC<SelectorLavadorasProps> = ({
           border: isSelected ? 'border-blue-500' : 'border-red-400',
           text: 'text-gray-900'
         };
+      case 'fuera_servicio':
+        return {
+          bg: isSelected ? 'bg-blue-100' : 'bg-gray-200',
+          border: isSelected ? 'border-blue-500' : 'border-gray-400',
+          text: 'text-gray-700'
+        };
       case 'retirada':
         return {
           bg: isSelected ? 'bg-blue-100' : 'bg-gray-200',
@@ -90,13 +95,23 @@ const SelectorLavadoras: React.FC<SelectorLavadorasProps> = ({
     const lavadora = lavadoras.find(l => l.id === lavadoraId);
     if (!lavadora) return;
     
-    // No permitir seleccionar lavadoras que están alquiladas
+    // No permitir seleccionar lavadoras que están alquiladas, en mantenimiento o fuera de servicio
     if (lavadora.estado === 'alquilada') {
       alert('Esta lavadora ya está alquilada y no está disponible');
       return;
     }
     
-    if (lavadoraSeleccionada?.id === lavadoraId) {
+    if (lavadora.estado === 'mantenimiento') {
+      alert('Esta lavadora está en mantenimiento y no está disponible');
+      return;
+    }
+    
+    if (lavadora.estado === 'fuera_servicio') {
+      alert('Esta lavadora está fuera de servicio y no está disponible');
+      return;
+    }
+    
+    if (lavadoraSeleccionada && lavadoraSeleccionada.id === lavadoraId) {
       // Deseleccionar si ya está seleccionada
       onLavadoraSeleccionada(null);
     } else {
@@ -144,9 +159,9 @@ const SelectorLavadoras: React.FC<SelectorLavadorasProps> = ({
       </label>
       <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
         {lavadoras.map((lavadora) => {
-          const isSelected = lavadoraSeleccionada?.id === lavadora.id;
-          const isDisabled = disabled || lavadora.estado === 'alquilada';
-          const colors = getEstadoColors(lavadora.estado, isSelected);
+          const isSelected = lavadoraSeleccionada && lavadoraSeleccionada.id === lavadora.id;
+          const isDisabled = disabled || lavadora.estado !== 'disponible';
+          const colors = getEstadoColors(lavadora.estado, !!isSelected);
           
           return (
             <button
@@ -191,7 +206,7 @@ const SelectorLavadoras: React.FC<SelectorLavadorasProps> = ({
           <div className="flex items-center space-x-2">
             <CheckCircleIcon className="h-5 w-5 text-blue-500" />
             <span className="text-sm font-medium text-blue-800">
-              Lavadora seleccionada: {lavadoras.find(l => l.id === lavadoraSeleccionada)?.codigoQR}
+              Lavadora seleccionada: {lavadoraSeleccionada?.codigoQR}
             </span>
           </div>
         </div>
@@ -199,7 +214,10 @@ const SelectorLavadoras: React.FC<SelectorLavadorasProps> = ({
       
       {/* Contador */}
       <div className="text-xs text-gray-500 text-center">
-        {lavadoras.filter(l => l.estado === 'disponible').length} disponible{lavadoras.filter(l => l.estado === 'disponible').length !== 1 ? 's' : ''} • {lavadoras.filter(l => l.estado === 'alquilada').length} alquilada{lavadoras.filter(l => l.estado === 'alquilada').length !== 1 ? 's' : ''}
+        <span className="text-green-600">●</span> {lavadoras.filter(l => l.estado === 'disponible').length} disponible{lavadoras.filter(l => l.estado === 'disponible').length !== 1 ? 's' : ''} • 
+        <span className="text-orange-600">●</span> {lavadoras.filter(l => l.estado === 'alquilada').length} alquilada{lavadoras.filter(l => l.estado === 'alquilada').length !== 1 ? 's' : ''} • 
+        <span className="text-red-600">●</span> {lavadoras.filter(l => l.estado === 'mantenimiento').length} mantenimiento • 
+        <span className="text-gray-600">●</span> {lavadoras.filter(l => l.estado === 'fuera_servicio').length} fuera de servicio
       </div>
     </div>
   );

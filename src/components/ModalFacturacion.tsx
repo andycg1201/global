@@ -24,7 +24,7 @@ const ModalFacturacion: React.FC<ModalFacturacionProps> = ({
   precioHoraAdicional
 }) => {
   const [cobrosAdicionales, setCobrosAdicionales] = useState<CobroAdicional[]>([]);
-  const [horasAdicionales, setHorasAdicionales] = useState(0);
+  const [horasAdicionales, setHorasAdicionales] = useState<string>('0');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>({
     type: 'efectivo',
     method: 'efectivo',
@@ -35,13 +35,14 @@ const ModalFacturacion: React.FC<ModalFacturacionProps> = ({
   const [mostrarFormularioCobro, setMostrarFormularioCobro] = useState(false);
   const [nuevoCobro, setNuevoCobro] = useState({
     concepto: '',
-    monto: 0,
+    monto: '',
     descripcion: ''
   });
 
   // Calcular totales
   const subtotal = pedido.plan.price;
-  const totalHorasAdicionales = horasAdicionales * precioHoraAdicional;
+  const horasAdicionalesNum = parseInt(horasAdicionales) || 0;
+  const totalHorasAdicionales = horasAdicionalesNum * precioHoraAdicional;
   const totalCobrosAdicionales = cobrosAdicionales.reduce((sum, cobro) => sum + cobro.monto, 0);
   const total = subtotal + totalHorasAdicionales + totalCobrosAdicionales;
 
@@ -52,7 +53,7 @@ const ModalFacturacion: React.FC<ModalFacturacionProps> = ({
     try {
       const facturacion = {
         cobrosAdicionales,
-        horasAdicionales,
+        horasAdicionales: horasAdicionalesNum,
         paymentMethod: pedido.estadoPago === 'pagado_anticipado' ? undefined : paymentMethod,
         observacionesPago
       };
@@ -71,7 +72,7 @@ const ModalFacturacion: React.FC<ModalFacturacionProps> = ({
 
   const handleClose = () => {
     setCobrosAdicionales([]);
-    setHorasAdicionales(0);
+    setHorasAdicionales('0');
     setPaymentMethod({
       type: 'efectivo',
       method: 'efectivo',
@@ -79,23 +80,24 @@ const ModalFacturacion: React.FC<ModalFacturacionProps> = ({
     });
     setObservacionesPago('');
     setMostrarFormularioCobro(false);
-    setNuevoCobro({ concepto: '', monto: 0, descripcion: '' });
+    setNuevoCobro({ concepto: '', monto: '', descripcion: '' });
     onClose();
   };
 
   const agregarCobroAdicional = () => {
-    if (!nuevoCobro.concepto || !nuevoCobro.monto) {
-      alert('Todos los campos son obligatorios');
+    const montoNumerico = parseFloat(nuevoCobro.monto) || 0;
+    if (!nuevoCobro.concepto || montoNumerico <= 0) {
+      alert('Todos los campos son obligatorios y el monto debe ser mayor a 0');
       return;
     }
 
     setCobrosAdicionales(prev => [...prev, {
       concepto: nuevoCobro.concepto,
-      monto: nuevoCobro.monto,
+      monto: montoNumerico,
       descripcion: nuevoCobro.descripcion
     }]);
     
-    setNuevoCobro({ concepto: '', monto: 0, descripcion: '' });
+    setNuevoCobro({ concepto: '', monto: '', descripcion: '' });
     setMostrarFormularioCobro(false);
   };
 
@@ -156,7 +158,7 @@ const ModalFacturacion: React.FC<ModalFacturacionProps> = ({
                 <span className="font-medium">Lavadora:</span> {pedido.lavadoraAsignada?.codigoQR || 'No asignada'}
               </div>
               <div>
-                <span className="font-medium">Fecha entrega:</span> {formatDate(new Date(), 'dd/MM/yyyy HH:mm')}
+                <span className="font-medium">Fecha entrega:</span> {pedido.fechaEntrega ? formatDate(pedido.fechaEntrega, 'dd/MM/yyyy HH:mm') : 'No entregado'}
               </div>
             </div>
           </div>
@@ -187,15 +189,15 @@ const ModalFacturacion: React.FC<ModalFacturacionProps> = ({
                     min="0"
                     className="w-20 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                     value={horasAdicionales}
-                    onChange={(e) => setHorasAdicionales(parseInt(e.target.value) || 0)}
+                    onChange={(e) => setHorasAdicionales(e.target.value)}
                     placeholder="0"
                   />
                 </div>
-                {horasAdicionales > 0 && (
+                {horasAdicionalesNum > 0 && (
                   <div className="text-sm text-gray-600">
                     × {formatCurrency(precioHoraAdicional)} = 
                     <span className="font-semibold text-primary-600 ml-1">
-                      {formatCurrency(horasAdicionales * precioHoraAdicional)}
+                      {formatCurrency(horasAdicionalesNum * precioHoraAdicional)}
                     </span>
                   </div>
                 )}
@@ -245,7 +247,7 @@ const ModalFacturacion: React.FC<ModalFacturacionProps> = ({
                         step="0.01"
                         className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
                         value={nuevoCobro.monto}
-                        onChange={(e) => setNuevoCobro(prev => ({ ...prev, monto: parseFloat(e.target.value) || 0 }))}
+                        onChange={(e) => setNuevoCobro(prev => ({ ...prev, monto: e.target.value }))}
                         placeholder="0"
                       />
                     </div>
@@ -274,7 +276,7 @@ const ModalFacturacion: React.FC<ModalFacturacionProps> = ({
                       type="button"
                       onClick={() => {
                         setMostrarFormularioCobro(false);
-                        setNuevoCobro({ concepto: '', monto: 0, descripcion: '' });
+                        setNuevoCobro({ concepto: '', monto: '', descripcion: '' });
                       }}
                       className="px-3 py-1 text-sm bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
                     >
@@ -415,7 +417,7 @@ const ModalFacturacion: React.FC<ModalFacturacionProps> = ({
                   <span className="font-medium">{formatCurrency(subtotal)}</span>
                 </div>
                 
-                {horasAdicionales > 0 && (
+                {horasAdicionalesNum > 0 && (
                   <div className="flex justify-between">
                     <span className="text-gray-600">Horas adicionales ({horasAdicionales}):</span>
                     <span className="font-medium">{formatCurrency(totalHorasAdicionales)}</span>

@@ -28,7 +28,7 @@ export const ModalMantenimiento: React.FC<ModalMantenimientoProps> = ({
   // Estados para crear mantenimiento
   const [tipoFalla, setTipoFalla] = useState('');
   const [descripcion, setDescripcion] = useState('');
-  const [costoReparacion, setCostoReparacion] = useState<number>(0);
+  const [costoReparacion, setCostoReparacion] = useState<string>('');
   const [servicioTecnico, setServicioTecnico] = useState('');
   const [fechaEstimadaFin, setFechaEstimadaFin] = useState('');
   const [observaciones, setObservaciones] = useState('');
@@ -58,7 +58,8 @@ export const ModalMantenimiento: React.FC<ModalMantenimientoProps> = ({
           throw new Error('Todos los campos obligatorios deben ser completados');
         }
 
-        if (costoReparacion < 0) {
+        const costoNumerico = parseFloat(costoReparacion) || 0;
+        if (costoNumerico < 0) {
           throw new Error('El costo de reparación no puede ser negativo');
         }
 
@@ -71,7 +72,7 @@ export const ModalMantenimiento: React.FC<ModalMantenimientoProps> = ({
           lavadora.id,
           tipoFalla,
           descripcion,
-          costoReparacion,
+          costoNumerico,
           servicioTecnico,
           fechaFin,
           userId,
@@ -99,7 +100,7 @@ export const ModalMantenimiento: React.FC<ModalMantenimientoProps> = ({
   const resetForm = () => {
     setTipoFalla('');
     setDescripcion('');
-    setCostoReparacion(0);
+    setCostoReparacion('');
     setServicioTecnico('');
     setFechaEstimadaFin('');
     setObservaciones('');
@@ -196,7 +197,7 @@ export const ModalMantenimiento: React.FC<ModalMantenimientoProps> = ({
                   <input
                     type="number"
                     value={costoReparacion}
-                    onChange={(e) => setCostoReparacion(Number(e.target.value))}
+                    onChange={(e) => setCostoReparacion(e.target.value)}
                     min="0"
                     step="0.01"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"

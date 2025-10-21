@@ -3,6 +3,16 @@ import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getAnalytics } from 'firebase/analytics';
 
+// Suprimir errores de BloomFilter de Firebase (errores internos que no afectan funcionalidad)
+const originalConsoleWarn = console.warn;
+console.warn = (...args) => {
+  const message = args[0];
+  if (typeof message === 'string' && message.includes('BloomFilter error')) {
+    return; // Suprimir este error específico
+  }
+  originalConsoleWarn.apply(console, args);
+};
+
 // Configuración de Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyCfvWZ3JSNunOOjXo3hrVBPITcNcgmsYzk",

@@ -11,6 +11,8 @@ import { gastoService } from '../services/firebaseService';
 import { useAuth } from '../contexts/AuthContext';
 import { Gasto, ConceptoGasto } from '../types';
 import { formatDate, formatCurrency, getCurrentDateColombia } from '../utils/dateUtils';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 interface FiltrosGastos {
   fechaInicio: Date;
@@ -22,14 +24,15 @@ interface FiltrosGastos {
 const Gastos: React.FC = () => {
   const { user } = useAuth();
   const [gastos, setGastos] = useState<Gasto[]>([]);
+  const [gastosMantenimiento, setGastosMantenimiento] = useState<any[]>([]);
   const [conceptos, setConceptos] = useState<ConceptoGasto[]>([]);
   const [loading, setLoading] = useState(true);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [nuevoGasto, setNuevoGasto] = useState({
     conceptoId: '',
-    amount: 0,
+    amount: '',
     description: '',
-    date: getCurrentDateColombia()
+    date: new Date() // Usar new Date() directamente para fecha actual
   });
 
   // Debug: Verificar fecha inicial
@@ -39,8 +42,8 @@ const Gastos: React.FC = () => {
   }, []);
   
   const [filtros, setFiltros] = useState<FiltrosGastos>({
-    fechaInicio: getCurrentDateColombia(),
-    fechaFin: getCurrentDateColombia(),
+    fechaInicio: new Date(), // Fecha actual real
+    fechaFin: new Date(), // Fecha actual real
     conceptoId: 'todos',
     tipoFiltro: 'hoy'
   });
@@ -65,10 +68,34 @@ const Gastos: React.FC = () => {
       const gastosData = await gastoService.getGastosDelRango(filtros.fechaInicio, filtros.fechaFin);
       const conceptosData = await gastoService.getConceptosActivos();
       
+      // Obtener gastos de mantenimiento del rango de fechas
+      const mantenimientosSnapshot = await getDocs(collection(db, 'mantenimientos'));
+      const mantenimientosData = mantenimientosSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          lavadoraId: data.lavadoraId,
+          tipoFalla: data.tipoFalla,
+          descripcion: data.descripcion,
+          costoReparacion: data.costoReparacion,
+          servicioTecnico: data.servicioTecnico,
+          fechaInicio: data.fechaInicio?.toDate() || new Date(),
+          fechaEstimadaFin: data.fechaEstimadaFin?.toDate() || new Date(),
+          fechaFin: data.fechaFin?.toDate(),
+          fotos: data.fotos || [],
+          observaciones: data.observaciones || '',
+          createdBy: data.createdBy,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date()
+        };
+      });
+      
       console.log('Gastos cargados:', gastosData);
+      console.log('Gastos de mantenimiento cargados:', mantenimientosData);
       console.log('Conceptos cargados:', conceptosData);
       
       setGastos(gastosData);
+      setGastosMantenimiento(mantenimientosData);
       setConceptos(conceptosData);
     } catch (error) {
       console.error('Error al cargar datos:', error);
@@ -80,7 +107,8 @@ const Gastos: React.FC = () => {
   const crearGasto = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!nuevoGasto.conceptoId || nuevoGasto.amount <= 0) {
+    const amountNumerico = parseFloat(nuevoGasto.amount) || 0;
+    if (!nuevoGasto.conceptoId || amountNumerico <= 0) {
       alert('Concepto y monto son obligatorios');
       return;
     }
@@ -97,20 +125,23 @@ const Gastos: React.FC = () => {
         return;
       }
 
+      // Usar la fecha actual en el momento exacto de crear el gasto
+      const fechaActual = new Date();
+      
       await gastoService.createGasto({
         conceptoId: nuevoGasto.conceptoId,
         concepto,
-        amount: nuevoGasto.amount,
+        amount: amountNumerico,
         description: nuevoGasto.description,
-        date: nuevoGasto.date,
+        date: fechaActual, // Fecha actual real
         createdBy: user.id
       });
       
       setNuevoGasto({
         conceptoId: '',
-        amount: 0,
+        amount: '',
         description: '',
-        date: getCurrentDateColombia()
+        date: new Date() // Resetear con fecha actual
       });
       setMostrarFormulario(false);
       cargarDatos();
@@ -130,7 +161,7 @@ const Gastos: React.FC = () => {
   }
 
   const aplicarFiltroRapido = (tipo: 'hoy' | 'ayer') => {
-    const hoy = getCurrentDateColombia();
+    const hoy = new Date(); // Fecha actual real
     const ayer = new Date(hoy);
     ayer.setDate(ayer.getDate() - 1);
 
@@ -246,7 +277,16 @@ const Gastos: React.FC = () => {
     return cumpleConcepto;
   });
 
-  const totalGastos = gastosFiltrados.reduce((sum, gasto) => sum + gasto.amount, 0);
+  // Filtrar gastos de mantenimiento por fecha
+  const gastosMantenimientoFiltrados = gastosMantenimiento.filter(mantenimiento => {
+    if (!mantenimiento.fechaFin) return false; // Solo mantenimientos finalizados
+    const fechaMantenimiento = new Date(mantenimiento.fechaFin);
+    return fechaMantenimiento >= filtros.fechaInicio && fechaMantenimiento <= filtros.fechaFin;
+  });
+
+  const totalGastosGenerales = gastosFiltrados.reduce((sum, gasto) => sum + gasto.amount, 0);
+  const totalGastosMantenimiento = gastosMantenimientoFiltrados.reduce((sum, mantenimiento) => sum + (mantenimiento.costoReparacion || 0), 0);
+  const totalGastos = totalGastosGenerales + totalGastosMantenimiento;
 
   return (
     <div className="space-y-6">
@@ -277,6 +317,27 @@ const Gastos: React.FC = () => {
               <p className="text-2xl font-bold text-gray-900">
                 {formatCurrency(totalGastos)}
               </p>
+              {/* Desglose de gastos */}
+              {(totalGastosGenerales > 0 || totalGastosMantenimiento > 0) && (
+                <div className="mt-2 space-y-1">
+                  {totalGastosGenerales > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-500">Gastos Generales:</span>
+                      <span className="text-orange-600 font-medium">
+                        {formatCurrency(totalGastosGenerales)}
+                      </span>
+                    </div>
+                  )}
+                  {totalGastosMantenimiento > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-500">Mantenimiento:</span>
+                      <span className="text-red-600 font-medium">
+                        {formatCurrency(totalGastosMantenimiento)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -288,7 +349,24 @@ const Gastos: React.FC = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Gastos Registrados</p>
-              <p className="text-2xl font-semibold text-gray-900">{gastosFiltrados.length}</p>
+              <p className="text-2xl font-semibold text-gray-900">{gastosFiltrados.length + gastosMantenimientoFiltrados.length}</p>
+              {/* Desglose de contadores */}
+              {(gastosFiltrados.length > 0 || gastosMantenimientoFiltrados.length > 0) && (
+                <div className="mt-1 space-y-1">
+                  {gastosFiltrados.length > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-500">Generales:</span>
+                      <span className="text-orange-600 font-medium">{gastosFiltrados.length}</span>
+                    </div>
+                  )}
+                  {gastosMantenimientoFiltrados.length > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-500">Mantenimiento:</span>
+                      <span className="text-red-600 font-medium">{gastosMantenimientoFiltrados.length}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -301,7 +379,9 @@ const Gastos: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Promedio por Gasto</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {gastosFiltrados.length > 0 ? formatCurrency(totalGastos / gastosFiltrados.length) : formatCurrency(0)}
+                {(gastosFiltrados.length + gastosMantenimientoFiltrados.length) > 0 ? 
+                  formatCurrency(totalGastos / (gastosFiltrados.length + gastosMantenimientoFiltrados.length)) : 
+                  formatCurrency(0)}
               </p>
             </div>
           </div>
@@ -362,7 +442,7 @@ const Gastos: React.FC = () => {
                   step="100"
                   className="input-field"
                   value={nuevoGasto.amount}
-                  onChange={(e) => setNuevoGasto(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
+                  onChange={(e) => setNuevoGasto(prev => ({ ...prev, amount: e.target.value }))}
                   required
                 />
               </div>
@@ -625,10 +705,10 @@ const Gastos: React.FC = () => {
       {/* Lista de gastos */}
       <div className="card">
         <h3 className="text-lg font-medium text-gray-900 mb-4">
-          Gastos ({gastosFiltrados.length})
+          Gastos ({gastosFiltrados.length + gastosMantenimientoFiltrados.length})
         </h3>
         
-        {gastosFiltrados.length === 0 ? (
+        {(gastosFiltrados.length + gastosMantenimientoFiltrados.length) === 0 ? (
           <div className="text-center py-8">
             <CurrencyDollarIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-500">No hay gastos registrados hoy</p>
@@ -656,6 +736,7 @@ const Gastos: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
+                {/* Gastos generales */}
                 {gastosFiltrados.map((gasto) => (
                   <tr key={gasto.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -678,6 +759,33 @@ const Gastos: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatDate(gasto.createdAt, 'HH:mm')}
+                    </td>
+                  </tr>
+                ))}
+                
+                {/* Gastos de mantenimiento */}
+                {gastosMantenimientoFiltrados.map((mantenimiento) => (
+                  <tr key={`mant-${mantenimiento.id}`} className="hover:bg-gray-50 bg-red-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-red-800">
+                        Mantenimiento - {mantenimiento.tipoFalla}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-900">
+                        {mantenimiento.descripcion || '-'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-red-600">
+                        {formatCurrency(mantenimiento.costoReparacion || 0)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {formatDate(mantenimiento.fechaFin, 'dd/MM/yyyy HH:mm')}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatDate(mantenimiento.createdAt, 'HH:mm')}
                     </td>
                   </tr>
                 ))}

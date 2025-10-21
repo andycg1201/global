@@ -9,6 +9,7 @@ import {
   XMarkIcon
 } from '@heroicons/react/24/outline';
 import { configService, planService, resetService } from '../services/firebaseService';
+import { storageService, ejecutarLimpiezaAutomatica } from '../services/storageService';
 import { Configuracion, Plan } from '../types';
 import { formatCurrency } from '../utils/dateUtils';
 
@@ -21,6 +22,12 @@ const Configuracion: React.FC = () => {
   const [planEditando, setPlanEditando] = useState<Plan | null>(null);
   const [mostrarConfirmacionReset, setMostrarConfirmacionReset] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [estadisticasStorage, setEstadisticasStorage] = useState({
+    totalFotos: 0,
+    tamañoTotal: 0,
+    fotosAntiguas: 0
+  });
+  const [limpiando, setLimpiando] = useState(false);
   
   const [formData, setFormData] = useState({
     horaAdicional: 2000
@@ -43,9 +50,10 @@ const Configuracion: React.FC = () => {
   const cargarDatos = async () => {
     setLoading(true);
     try {
-      const [config, planesData] = await Promise.all([
+      const [config, planesData, stats] = await Promise.all([
         configService.getConfiguracion(),
-        planService.getActivePlans()
+        planService.getActivePlans(),
+        storageService.obtenerEstadisticas()
       ]);
       
       if (config) {
@@ -56,6 +64,7 @@ const Configuracion: React.FC = () => {
       }
       
       setPlanes(planesData);
+      setEstadisticasStorage(stats);
     } catch (error) {
       console.error('Error al cargar datos:', error);
     } finally {
@@ -139,6 +148,24 @@ const Configuracion: React.FC = () => {
       alert('Error al resetear los datos: ' + (error as Error).message);
     } finally {
       setResetting(false);
+    }
+  };
+
+  const handleLimpiarFotosAntiguas = async () => {
+    setLimpiando(true);
+    try {
+      const fotosEliminadas = await storageService.eliminarFotosAntiguas();
+      
+      // Recargar estadísticas
+      const stats = await storageService.obtenerEstadisticas();
+      setEstadisticasStorage(stats);
+      
+      alert(`✅ Limpieza completada: ${fotosEliminadas} fotos eliminadas`);
+    } catch (error) {
+      console.error('Error al limpiar fotos:', error);
+      alert('Error al limpiar fotos antiguas: ' + (error as Error).message);
+    } finally {
+      setLimpiando(false);
     }
   };
 
@@ -244,6 +271,42 @@ const Configuracion: React.FC = () => {
             </div>
           </div>
         </form>
+      </div>
+
+      {/* Gestión de Fotos */}
+      <div className="card">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <h3 className="text-lg font-medium text-blue-800 mb-2">📸 Gestión de Fotos de Instalación</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">{estadisticasStorage.totalFotos}</div>
+              <div className="text-sm text-blue-600">Total Fotos</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">
+                {(estadisticasStorage.tamañoTotal / 1024 / 1024).toFixed(1)} MB
+              </div>
+              <div className="text-sm text-blue-600">Espacio Usado</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-orange-600">{estadisticasStorage.fotosAntiguas}</div>
+              <div className="text-sm text-orange-600">Fotos Antiguas (&gt;30 días)</div>
+            </div>
+          </div>
+          <p className="text-sm text-blue-600 mb-4">
+            Las fotos se eliminan automáticamente después de 30 días para ahorrar espacio.
+          </p>
+          <div className="flex justify-end">
+            <button
+              onClick={handleLimpiarFotosAntiguas}
+              className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center"
+              disabled={limpiando || estadisticasStorage.fotosAntiguas === 0}
+            >
+              <TrashIcon className="h-5 w-5 mr-2" />
+              {limpiando ? 'Limpiando...' : `Limpiar ${estadisticasStorage.fotosAntiguas} Fotos Antiguas`}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Gestión de planes */}

@@ -15,6 +15,7 @@ import {
   DocumentTextIcon
 } from '@heroicons/react/24/outline';
 import { lavadoraService } from '../services/firebaseService';
+import { deleteField } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { Lavadora, Mantenimiento } from '../types';
 import { formatDate } from '../utils/dateUtils';
@@ -91,7 +92,7 @@ const InventarioLavadoras: React.FC = () => {
           
           try {
             const querySnapshot = await getDocs(collection(db, 'mantenimientos'));
-            const mantenimientos = [];
+            const mantenimientos: any[] = [];
             
             querySnapshot.forEach((doc) => {
               const data = doc.data();
@@ -139,7 +140,7 @@ const InventarioLavadoras: React.FC = () => {
       
       // Calcular gastos (mantenimientos de esta lavadora)
       const mantenimientosLavadora = mantenimientos.filter(mant => 
-        mant.lavadoraId === lavadora.id && mant.estado === 'completado'
+        mant.lavadoraId === lavadora.id && (mant as any).estado === 'completado'
       );
       
       const gastos = mantenimientosLavadora.reduce((sum, mant) => sum + (mant.costoReparacion || 0), 0);
@@ -262,7 +263,15 @@ const InventarioLavadoras: React.FC = () => {
       const mantenimientoActivo = await obtenerMantenimientoPorId(lavadora.mantenimientoActual.mantenimientoId);
       
       if (!mantenimientoActivo) {
-        alert('No se pudo encontrar la información completa del mantenimiento');
+        // Si no se encuentra el mantenimiento (por ejemplo, después de Reset Todo),
+        // simplemente marcar la lavadora como disponible sin abrir el modal
+        console.log('Mantenimiento no encontrado, marcando lavadora como disponible directamente');
+        await lavadoraService.updateLavadora(lavadora.id, {
+          estado: 'disponible',
+          mantenimientoActual: deleteField() as any
+        });
+        cargarLavadoras();
+        alert('Lavadora marcada como disponible (mantenimiento no encontrado)');
         return;
       }
       

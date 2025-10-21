@@ -1,0 +1,7 @@
+[
+  {
+    "origin": ["http://localhost:5173", "http://localhost:3000", "https://global-da5ac.web.app"],
+    "method": ["GET", "POST", "PUT", "DELETE"],
+    "maxAgeSeconds": 3600
+  }
+]

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { XMarkIcon, QrCodeIcon, CameraIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { Pedido, Lavadora } from '../types';
+import { storageService } from '../services/storageService';
 // Usaremos html5-qrcode para escanear con la cámara
 // Se importa de forma dinámica para evitar problemas en SSR/build si no existe window
 let Html5Qrcode: any;
@@ -27,6 +28,8 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
 }) => {
   const [qrEscaneado, setQrEscaneado] = useState<string>('');
   const [fotoInstalacion, setFotoInstalacion] = useState<string>('');
+  const [fotoFile, setFotoFile] = useState<File | null>(null);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
   const [observacionesValidacion, setObservacionesValidacion] = useState<string>('');
   const [mostrarConfirmacion, setMostrarConfirmacion] = useState<boolean>(false);
   const [cambioDetectado, setCambioDetectado] = useState<boolean>(false);
@@ -103,44 +106,22 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
     }
   };
 
-  const handleFotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      // Comprimir la imagen antes de guardarla
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const img = new Image();
+      setFotoFile(file);
       
-      img.onload = () => {
-        // Redimensionar la imagen para que sea más pequeña
-        const maxWidth = 800;
-        const maxHeight = 600;
-        let { width, height } = img;
-        
-        if (width > height) {
-          if (width > maxWidth) {
-            height = (height * maxWidth) / width;
-            width = maxWidth;
-          }
-        } else {
-          if (height > maxHeight) {
-            width = (width * maxHeight) / height;
-            height = maxHeight;
-          }
-        }
-        
-        canvas.width = width;
-        canvas.height = height;
-        
-        // Dibujar la imagen redimensionada
-        ctx?.drawImage(img, 0, 0, width, height);
-        
-        // Convertir a base64 con calidad reducida
-        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
-        setFotoInstalacion(compressedDataUrl);
-      };
-      
-      img.src = URL.createObjectURL(file);
+      try {
+        // Crear preview temporal para mostrar la imagen
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setFotoInstalacion(e.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+      } catch (error) {
+        console.error('Error al procesar la foto:', error);
+        alert('Error al procesar la foto');
+      }
     }
   };
 
@@ -148,29 +129,61 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
     setMostrarConfirmacion(false);
   };
 
-  const handleConfirmar = () => {
+  const handleConfirmar = async () => {
     if (!qrEscaneado) {
       alert('Debe escanear el código QR de la lavadora');
       return;
     }
 
-    if (!fotoInstalacion) {
+    if (!fotoFile) {
       alert('Debe tomar una foto de la instalación');
       return;
     }
 
-    onConfirm({
-      lavadoraEscaneada: qrEscaneado,
-      cambioRealizado: cambioDetectado,
-      fotoInstalacion,
-      observacionesValidacion
-    });
+    try {
+      setSubiendoFoto(true);
+      
+      // Timeout más corto para móviles (15 segundos)
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+      const timeoutDuration = isMobile ? 15000 : 30000;
+      const timeoutId = setTimeout(() => {
+        alert('La subida de foto está tardando mucho. Inténtalo de nuevo.');
+        setSubiendoFoto(false);
+      }, timeoutDuration);
+      
+      // Subir foto a Firebase Storage
+      const lavadoraCodigo = qrEscaneado;
+      const fotoUrl = await storageService.subirFotoInstalacion(
+        fotoFile, 
+        pedido.id, 
+        lavadoraCodigo
+      );
+
+      // Cancelar timeout
+      clearTimeout(timeoutId);
+
+      // Resetear estado antes de cerrar
+      setSubiendoFoto(false);
+      
+      onConfirm({
+        lavadoraEscaneada: qrEscaneado,
+        cambioRealizado: cambioDetectado,
+        fotoInstalacion: fotoUrl, // Ahora es una URL, no base64
+        observacionesValidacion
+      });
+    } catch (error) {
+      console.error('Error al subir foto:', error);
+      alert('Error al subir la foto. Inténtalo de nuevo.');
+      setSubiendoFoto(false);
+    }
   };
 
   const handleClose = () => {
     stopScanner();
     setQrEscaneado('');
     setFotoInstalacion('');
+    setFotoFile(null);
+    setSubiendoFoto(false);
     setObservacionesValidacion('');
     setMostrarConfirmacion(false);
     setCambioDetectado(false);
@@ -345,10 +358,10 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
           </button>
           <button
             onClick={handleConfirmar}
-            disabled={!qrEscaneado || !fotoInstalacion}
+            disabled={!qrEscaneado || !fotoFile || subiendoFoto}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
           >
-            Continuar a Facturación
+            {subiendoFoto ? 'Subiendo Foto...' : 'Continuar a Facturación'}
           </button>
         </div>
 

@@ -233,12 +233,17 @@ const EditarPedido: React.FC<EditarPedidoProps> = ({ pedido, onClose, onSave }) 
                 <button
                   key={tipo}
                   type="button"
-                  onClick={() => setFormData(prev => ({ 
-                    ...prev, 
-                    paymentMethod: { ...prev.paymentMethod, type: tipo as 'efectivo' | 'nequi' | 'daviplata' }
+                  onClick={() => setFormData(prev => ({
+                    ...prev,
+                    paymentMethod: { 
+                      ...prev.paymentMethod, 
+                      type: tipo as 'efectivo' | 'nequi' | 'daviplata',
+                      method: prev.paymentMethod?.method || 'efectivo',
+                      amount: prev.paymentMethod?.amount || 0
+                    }
                   }))}
                   className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    formData.paymentMethod.type === tipo
+                    formData.paymentMethod?.type === tipo
                       ? tipo === 'efectivo' 
                         ? 'bg-green-100 text-green-800 border-2 border-green-300' 
                         : 'bg-blue-100 text-blue-800 border-2 border-blue-300'
@@ -251,7 +256,7 @@ const EditarPedido: React.FC<EditarPedidoProps> = ({ pedido, onClose, onSave }) 
             </div>
           </div>
           
-          {formData.paymentMethod.type !== 'efectivo' && (
+          {formData.paymentMethod?.type !== 'efectivo' && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Método</label>
               <div className="flex gap-2">
@@ -259,12 +264,17 @@ const EditarPedido: React.FC<EditarPedidoProps> = ({ pedido, onClose, onSave }) 
                   <button
                     key={metodo}
                     type="button"
-                    onClick={() => setFormData(prev => ({ 
-                      ...prev, 
-                      paymentMethod: { ...prev.paymentMethod, method: metodo as 'deposito' | 'transferencia' }
+                    onClick={() => setFormData(prev => ({
+                      ...prev,
+                      paymentMethod: { 
+                        ...prev.paymentMethod, 
+                        method: metodo as 'deposito' | 'transferencia',
+                        type: prev.paymentMethod?.type || 'efectivo',
+                        amount: prev.paymentMethod?.amount || 0
+                      }
                     }))}
                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                      formData.paymentMethod.method === metodo
+                      formData.paymentMethod?.method === metodo
                         ? 'bg-blue-100 text-blue-800 border-2 border-blue-300'
                         : 'bg-gray-100 text-gray-600 border-2 border-gray-200 hover:bg-gray-200'
                     }`}

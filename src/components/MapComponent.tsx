@@ -116,7 +116,7 @@ const LocationPicker: React.FC<{
         const { lat, lng } = e.latlng;
         onLocationSelect(lat, lng);
       }, 3000); // 3 segundos
-      setLongPressTimer(timer);
+      setLongPressTimer(timer as any);
     },
     
     // Para móvil - fin del toque

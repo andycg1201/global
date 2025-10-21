@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MagnifyingGlassIcon, PlusIcon, MapPinIcon, PhoneIcon, UserGroupIcon, EyeIcon, XMarkIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { clienteService } from '../services/firebaseService';
 import { Cliente } from '../types';
-import { formatDate } from '../utils/dateUtils';
+import { formatDate, generateWhatsAppLink } from '../utils/dateUtils';
 import MapComponent from '../components/MapComponent';
 import ModalCliente from '../components/ModalCliente';
 
@@ -227,7 +227,7 @@ const Clientes: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <a
-                        href={`https://wa.me/57${cliente.phone.replace(/\D/g, '')}?text=Hola ${cliente.name}, te contactamos desde Alquiler Global.`}
+                        href={generateWhatsAppLink(cliente.phone, cliente.name)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center text-sm text-primary-600 hover:text-primary-800 transition-colors"

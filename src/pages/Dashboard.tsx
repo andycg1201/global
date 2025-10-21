@@ -11,6 +11,9 @@ import {
 } from '@heroicons/react/24/outline';
 import { formatCurrency, formatDate, getCurrentDateColombia } from '../utils/dateUtils';
 import { pedidoService, reporteService, gastoService, clienteService, lavadoraService, configService } from '../services/firebaseService';
+import { obtenerHistorialMantenimiento } from '../services/mantenimientoService';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { Pedido, ReporteDiario, Lavadora, Configuracion } from '../types';
 import PedidosPendientes from '../components/PedidosPendientes';
 import ModalValidacionQR from '../components/ModalValidacionQR';
@@ -46,6 +49,8 @@ const Dashboard: React.FC = () => {
   const [datosFinancieros, setDatosFinancieros] = useState({
     ingresos: 0,
     gastos: 0,
+    gastosGenerales: 0,
+    gastosMantenimiento: 0,
     neto: 0,
     ingresosPorPlan: {} as { [key: string]: { name: string; amount: number; count: number } },
     pedidosCompletados: 0
@@ -105,7 +110,38 @@ const Dashboard: React.FC = () => {
 
       // Obtener gastos del rango de fechas
       const todosLosGastos = await gastoService.getGastosDelRango(fechaInicio, fechaFin);
-      const totalGastos = todosLosGastos.reduce((sum, gasto) => sum + gasto.amount, 0);
+      const totalGastosGenerales = todosLosGastos.reduce((sum, gasto) => sum + gasto.amount, 0);
+      
+      // Obtener gastos de mantenimiento de lavadoras del rango de fechas
+      // Obtener todos los mantenimientos directamente de la colección
+      const mantenimientosSnapshot = await getDocs(collection(db, 'mantenimientos'));
+      const todosLosMantenimientos = mantenimientosSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          lavadoraId: data.lavadoraId,
+          tipoFalla: data.tipoFalla,
+          descripcion: data.descripcion,
+          costoReparacion: data.costoReparacion,
+          servicioTecnico: data.servicioTecnico,
+          fechaInicio: data.fechaInicio?.toDate() || new Date(),
+          fechaEstimadaFin: data.fechaEstimadaFin?.toDate() || new Date(),
+          fechaFin: data.fechaFin?.toDate(),
+          fotos: data.fotos || [],
+          observaciones: data.observaciones || '',
+          createdBy: data.createdBy,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date()
+        };
+      });
+      const mantenimientosFiltrados = todosLosMantenimientos.filter(mantenimiento => {
+        if (!mantenimiento.fechaFin) return false; // Solo mantenimientos finalizados
+        const fechaMantenimiento = new Date(mantenimiento.fechaFin);
+        return fechaMantenimiento >= fechaInicio && fechaMantenimiento <= fechaFin;
+      });
+      const totalGastosMantenimiento = mantenimientosFiltrados.reduce((sum, mantenimiento) => sum + (mantenimiento.costoReparacion || 0), 0);
+      
+      const totalGastos = totalGastosGenerales + totalGastosMantenimiento;
 
       // Calcular ingresos
       const ingresos = pedidosFiltrados
@@ -137,6 +173,8 @@ const Dashboard: React.FC = () => {
       const resultado = {
         ingresos,
         gastos: totalGastos,
+        gastosGenerales: totalGastosGenerales,
+        gastosMantenimiento: totalGastosMantenimiento,
         neto: ingresos - totalGastos,
         ingresosPorPlan: ingresosPorPlanCalculado,
         pedidosCompletados: pedidosFiltrados.filter(p => p.status === 'recogido').length
@@ -149,6 +187,8 @@ const Dashboard: React.FC = () => {
       return {
         ingresos: 0,
         gastos: 0,
+        gastosGenerales: 0,
+        gastosMantenimiento: 0,
         neto: 0,
         ingresosPorPlan: {},
         pedidosCompletados: 0
@@ -367,6 +407,21 @@ const Dashboard: React.FC = () => {
       setPedidoAValidar(null);
       
       // Recargar datos
+      const cargarDatos = async () => {
+        try {
+          const hoy = getCurrentDateColombia();
+          
+          const [pedidosData, configuracionData] = await Promise.all([
+            pedidoService.getAllPedidos(),
+            configService.getConfiguracion()
+          ]);
+          
+          // Los pedidos se procesan en el useEffect principal
+          setConfiguracion(configuracionData);
+        } catch (error) {
+          console.error('Error al cargar datos:', error);
+        }
+      };
       cargarDatos();
       cargarLavadoras();
       
@@ -410,6 +465,21 @@ const Dashboard: React.FC = () => {
       
       setMostrarModalFacturacion(false);
       setPedidoAFacturar(null);
+      const cargarDatos = async () => {
+        try {
+          const hoy = getCurrentDateColombia();
+          
+          const [pedidosData, configuracionData] = await Promise.all([
+            pedidoService.getAllPedidos(),
+            configService.getConfiguracion()
+          ]);
+          
+          // Los pedidos se procesan en el useEffect principal
+          setConfiguracion(configuracionData);
+        } catch (error) {
+          console.error('Error al cargar datos:', error);
+        }
+      };
       cargarDatos();
       
     } catch (error) {
@@ -465,6 +535,21 @@ const Dashboard: React.FC = () => {
       
       setMostrarModalLiquidacion(false);
       setPedidoAFacturar(null);
+      const cargarDatos = async () => {
+        try {
+          const hoy = getCurrentDateColombia();
+          
+          const [pedidosData, configuracionData] = await Promise.all([
+            pedidoService.getAllPedidos(),
+            configService.getConfiguracion()
+          ]);
+          
+          // Los pedidos se procesan en el useEffect principal
+          setConfiguracion(configuracionData);
+        } catch (error) {
+          console.error('Error al cargar datos:', error);
+        }
+      };
       cargarDatos();
       cargarLavadoras();
       
@@ -653,7 +738,7 @@ const Dashboard: React.FC = () => {
       />
 
       {/* Resumen financiero */}
-      <div className="card">
+        <div className="card">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-medium text-gray-900">Resumen Financiero</h3>
           
@@ -716,10 +801,10 @@ const Dashboard: React.FC = () => {
             )}
           </div>
         </div>
-        <dl className="space-y-3">
-          <div className="flex justify-between">
+          <dl className="space-y-3">
+            <div className="flex justify-between">
             <dt className="text-sm text-gray-500">Ingresos Totales:</dt>
-            <dd className="text-sm font-medium text-success-600">
+              <dd className="text-sm font-medium text-success-600">
               {formatCurrency(datosFinancieros.ingresos)}
             </dd>
           </div>
@@ -745,30 +830,52 @@ const Dashboard: React.FC = () => {
                     </div>
                     <dd className="text-xs font-medium text-success-600">
                       {formatCurrency(planData.amount)}
-                    </dd>
+              </dd>
                   </div>
                 ))}
             </div>
           )}
           
-          <div className="flex justify-between">
-            <dt className="text-sm text-gray-500">Gastos:</dt>
-            <dd className="text-sm font-medium text-danger-600">
-              {formatCurrency(datosFinancieros.gastos)}
-            </dd>
-          </div>
-          <div className="border-t pt-3">
             <div className="flex justify-between">
-              <dt className="text-sm font-medium text-gray-900">Neto:</dt>
-              <dd className={`text-sm font-bold ${
-                datosFinancieros.neto >= 0 ? 'text-success-600' : 'text-danger-600'
-              }`}>
-                {formatCurrency(datosFinancieros.neto)}
+              <dt className="text-sm text-gray-500">Gastos Totales:</dt>
+              <dd className="text-sm font-medium text-danger-600">
+              {formatCurrency(datosFinancieros.gastos)}
               </dd>
             </div>
-          </div>
-        </dl>
-      </div>
+            
+            {/* Desglose de gastos */}
+            {(datosFinancieros.gastosGenerales > 0 || datosFinancieros.gastosMantenimiento > 0) && (
+              <div className="ml-4 space-y-1 border-l-2 border-gray-200 pl-4">
+                {datosFinancieros.gastosGenerales > 0 && (
+                  <div className="flex justify-between">
+                    <dt className="text-xs text-gray-500">Gastos Generales:</dt>
+                    <dd className="text-xs font-medium text-orange-600">
+                      {formatCurrency(datosFinancieros.gastosGenerales)}
+                    </dd>
+                  </div>
+                )}
+                {datosFinancieros.gastosMantenimiento > 0 && (
+                  <div className="flex justify-between">
+                    <dt className="text-xs text-gray-500">Mantenimiento Lavadoras:</dt>
+                    <dd className="text-xs font-medium text-red-600">
+                      {formatCurrency(datosFinancieros.gastosMantenimiento)}
+                    </dd>
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="border-t pt-3">
+              <div className="flex justify-between">
+                <dt className="text-sm font-medium text-gray-900">Neto:</dt>
+                <dd className={`text-sm font-bold ${
+                datosFinancieros.neto >= 0 ? 'text-success-600' : 'text-danger-600'
+                }`}>
+                {formatCurrency(datosFinancieros.neto)}
+                </dd>
+              </div>
+            </div>
+          </dl>
+        </div>
 
       {/* Modales de validación y facturación */}
       {mostrarModalValidacionQR && pedidoAValidar && (

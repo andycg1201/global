@@ -6,7 +6,8 @@ import {
   PencilIcon,
   PlusIcon,
   CalendarIcon,
-  XMarkIcon
+  XMarkIcon,
+  CameraIcon
 } from '@heroicons/react/24/outline';
 import { pedidoService, configService, lavadoraService } from '../services/firebaseService';
 import { Pedido } from '../types';
@@ -17,7 +18,8 @@ import ModalCancelacion from '../components/ModalCancelacion';
 import ModalFacturacion from '../components/ModalFacturacion';
 import ModalLiquidacion from '../components/ModalLiquidacion';
 import ModalValidacionQR from '../components/ModalValidacionQR';
-import CalendarPicker from '../components/CalendarPicker';
+import ModalFotoInstalacion from '../components/ModalFotoInstalacion';
+import CalendarioHorarios from '../components/CalendarioHorarios';
 
 interface FiltrosPedidos {
   fechaInicio: Date;
@@ -51,6 +53,11 @@ const Pedidos: React.FC = () => {
   
   // Estados para calendario de horarios
   const [mostrarCalendarioHorarios, setMostrarCalendarioHorarios] = useState(false);
+  
+  // Estados para modal de foto de instalación
+  const [mostrarModalFoto, setMostrarModalFoto] = useState(false);
+  const [pedidoParaFoto, setPedidoParaFoto] = useState<Pedido | null>(null);
+  
   
   const [filtros, setFiltros] = useState<FiltrosPedidos>({
     fechaInicio: getCurrentDateColombia(),
@@ -266,14 +273,14 @@ const Pedidos: React.FC = () => {
         updateData.fechaEntrega = fechaActual;
         updateData.fechaRecogida = undefined;
         // Calcular fecha de recogida según el plan
-        updateData.fechaRecogidaCalculada = calculatePickupDate(fechaActual, pedido.plan.id, pedido.horasAdicionales);
+        updateData.fechaRecogidaCalculada = calculatePickupDate(fechaActual, pedido.plan, pedido.horasAdicionales);
         // Recalcular total con horas adicionales y descuentos
         updateData.total = pedido.plan.price + (pedido.horasAdicionales * 2000) - pedido.descuentos.reduce((sum, d) => sum + d.amount, 0);
       } else if (nuevoEstado === 'recogido') {
         // Si no tiene fecha de entrega, la asignamos también
         if (!pedido.fechaEntrega) {
           updateData.fechaEntrega = fechaActual;
-          updateData.fechaRecogidaCalculada = calculatePickupDate(fechaActual, pedido.plan.id, pedido.horasAdicionales);
+          updateData.fechaRecogidaCalculada = calculatePickupDate(fechaActual, pedido.plan, pedido.horasAdicionales);
           updateData.total = pedido.plan.price + (pedido.horasAdicionales * 2000) - pedido.descuentos.reduce((sum, d) => sum + d.amount, 0);
         }
         updateData.fechaRecogida = fechaActual;
@@ -326,7 +333,7 @@ const Pedidos: React.FC = () => {
       if (nuevoEstado === 'entregado') {
         updateData.fechaEntrega = fechaActual;
         updateData.fechaRecogida = undefined;
-        updateData.fechaRecogidaCalculada = calculatePickupDate(fechaActual, pedido.plan.id, pedido.horasAdicionales);
+        updateData.fechaRecogidaCalculada = calculatePickupDate(fechaActual, pedido.plan, pedido.horasAdicionales);
         // Obtener configuración para precio de hora adicional
         const config = await configService.getConfiguracion();
         const precioHoraAdicional = config?.horaAdicional || 2000;
@@ -334,7 +341,7 @@ const Pedidos: React.FC = () => {
       } else if (nuevoEstado === 'recogido') {
         if (!pedido.fechaEntrega) {
           updateData.fechaEntrega = fechaActual;
-          updateData.fechaRecogidaCalculada = calculatePickupDate(fechaActual, pedido.plan.id, pedido.horasAdicionales);
+          updateData.fechaRecogidaCalculada = calculatePickupDate(fechaActual, pedido.plan, pedido.horasAdicionales);
           // Obtener configuración para precio de hora adicional
           const config = await configService.getConfiguracion();
           const precioHoraAdicional = config?.horaAdicional || 2000;
@@ -430,21 +437,54 @@ const Pedidos: React.FC = () => {
 
   const eliminarPedido = async (pedido: Pedido) => {
     try {
+      console.log('🗑️ Iniciando eliminación de pedido:', pedido.id);
+      console.log('📋 Lavadora asignada:', pedido.lavadoraAsignada);
+      
       // Liberar la lavadora asignada si existe
-      if (pedido.lavadoraAsignada) {
-        await lavadoraService.updateLavadora(pedido.lavadoraAsignada.lavadoraId, {
-          estado: 'disponible'
-        });
+      if (pedido.lavadoraAsignada && pedido.lavadoraAsignada.lavadoraId) {
+        console.log('🔄 Liberando lavadora:', pedido.lavadoraAsignada.lavadoraId);
+        
+        try {
+          await lavadoraService.updateLavadora(pedido.lavadoraAsignada.lavadoraId, {
+            estado: 'disponible'
+          });
+          console.log('✅ Lavadora liberada exitosamente');
+        } catch (lavadoraError) {
+          console.error('❌ Error al liberar lavadora:', lavadoraError);
+          // Continuar con la eliminación del pedido aunque falle la liberación de la lavadora
+          alert('Advertencia: El pedido se eliminó pero hubo un problema al liberar la lavadora. Verifica manualmente el estado de la lavadora.');
+        }
+      } else {
+        console.log('⚠️ No hay lavadora asignada para liberar o falta lavadoraId');
       }
       
+      console.log('🗑️ Eliminando pedido de la base de datos...');
       await pedidoService.deletePedido(pedido.id);
+      console.log('✅ Pedido eliminado exitosamente');
+      
       cargarPedidos();
       setMostrarModalDetalles(false);
       alert('Pedido eliminado exitosamente');
     } catch (error) {
-      console.error('Error al eliminar pedido:', error);
-      alert('Error al eliminar el pedido');
+      console.error('❌ Error al eliminar pedido:', error);
+      alert('Error al eliminar el pedido: ' + (error instanceof Error ? error.message : 'Error desconocido'));
     }
+  };
+
+  const verFotoInstalacion = (pedido: Pedido) => {
+    // Verificar si hay foto antes de abrir el modal
+    // Buscar en ambos formatos: validacionQR.fotoInstalacion y validacionQR_fotoInstalacion
+    const tieneFoto = pedido.validacionQR?.fotoInstalacion || 
+                     (pedido as any).validacionQR_fotoInstalacion ||
+                     pedido.lavadoraAsignada?.fotoInstalacion;
+    
+    if (!tieneFoto) {
+      alert('Este pedido no tiene foto de evidencia de instalación');
+      return;
+    }
+    
+    setPedidoParaFoto(pedido);
+    setMostrarModalFoto(true);
   };
 
   const handleFacturacion = async (facturacion: any) => {
@@ -895,6 +935,9 @@ const Pedidos: React.FC = () => {
                 <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                 <tr>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      Evidencia
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                       Acciones
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
@@ -922,8 +965,27 @@ const Pedidos: React.FC = () => {
               </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
                   {pedidosFiltrados.map((pedido, index) => (
-                    <tr key={pedido.id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 cursor-pointer transition-all duration-200 group" onClick={() => verDetallesPedido(pedido)}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <tr key={pedido.id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-200 group">
+                    {/* Columna de Evidencia */}
+                    <td className="px-3 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
+                      {(pedido.validacionQR?.fotoInstalacion || 
+                        (pedido as any).validacionQR_fotoInstalacion ||
+                        pedido.lavadoraAsignada?.fotoInstalacion) ? (
+                        <button 
+                          type="button"
+                          onClick={() => verFotoInstalacion(pedido)}
+                          className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-all duration-200"
+                          title="Ver foto de instalación"
+                        >
+                          <CameraIcon className="h-4 w-4" />
+                        </button>
+                      ) : (
+                        <div className="p-2 text-gray-300">
+                          <CameraIcon className="h-4 w-4" />
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center space-x-2">
                         {/* Botón progresivo de estado */}
                         {getProgresoButton(pedido)}
@@ -959,7 +1021,7 @@ const Pedidos: React.FC = () => {
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 py-4 whitespace-nowrap">
+                      <td className="px-3 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
                         <div className="flex items-center space-x-2">
                           <div className="flex-shrink-0">
                             <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
@@ -978,7 +1040,7 @@ const Pedidos: React.FC = () => {
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
                         <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg px-3 py-2">
                           <div className="text-sm font-semibold text-green-800">
                             {pedido.plan.name}
@@ -988,18 +1050,18 @@ const Pedidos: React.FC = () => {
                           </div>
                         </div>
                       </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
                       {getStatusBadge(pedido.status)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
                       {getEstadoPagoBadge(pedido.estadoPago)}
                     </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
                         <div className="text-sm text-gray-900">
                           {formatDate(pedido.fechaEntrega || pedido.fechaAsignacion, 'dd/MM HH:mm')}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
                         <div className="text-sm text-gray-900">
                           {pedido.status === 'pendiente' ? (
                             <span className="text-gray-400 italic">Pendiente</span>
@@ -1012,7 +1074,7 @@ const Pedidos: React.FC = () => {
                         )}
                       </div>
                     </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
                         <div className="text-lg font-bold text-gray-900">
                           {formatCurrency(pedido.total)}
                       </div>
@@ -1384,11 +1446,6 @@ const Pedidos: React.FC = () => {
         />
       )}
       
-      {/* Debug info */}
-      {(() => {
-        console.log('Renderizando Pedidos - mostrarModalFacturacion:', mostrarModalFacturacion, 'pedidoAFacturar:', pedidoAFacturar?.id, 'configuracion:', !!configuracion);
-        return null;
-      })()}
 
       {/* Modal de Liquidación */}
       {mostrarModalLiquidacion && pedidoAFacturar && (
@@ -1418,121 +1475,25 @@ const Pedidos: React.FC = () => {
         />
       )}
 
-      {/* Modal de Horarios de Lavadoras */}
-      {mostrarCalendarioHorarios && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b">
-              <div className="flex items-center space-x-3">
-                <CalendarIcon className="h-6 w-6 text-blue-600" />
-                <h2 className="text-xl font-semibold text-gray-900">
-                  Horarios de Lavadoras
-                </h2>
-              </div>
-              <button
-                onClick={() => setMostrarCalendarioHorarios(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <XMarkIcon className="h-6 w-6" />
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="p-6">
-              <div className="mb-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Estado de Lavadoras</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {lavadoras.map((lavadora) => (
-                    <div
-                      key={lavadora.id}
-                      className={`p-4 rounded-lg border-2 ${
-                        lavadora.estado === 'disponible'
-                          ? 'bg-green-50 border-green-200'
-                          : lavadora.estado === 'alquilada'
-                          ? 'bg-blue-50 border-blue-200'
-                          : lavadora.estado === 'mantenimiento'
-                          ? 'bg-yellow-50 border-yellow-200'
-                          : 'bg-red-50 border-red-200'
-                      }`}
-                    >
-                      <div className="text-center">
-                        <div className="font-bold text-lg text-gray-900 mb-1">
-                          {lavadora.codigoQR}
-                        </div>
-                        <div className="text-sm text-gray-600 mb-2">
-                          {lavadora.marca} {lavadora.modelo}
-                        </div>
-                        <div className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
-                          lavadora.estado === 'disponible'
-                            ? 'bg-green-100 text-green-800'
-                            : lavadora.estado === 'alquilada'
-                            ? 'bg-blue-100 text-blue-800'
-                            : lavadora.estado === 'mantenimiento'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {lavadora.estado === 'disponible' ? 'Disponible' :
-                           lavadora.estado === 'alquilada' ? 'Alquilada' :
-                           lavadora.estado === 'mantenimiento' ? 'Mantenimiento' : 'Retirada'}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mb-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Pedidos Activos</h3>
-                <div className="space-y-3">
-                  {pedidos
-                    .filter(p => p.status === 'pendiente' || p.status === 'entregado')
-                    .map((pedido) => (
-                      <div key={pedido.id} className="bg-gray-50 p-4 rounded-lg">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="font-medium text-gray-900">
-                              {pedido.cliente.name}
-                            </div>
-                            <div className="text-sm text-gray-600">
-                              Plan: {pedido.plan.name}
-                            </div>
-                            {pedido.lavadoraAsignada && (
-                              <div className="text-sm text-blue-600">
-                                Lavadora: {pedido.lavadoraAsignada.codigoQR}
-                              </div>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            <div className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
-                              pedido.status === 'pendiente'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-green-100 text-green-800'
-                            }`}>
-                              {pedido.status === 'pendiente' ? 'Pendiente' : 'Entregado'}
-                            </div>
-                            <div className="text-xs text-gray-500 mt-1">
-                              {formatDate(pedido.fechaEntrega, 'dd/MM/yyyy HH:mm')}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
-
-              <div className="text-center">
-                <button
-                  onClick={() => setMostrarCalendarioHorarios(false)}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Modal de Foto de Instalación */}
+      {mostrarModalFoto && pedidoParaFoto && (
+        <ModalFotoInstalacion
+          isOpen={mostrarModalFoto}
+          onClose={() => {
+            setMostrarModalFoto(false);
+            setPedidoParaFoto(null);
+          }}
+          pedido={pedidoParaFoto}
+        />
       )}
+
+      {/* Modal de Calendario de Horarios */}
+      <CalendarioHorarios
+        isOpen={mostrarCalendarioHorarios}
+        onClose={() => setMostrarCalendarioHorarios(false)}
+        pedidos={pedidos}
+        lavadoras={lavadoras}
+      />
     </div>
   );
 };

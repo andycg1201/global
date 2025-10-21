@@ -246,8 +246,13 @@ export const pedidoService = {
         const pedidoData = pedidoDoc.data();
         const plan = pedidoData.plan;
         if (plan && plan.duration) {
-          const fechaRecogidaCalculada = new Date();
-          fechaRecogidaCalculada.setHours(fechaRecogidaCalculada.getHours() + plan.duration + (pedidoData.horasAdicionales || 0));
+          // Importar calculatePickupDate para calcular correctamente
+          const { calculatePickupDate } = await import('../utils/dateUtils');
+          const fechaRecogidaCalculada = calculatePickupDate(
+            new Date(), 
+            plan, 
+            pedidoData.horasAdicionales || 0
+          );
           updateData.fechaRecogidaCalculada = Timestamp.fromDate(fechaRecogidaCalculada);
         }
       }
@@ -580,6 +585,16 @@ export const resetService = {
       const mantenimientosPromises = mantenimientosSnapshot.docs.map(doc => deleteDoc(doc.ref));
       await Promise.all(mantenimientosPromises);
 
+      // Limpiar referencias de mantenimiento en las lavadoras
+      const lavadorasSnapshot = await getDocs(collection(db, 'lavadoras'));
+      const lavadorasPromises = lavadorasSnapshot.docs.map(doc => 
+        updateDoc(doc.ref, {
+          estado: 'disponible',
+          mantenimientoActual: deleteField()
+        })
+      );
+      await Promise.all(lavadorasPromises);
+
       // NOTA: Los planes y lavadoras NO se eliminan para preservar la configuración
 
       console.log('Todos los datos han sido eliminados exitosamente (planes y lavadoras preservados)');
@@ -786,6 +801,8 @@ export const lavadoraService = {
 
   // Actualizar lavadora
   async updateLavadora(id: string, updates: Partial<Lavadora>): Promise<void> {
+    console.log('🔄 updateLavadora llamado con:', { id, updates });
+    
     const docRef = doc(db, 'lavadoras', id);
     const updateData: any = {
       ...updates,
@@ -797,7 +814,15 @@ export const lavadoraService = {
       updateData.fechaInstalacion = Timestamp.fromDate(updates.fechaInstalacion);
     }
 
-    await updateDoc(docRef, updateData);
+    console.log('📝 Datos a actualizar:', updateData);
+    
+    try {
+      await updateDoc(docRef, updateData);
+      console.log('✅ Lavadora actualizada exitosamente:', id);
+    } catch (error) {
+      console.error('❌ Error al actualizar lavadora:', error);
+      throw error;
+    }
   },
 
   // Obtener lavadoras disponibles

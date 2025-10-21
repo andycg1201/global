@@ -13,6 +13,7 @@ import {
   calculatePickupDate, 
   calculateOrderTotal,
   getCurrentDateColombia,
+  getDefaultDeliveryDate,
   canUsePlan,
   getAvailablePlans
 } from '../utils/dateUtils';
@@ -34,7 +35,7 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
   // Estados del formulario (solo datos básicos del pedido)
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
-  const [fechaEntrega, setFechaEntrega] = useState<Date>(getCurrentDateColombia());
+  const [fechaEntrega, setFechaEntrega] = useState<Date>(getDefaultDeliveryDate());
   const [observaciones, setObservaciones] = useState('');
   const [isPrioritario, setIsPrioritario] = useState(false);
   const [motivoPrioridad, setMotivoPrioridad] = useState('');
@@ -174,7 +175,7 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
       // Limpiar formulario
       setCliente(null);
       setPlan(null);
-      setFechaEntrega(getCurrentDateColombia());
+      setFechaEntrega(getDefaultDeliveryDate());
       setObservaciones('');
       setIsPrioritario(false);
       setMotivoPrioridad('');
@@ -420,7 +421,7 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
             {plan && (
               <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
                 <p className="text-sm text-blue-800">
-                  <strong>Recogida programada:</strong> {formatDate(calculatePickupDate(fechaEntrega, plan.id, 0), 'dd/MM/yyyy HH:mm')}
+                  <strong>Recogida programada:</strong> {formatDate(calculatePickupDate(fechaEntrega, plan, 0), 'dd/MM/yyyy HH:mm')}
                 </p>
                 <p className="text-xs text-blue-600 mt-1">
                   Duración del plan: {plan.duration} horas (las horas adicionales se ajustarán en la entrega)

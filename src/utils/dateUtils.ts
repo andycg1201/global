@@ -19,16 +19,49 @@ export const formatCurrency = (amount: number): string => {
   }).format(amount);
 };
 
-// Obtener fecha actual en Colombia
+// Obtener fecha actual real en Colombia (sin lógica de horario laboral)
 export const getCurrentDateColombia = (): Date => {
-  // Simplemente usar la fecha local del sistema
-  // Esto evita problemas de zona horaria complejos
+  return new Date();
+};
+
+// Obtener fecha de entrega por defecto con lógica de horario laboral
+export const getDefaultDeliveryDate = (): Date => {
   const now = new Date();
   
-  // Crear una nueva fecha con solo la fecha (sin hora)
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dayOfWeek = now.getDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+  const hour = now.getHours();
   
-  return today;
+  // Si es domingo, saltar al lunes 7:00 AM
+  if (dayOfWeek === 0) {
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + 1);
+    monday.setHours(7, 0, 0, 0);
+    return monday;
+  }
+  
+  // Si es después de las 6:00 PM (18:00), ir al día siguiente a las 7:00 AM
+  if (hour >= 18) {
+    const nextDay = new Date(now);
+    nextDay.setDate(now.getDate() + 1);
+    
+    // Si el día siguiente es domingo, saltar al lunes
+    if (nextDay.getDay() === 0) {
+      nextDay.setDate(nextDay.getDate() + 1);
+    }
+    
+    nextDay.setHours(7, 0, 0, 0);
+    return nextDay;
+  }
+  
+  // Si es antes de las 6:00 AM, usar 7:00 AM del día actual
+  if (hour < 6) {
+    const sameDay = new Date(now);
+    sameDay.setHours(7, 0, 0, 0);
+    return sameDay;
+  }
+  
+  // Entre 6:00 AM y 6:00 PM, usar la hora actual
+  return now;
 };
 
 // Función de debug para verificar fechas (solo para desarrollo)
@@ -53,54 +86,26 @@ export const debugFechaColombia = () => {
 // Calcular fecha de recogida según el plan
 export const calculatePickupDate = (
   deliveryDate: Date,
-  planId: string,
+  plan: { name: string; duration: number },
   horasAdicionales: number = 0
 ): Date => {
   let pickupDate = new Date(deliveryDate);
 
-  switch (planId) {
-    case 'plan1':
-      // PLAN 1: 5 horas desde entrega
-      pickupDate = addHours(deliveryDate, 5 + horasAdicionales);
-      break;
-      
-    case 'plan2':
-      // PLAN 2: Siempre recogida a las 7 AM del día siguiente
-      pickupDate = addDays(deliveryDate, 1);
-      pickupDate.setHours(7, 0, 0, 0);
-      // Agregar horas adicionales si las hay
-      if (horasAdicionales > 0) {
-        pickupDate = addHours(pickupDate, horasAdicionales);
-      }
-      break;
-      
-    case 'plan3':
-      // PLAN 3: 24 horas desde entrega
-      pickupDate = addHours(deliveryDate, 24 + horasAdicionales);
-      break;
-      
-    case 'plan4':
-      // PLAN 4: Sábado 7am hasta Lunes 7am (siempre Lunes 7am)
-      pickupDate = addDays(deliveryDate, 2);
-      pickupDate.setHours(7, 0, 0, 0);
-      // Agregar horas adicionales si las hay
-      if (horasAdicionales > 0) {
-        pickupDate = addHours(pickupDate, horasAdicionales);
-      }
-      break;
-      
-    case 'plan5':
-      // PLAN 5: Sábado 2pm hasta Lunes 7am (siempre Lunes 7am)
-      pickupDate = addDays(deliveryDate, 2);
-      pickupDate.setHours(7, 0, 0, 0);
-      // Agregar horas adicionales si las hay
-      if (horasAdicionales > 0) {
-        pickupDate = addHours(pickupDate, horasAdicionales);
-      }
-      break;
-      
-    default:
-      pickupDate = addHours(deliveryDate, 5 + horasAdicionales);
+  // Usar la duración del plan directamente
+  const duracionTotal = plan.duration + horasAdicionales;
+  
+  // Si el plan es de fin de semana (planes 4 y 5), usar lógica especial
+  if (plan.name.includes('Plan 4') || plan.name.includes('Plan 5')) {
+    // Para planes de fin de semana, siempre recogida el lunes a las 7 AM
+    pickupDate = addDays(deliveryDate, 2);
+    pickupDate.setHours(7, 0, 0, 0);
+    // Agregar horas adicionales si las hay
+    if (horasAdicionales > 0) {
+      pickupDate = addHours(pickupDate, horasAdicionales);
+    }
+  } else {
+    // Para otros planes, usar la duración del plan
+    pickupDate = addHours(deliveryDate, duracionTotal);
   }
 
   // Si la recogida cae en domingo, mover al lunes 7am
@@ -119,10 +124,15 @@ export const isNonWorkingDay = (date: Date): boolean => {
 
 // Formatear número de teléfono colombiano
 export const formatColombianPhone = (phone: string): string => {
+  // Si ya tiene +57, devolverlo tal como está
+  if (phone.startsWith('+57')) {
+    return phone;
+  }
+  
   // Remover todos los caracteres no numéricos
   const cleanPhone = phone.replace(/\D/g, '');
   
-  // Si ya tiene código de país colombiano (57), mantenerlo
+  // Si ya tiene código de país colombiano (57), agregar el +
   if (cleanPhone.startsWith('57') && cleanPhone.length === 12) {
     return `+${cleanPhone}`;
   }
@@ -137,18 +147,15 @@ export const formatColombianPhone = (phone: string): string => {
     return `+57${cleanPhone}`;
   }
   
-  // Si ya tiene +57, mantenerlo
-  if (cleanPhone.startsWith('57') && cleanPhone.length === 12) {
-    return `+${cleanPhone}`;
-  }
-  
   // Para otros casos, devolver tal como está
   return phone;
 };
 
 // Generar enlace de WhatsApp para recogida
 export const generateWhatsAppLink = (phone: string, clientName: string): string => {
-  const formattedPhone = formatColombianPhone(phone);
+  // Si el número ya tiene +57, usarlo tal como está
+  // Si no, formatearlo
+  const formattedPhone = phone.startsWith('+57') ? phone : formatColombianPhone(phone);
   const cleanPhone = formattedPhone.replace('+', '');
   
   const message = `Hola ${clientName}, queremos informarle que la lavadora que alquiló se recogerá en breve. Si desea incrementar una hora adicional, por favor infórmenos a este número. ¡Gracias por utilizar nuestros servicios! 😊`;

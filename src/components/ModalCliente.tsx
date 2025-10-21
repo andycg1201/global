@@ -152,6 +152,11 @@ const ModalCliente: React.FC<ModalClienteProps> = ({
                 className="input-field"
                 value={nuevoCliente.phone}
                 onChange={(e) => {
+                  // Solo actualizar el valor sin formatear mientras se escribe
+                  setNuevoCliente(prev => ({ ...prev, phone: e.target.value }));
+                }}
+                onBlur={(e) => {
+                  // Formatear solo cuando el usuario termine de escribir (onBlur)
                   const formattedPhone = formatColombianPhone(e.target.value);
                   setNuevoCliente(prev => ({ ...prev, phone: formattedPhone }));
                 }}

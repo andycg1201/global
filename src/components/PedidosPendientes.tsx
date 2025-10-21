@@ -31,9 +31,9 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
   const pedidosRecogerOrdenados = [...pedidosPendientesRecoger].sort((a, b) => {
     // Calcular fecha de recogida esperada para cada pedido
     const fechaRecogidaA = a.fechaRecogidaCalculada || 
-      (a.fechaEntrega ? calculatePickupDate(a.fechaEntrega, a.plan.id, a.horasAdicionales || 0) : new Date());
+      (a.fechaEntrega ? calculatePickupDate(a.fechaEntrega, a.plan, a.horasAdicionales || 0) : new Date());
     const fechaRecogidaB = b.fechaRecogidaCalculada || 
-      (b.fechaEntrega ? calculatePickupDate(b.fechaEntrega, b.plan.id, b.horasAdicionales || 0) : new Date());
+      (b.fechaEntrega ? calculatePickupDate(b.fechaEntrega, b.plan, b.horasAdicionales || 0) : new Date());
     
     // Ordenar por fecha de recogida (más temprana primero = más urgente)
     return fechaRecogidaA.getTime() - fechaRecogidaB.getTime();
@@ -87,7 +87,7 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
   const getUrgenciaRecogida = (pedido: Pedido) => {
     const ahora = new Date();
     const fechaRecogida = pedido.fechaRecogidaCalculada || 
-      (pedido.fechaEntrega ? calculatePickupDate(pedido.fechaEntrega, pedido.plan.id, pedido.horasAdicionales || 0) : new Date());
+      (pedido.fechaEntrega ? calculatePickupDate(pedido.fechaEntrega, pedido.plan, pedido.horasAdicionales || 0) : new Date());
     
     const diffMs = ahora.getTime() - fechaRecogida.getTime();
     const diffHours = diffMs / (1000 * 60 * 60);
@@ -107,7 +107,7 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
   const getTiempoRecogida = (pedido: Pedido) => {
     const ahora = new Date();
     const fechaRecogida = pedido.fechaRecogidaCalculada || 
-      (pedido.fechaEntrega ? calculatePickupDate(pedido.fechaEntrega, pedido.plan.id, pedido.horasAdicionales || 0) : new Date());
+      (pedido.fechaEntrega ? calculatePickupDate(pedido.fechaEntrega, pedido.plan, pedido.horasAdicionales || 0) : new Date());
     
     const diffMs = fechaRecogida.getTime() - ahora.getTime();
     const diffHours = Math.abs(diffMs) / (1000 * 60 * 60);
@@ -129,7 +129,7 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
   const PedidoCard = ({ pedido, tipo }: { pedido: Pedido; tipo: 'entregar' | 'recoger' }) => {
     const PriorityIcon = getPriorityIcon(pedido.isPrioritario);
     const urgenciaRecogida = tipo === 'recoger' ? getUrgenciaRecogida(pedido) : null;
-    const UrgenciaIcon = urgenciaRecogida?.icon;
+    const UrgenciaIcon = urgenciaRecogida?.icon || ClockIcon;
     
     return (
       <div className={`p-4 rounded-lg border ${tipo === 'recoger' ? getAlertColor(pedido.fechaEntrega!) : 'bg-gray-50 border-gray-200'} transition-all duration-200 hover:shadow-md`}>
@@ -179,7 +179,7 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
                   <HomeIcon className="h-3 w-3" />
                   {formatDate(
                     pedido.fechaRecogidaCalculada || 
-                    (pedido.fechaEntrega ? calculatePickupDate(pedido.fechaEntrega, pedido.plan.id, pedido.horasAdicionales || 0) : new Date()), 
+                    (pedido.fechaEntrega ? calculatePickupDate(pedido.fechaEntrega, pedido.plan, pedido.horasAdicionales || 0) : new Date()), 
                     'dd/MM HH:mm'
                   )}
                 </div>

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { XMarkIcon, QrCodeIcon, CameraIcon } from '@heroicons/react/24/outline';
-import { Pedido, Lavadora } from '../types';
+import { XMarkIcon, QrCodeIcon, CameraIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { Pedido, Lavadora, CobroAdicional } from '../types';
+import { formatCurrency } from '../utils/dateUtils';
 import { storageService } from '../services/storageService';
 // Usaremos html5-qrcode para escanear con la cámara
 // Se importa de forma dinámica para evitar problemas en SSR/build si no existe window
@@ -14,9 +15,13 @@ interface ModalValidacionQRProps {
     cambioRealizado: boolean;
     fotoInstalacion?: string;
     observacionesValidacion?: string;
+    cobrosAdicionales: CobroAdicional[];
+    horasAdicionales: number;
+    observacionesPago?: string;
   }) => void;
   pedido: Pedido;
   lavadoras: Lavadora[];
+  precioHoraAdicional: number;
 }
 
 const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
@@ -24,7 +29,8 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
   onClose,
   onConfirm,
   pedido,
-  lavadoras
+  lavadoras,
+  precioHoraAdicional
 }) => {
   const [qrEscaneado, setQrEscaneado] = useState<string>('');
   const [fotoInstalacion, setFotoInstalacion] = useState<string>('');
@@ -36,6 +42,17 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const qrRegionId = 'qr-reader-region';
   const html5QrCodeRef = useRef<any>(null);
+  
+  // Estados para facturación
+  const [cobrosAdicionales, setCobrosAdicionales] = useState<CobroAdicional[]>([]);
+  const [horasAdicionales, setHorasAdicionales] = useState<string>('0');
+  const [observacionesPago, setObservacionesPago] = useState('');
+  const [mostrarFormularioCobro, setMostrarFormularioCobro] = useState(false);
+  const [nuevoCobro, setNuevoCobro] = useState({
+    concepto: '',
+    monto: '',
+    descripcion: ''
+  });
 
   if (!isOpen) return null;
 
@@ -173,7 +190,10 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
         lavadoraEscaneada: qrEscaneado,
         cambioRealizado: false, // Ya no hay validación de cambio
         fotoInstalacion: fotoUrl, // Ahora es una URL, no base64
-        observacionesValidacion
+        observacionesValidacion,
+        cobrosAdicionales,
+        horasAdicionales: parseInt(horasAdicionales) || 0,
+        observacionesPago
       });
     } catch (error) {
       console.error('Error al subir foto:', error);
@@ -190,7 +210,35 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
     setSubiendoFoto(false);
     setObservacionesValidacion('');
     setErrorLavadora('');
+    // Resetear estados de facturación
+    setCobrosAdicionales([]);
+    setHorasAdicionales('0');
+    setObservacionesPago('');
+    setMostrarFormularioCobro(false);
+    setNuevoCobro({ concepto: '', monto: '', descripcion: '' });
     onClose();
+  };
+
+  // Funciones para manejar cobros adicionales
+  const agregarCobroAdicional = () => {
+    const montoNumerico = parseFloat(nuevoCobro.monto) || 0;
+    if (!nuevoCobro.concepto || montoNumerico <= 0) {
+      alert('Todos los campos son obligatorios y el monto debe ser mayor a 0');
+      return;
+    }
+
+    setCobrosAdicionales(prev => [...prev, {
+      concepto: nuevoCobro.concepto,
+      monto: montoNumerico,
+      descripcion: nuevoCobro.descripcion
+    }]);
+    
+    setNuevoCobro({ concepto: '', monto: '', descripcion: '' });
+    setMostrarFormularioCobro(false);
+  };
+
+  const eliminarCobroAdicional = (index: number) => {
+    setCobrosAdicionales(prev => prev.filter((_, i) => i !== index));
   };
 
   useEffect(() => {
@@ -374,6 +422,174 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
               rows={3}
             />
           </div>
+
+          {/* Horas Adicionales */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium text-gray-900">4. ⏰ Horas Adicionales</h3>
+            <div className="flex items-center space-x-4">
+              <label className="text-sm font-medium text-gray-700">Horas extras:</label>
+              <input
+                type="number"
+                value={horasAdicionales}
+                onChange={(e) => setHorasAdicionales(e.target.value)}
+                min="0"
+                className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <span className="text-sm text-gray-600">
+                = {formatCurrency((parseInt(horasAdicionales) || 0) * precioHoraAdicional)}
+              </span>
+            </div>
+          </div>
+
+          {/* Cobros Adicionales */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-medium text-gray-900">5. 💰 Cobros Adicionales</h3>
+              <button
+                type="button"
+                onClick={() => setMostrarFormularioCobro(true)}
+                className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <PlusIcon className="h-4 w-4" />
+                <span>Agregar</span>
+              </button>
+            </div>
+
+            {/* Lista de cobros */}
+            {cobrosAdicionales.length > 0 && (
+              <div className="space-y-2">
+                {cobrosAdicionales.map((cobro, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="font-medium text-gray-900">{cobro.concepto}</p>
+                      {cobro.descripcion && (
+                        <p className="text-sm text-gray-600">{cobro.descripcion}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-medium text-gray-900">{formatCurrency(cobro.monto)}</span>
+                      <button
+                        type="button"
+                        onClick={() => eliminarCobroAdicional(index)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Formulario para agregar cobro */}
+            {mostrarFormularioCobro && (
+              <div className="p-4 border border-gray-300 rounded-lg bg-gray-50">
+                <h4 className="font-medium text-gray-900 mb-3">Nuevo Cobro Adicional</h4>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Concepto *
+                    </label>
+                    <input
+                      type="text"
+                      value={nuevoCobro.concepto}
+                      onChange={(e) => setNuevoCobro(prev => ({ ...prev, concepto: e.target.value }))}
+                      placeholder="Ej: Zona retirada, Transporte, etc."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Monto *
+                    </label>
+                    <input
+                      type="number"
+                      value={nuevoCobro.monto}
+                      onChange={(e) => setNuevoCobro(prev => ({ ...prev, monto: e.target.value }))}
+                      placeholder="0"
+                      min="0"
+                      step="100"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Descripción (Opcional)
+                    </label>
+                    <textarea
+                      value={nuevoCobro.descripcion}
+                      onChange={(e) => setNuevoCobro(prev => ({ ...prev, descripcion: e.target.value }))}
+                      placeholder="Detalles adicionales..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      rows={2}
+                    />
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      type="button"
+                      onClick={agregarCobroAdicional}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Agregar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMostrarFormularioCobro(false);
+                        setNuevoCobro({ concepto: '', monto: '', descripcion: '' });
+                      }}
+                      className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Observaciones de Pago */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium text-gray-900">6. 📝 Observaciones de Pago (Opcional)</h3>
+            <textarea
+              value={observacionesPago}
+              onChange={(e) => setObservacionesPago(e.target.value)}
+              placeholder="Observaciones sobre el pago o la entrega..."
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              rows={3}
+            />
+          </div>
+
+          {/* Resumen de Totales */}
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <h3 className="text-lg font-medium text-gray-900 mb-3">💰 Resumen de Totales</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span>Subtotal (Plan):</span>
+                <span>{formatCurrency(pedido.plan.price)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Horas adicionales:</span>
+                <span>{formatCurrency((parseInt(horasAdicionales) || 0) * precioHoraAdicional)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Cobros adicionales:</span>
+                <span>{formatCurrency(cobrosAdicionales.reduce((sum, cobro) => sum + cobro.monto, 0))}</span>
+              </div>
+              <div className="border-t pt-2">
+                <div className="flex justify-between font-bold text-lg">
+                  <span>Total:</span>
+                  <span className="text-blue-600">
+                    {formatCurrency(
+                      pedido.plan.price + 
+                      (parseInt(horasAdicionales) || 0) * precioHoraAdicional + 
+                      cobrosAdicionales.reduce((sum, cobro) => sum + cobro.monto, 0)
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
@@ -397,12 +613,12 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
               !fotoFile ? 'Debe tomar una foto de la instalación' :
               errorLavadora ? 'Lavadora ya está alquilada' :
               subiendoFoto ? 'Subiendo foto...' :
-              'Continuar con la entrega'
+              'Completar entrega y facturación'
             }
           >
             {subiendoFoto ? 'Subiendo Foto...' : 
              !fotoFile ? 'Tomar Foto Primero' :
-             'Continuar a Facturación'}
+             '✅ Completar Entrega'}
           </button>
         </div>
 

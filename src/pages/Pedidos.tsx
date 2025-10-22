@@ -15,7 +15,6 @@ import { formatDate, formatCurrency, calculatePickupDate, getCurrentDateColombia
 import NuevoPedido from './NuevoPedido';
 import EditarPedido from '../components/EditarPedido';
 import ModalCancelacion from '../components/ModalCancelacion';
-import ModalFacturacion from '../components/ModalFacturacion';
 import ModalLiquidacion from '../components/ModalLiquidacion';
 import ModalLiquidacionUniversal from '../components/ModalLiquidacionUniversal';
 import ModalValidacionQR from '../components/ModalValidacionQR';
@@ -41,8 +40,7 @@ const Pedidos: React.FC = () => {
   const [mostrarModalEditar, setMostrarModalEditar] = useState(false);
   const [pedidoAEditar, setPedidoAEditar] = useState<Pedido | null>(null);
   
-  // Estados para modales de facturación
-  const [mostrarModalFacturacion, setMostrarModalFacturacion] = useState(false);
+  // Estados para modales de liquidación
   const [mostrarModalLiquidacion, setMostrarModalLiquidacion] = useState(false);
   const [mostrarModalLiquidacionUniversal, setMostrarModalLiquidacionUniversal] = useState(false);
   const [pedidoAFacturar, setPedidoAFacturar] = useState<Pedido | null>(null);
@@ -516,55 +514,6 @@ const Pedidos: React.FC = () => {
     setMostrarModalFoto(true);
   };
 
-  const handleFacturacion = async (facturacion: any) => {
-    console.log('handleFacturacion llamado con:', facturacion);
-    console.log('pedidoAFacturar:', pedidoAFacturar);
-    
-    if (!pedidoAFacturar) {
-      console.log('No hay pedido para facturar');
-      return;
-    }
-    
-    try {
-      console.log('Iniciando proceso de facturación...');
-      
-      const updateData: Partial<Pedido> = {
-        cobrosAdicionales: facturacion.cobrosAdicionales,
-        horasAdicionales: facturacion.horasAdicionales,
-        observacionesPago: facturacion.observacionesPago,
-        updatedAt: new Date(),
-        status: 'entregado', // Cambiar estado a entregado
-        fechaEntrega: new Date() // Agregar fecha de entrega
-      };
-
-      // Actualizar estado de pago
-      if (pedidoAFacturar.estadoPago === 'pagado_anticipado') {
-        updateData.estadoPago = 'pagado_entrega';
-      }
-
-      // Recalcular totales
-      const subtotal = pedidoAFacturar.plan.price;
-      const totalCobrosAdicionales = facturacion.cobrosAdicionales.reduce((sum: number, cobro: any) => sum + cobro.monto, 0);
-      const totalHorasAdicionales = facturacion.horasAdicionales * (configuracion?.horaAdicional || 2000);
-      
-      updateData.subtotal = subtotal;
-      updateData.totalCobrosAdicionales = totalCobrosAdicionales;
-      updateData.total = subtotal + totalCobrosAdicionales + totalHorasAdicionales;
-
-      console.log('Datos a actualizar:', updateData);
-
-      await pedidoService.updatePedido(pedidoAFacturar.id, updateData);
-      console.log('Pedido actualizado exitosamente');
-      
-      cargarPedidos();
-      setMostrarModalFacturacion(false);
-      setPedidoAFacturar(null);
-      alert('Facturación procesada exitosamente');
-    } catch (error) {
-      console.error('Error al procesar facturación:', error);
-      alert('Error al procesar la facturación: ' + (error instanceof Error ? error.message : 'Error desconocido'));
-    }
-  };
 
   const handleLiquidacion = async (liquidacion: any) => {
     console.log('handleLiquidacion llamado con:', liquidacion);
@@ -684,7 +633,7 @@ const Pedidos: React.FC = () => {
     }
     
     try {
-      console.log('Iniciando proceso de validación QR...');
+      console.log('Iniciando proceso de validación QR y facturación...');
       
       // Buscar la lavadora escaneada
       const lavadoraEscaneada = lavadoras.find(l => l.codigoQR === validacionData.lavadoraEscaneada);
@@ -699,7 +648,13 @@ const Pedidos: React.FC = () => {
         return;
       }
 
-      // Actualizar el pedido con la información de validación QR (estructura simplificada)
+      // Calcular totales de facturación
+      const subtotal = pedidoAValidar.plan.price;
+      const totalCobrosAdicionales = validacionData.cobrosAdicionales.reduce((sum: number, cobro: any) => sum + cobro.monto, 0);
+      const totalHorasAdicionales = validacionData.horasAdicionales * (configuracion?.horaAdicional || 2000);
+      const nuevoTotal = subtotal + totalCobrosAdicionales + totalHorasAdicionales;
+
+      // Actualizar el pedido con la información de validación QR y facturación
       const updateData: any = {
         validacionQR_lavadoraEscaneada: validacionData.lavadoraEscaneada,
         validacionQR_lavadoraOriginal: pedidoAValidar.lavadoraAsignada?.codigoQR || '',
@@ -707,91 +662,67 @@ const Pedidos: React.FC = () => {
         validacionQR_fechaValidacion: new Date(),
         validacionQR_fotoInstalacion: validacionData.fotoInstalacion,
         validacionQR_observacionesValidacion: validacionData.observacionesValidacion,
-        updatedAt: new Date()
+        // Datos de facturación
+        cobrosAdicionales: validacionData.cobrosAdicionales,
+        horasAdicionales: validacionData.horasAdicionales,
+        observacionesPago: validacionData.observacionesPago,
+        total: nuevoTotal,
+        subtotal: subtotal,
+        totalCobrosAdicionales: totalCobrosAdicionales,
+        totalHorasAdicionales: totalHorasAdicionales,
+        saldoPendiente: nuevoTotal - (pedidoAValidar.pagosRealizados?.reduce((sum, p) => sum + p.monto, 0) || 0),
+        updatedAt: new Date(),
+        status: 'entregado', // Cambiar estado a entregado
+        fechaEntrega: new Date() // Agregar fecha de entrega
       };
 
-      // Si se cambió la lavadora, actualizar la asignación
-      if (validacionData.cambioRealizado) {
-        // Liberar la lavadora original si existe
-        if (pedidoAValidar.lavadoraAsignada) {
-          await lavadoraService.updateLavadora(pedidoAValidar.lavadoraAsignada.lavadoraId, {
-            estado: 'disponible'
-          });
-        }
-
-        // Asignar la nueva lavadora
-        await lavadoraService.updateLavadora(lavadoraEscaneada.id, {
-          estado: 'alquilada'
-        });
-
-        // Actualizar la asignación en el pedido (estructura simplificada)
-        updateData.lavadoraAsignada_lavadoraId = lavadoraEscaneada.id;
-        updateData.lavadoraAsignada_codigoQR = lavadoraEscaneada.codigoQR;
-        updateData.lavadoraAsignada_marca = lavadoraEscaneada.marca;
-        updateData.lavadoraAsignada_modelo = lavadoraEscaneada.modelo;
-        updateData.lavadoraAsignada_fotoInstalacion = validacionData.fotoInstalacion;
-        updateData.lavadoraAsignada_observacionesInstalacion = validacionData.observacionesValidacion;
-
-        console.log('Lavadora cambiada de', pedidoAValidar.lavadoraAsignada?.codigoQR, 'a', validacionData.lavadoraEscaneada);
-      } else {
-        // Solo actualizar la foto y observaciones de la lavadora original
-        if (pedidoAValidar.lavadoraAsignada) {
-          updateData.lavadoraAsignada_fotoInstalacion = validacionData.fotoInstalacion;
-          updateData.lavadoraAsignada_observacionesInstalacion = validacionData.observacionesValidacion;
-        }
+      // Actualizar estado de pago
+      if (pedidoAValidar.estadoPago === 'pagado_anticipado') {
+        updateData.estadoPago = 'pagado_entrega';
       }
+
+      // SIEMPRE marcar la lavadora escaneada como alquilada
+      await lavadoraService.updateLavadora(lavadoraEscaneada.id, {
+        estado: 'alquilada'
+      });
+
+      // Si había una lavadora previamente asignada, liberarla
+      if (pedidoAValidar.lavadoraAsignada && pedidoAValidar.lavadoraAsignada.lavadoraId !== lavadoraEscaneada.id) {
+        await lavadoraService.updateLavadora(pedidoAValidar.lavadoraAsignada.lavadoraId, {
+          estado: 'disponible'
+        });
+        console.log('Lavadora anterior liberada:', pedidoAValidar.lavadoraAsignada.codigoQR);
+      }
+
+      // Actualizar la asignación en el pedido con la lavadora escaneada
+      updateData.lavadoraAsignada_lavadoraId = lavadoraEscaneada.id;
+      updateData.lavadoraAsignada_codigoQR = lavadoraEscaneada.codigoQR;
+      updateData.lavadoraAsignada_marca = lavadoraEscaneada.marca;
+      updateData.lavadoraAsignada_modelo = lavadoraEscaneada.modelo;
+      updateData.lavadoraAsignada_fotoInstalacion = validacionData.fotoInstalacion;
+      updateData.lavadoraAsignada_observacionesInstalacion = validacionData.observacionesValidacion;
+
+      console.log('Lavadora marcada como alquilada:', validacionData.lavadoraEscaneada);
 
       console.log('Datos a actualizar:', updateData);
 
-      // Actualizar solo los campos básicos del pedido
-      const { doc, setDoc, collection, addDoc } = await import('firebase/firestore');
-      const { db } = await import('../lib/firebase');
+      // Actualizar el pedido usando el servicio
+      await pedidoService.updatePedido(pedidoAValidar.id, updateData);
       
-      const pedidoRef = doc(db, 'pedidos', pedidoAValidar.id);
+      console.log('Pedido actualizado y facturado exitosamente');
       
-      // Actualizar campos básicos
-      await setDoc(pedidoRef, {
-        validacionQR_lavadoraEscaneada: validacionData.lavadoraEscaneada,
-        validacionQR_lavadoraOriginal: pedidoAValidar.lavadoraAsignada?.codigoQR || '',
-        validacionQR_cambioRealizado: validacionData.cambioRealizado,
-        validacionQR_fechaValidacion: new Date(),
-        validacionQR_fotoInstalacion: validacionData.fotoInstalacion,
-        validacionQR_observacionesValidacion: validacionData.observacionesValidacion,
-        updatedAt: new Date()
-      }, { merge: true });
-      
-      // Si hay cambios en lavadoraAsignada, actualizar por separado
-      if (validacionData.cambioRealizado) {
-        await setDoc(pedidoRef, {
-          lavadoraAsignada_lavadoraId: lavadoraEscaneada.id,
-          lavadoraAsignada_codigoQR: lavadoraEscaneada.codigoQR,
-          lavadoraAsignada_marca: lavadoraEscaneada.marca,
-          lavadoraAsignada_modelo: lavadoraEscaneada.modelo,
-          lavadoraAsignada_fotoInstalacion: validacionData.fotoInstalacion,
-          lavadoraAsignada_observacionesInstalacion: validacionData.observacionesValidacion
-        }, { merge: true });
-      } else if (pedidoAValidar.lavadoraAsignada) {
-        await setDoc(pedidoRef, {
-          lavadoraAsignada_fotoInstalacion: validacionData.fotoInstalacion,
-          lavadoraAsignada_observacionesInstalacion: validacionData.observacionesValidacion
-        }, { merge: true });
-      }
-      
-      console.log('Pedido actualizado exitosamente');
-      
-      // Cerrar modal de validación y abrir modal de facturación
+      // Cerrar modal
       setMostrarModalValidacionQR(false);
-      setPedidoAFacturar(pedidoAValidar);
-      setMostrarModalFacturacion(true);
       setPedidoAValidar(null);
       
       // Recargar datos
       cargarPedidos();
       cargarLavadoras();
+      window.dispatchEvent(new CustomEvent('pagoRealizado')); // Notificar al dashboard
       
     } catch (error) {
-      console.error('Error al procesar validación QR:', error);
-      alert('Error al procesar la validación QR: ' + (error instanceof Error ? error.message : 'Error desconocido'));
+      console.error('Error al procesar validación QR y facturación:', error);
+      alert('Error al procesar la entrega: ' + (error instanceof Error ? error.message : 'Error desconocido'));
     }
   };
 
@@ -1502,20 +1433,6 @@ const Pedidos: React.FC = () => {
         />
       )}
 
-      {/* Modal de Facturación */}
-      {mostrarModalFacturacion && pedidoAFacturar && (
-        <ModalFacturacion
-          isOpen={mostrarModalFacturacion}
-          onClose={() => {
-            console.log('Cerrando modal de facturación');
-            setMostrarModalFacturacion(false);
-            setPedidoAFacturar(null);
-          }}
-          onConfirm={handleFacturacion}
-          pedido={pedidoAFacturar}
-          precioHoraAdicional={configuracion?.horaAdicional || 2000}
-        />
-      )}
       
 
       {/* Modal de Liquidación */}
@@ -1556,6 +1473,7 @@ const Pedidos: React.FC = () => {
           onConfirm={handleValidacionQR}
           pedido={pedidoAValidar}
           lavadoras={lavadoras}
+          precioHoraAdicional={configuracion?.horaAdicional || 2000}
         />
       )}
 

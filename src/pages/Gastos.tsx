@@ -282,10 +282,21 @@ const Gastos: React.FC = () => {
 
   // Filtrar gastos de mantenimiento por fecha
   const gastosMantenimientoFiltrados = gastosMantenimiento.filter(mantenimiento => {
-    if (!mantenimiento.fechaFin) return false; // Solo mantenimientos finalizados
-    const fechaMantenimiento = new Date(mantenimiento.fechaFin);
+    // Usar fechaInicio o createdAt para determinar cuándo se hizo efectivo el gasto
+    const fechaMantenimiento = mantenimiento.fechaInicio || mantenimiento.createdAt;
     return fechaMantenimiento >= filtros.fechaInicio && fechaMantenimiento <= filtros.fechaFin;
   });
+
+  console.log('🔧 Gastos - Debug Mantenimiento:');
+  console.log('📊 Total mantenimientos cargados:', gastosMantenimiento.length);
+  console.log('📅 Mantenimientos filtrados:', gastosMantenimientoFiltrados.length);
+  console.log('📋 Todos los mantenimientos:', gastosMantenimiento.map(m => ({
+    id: m.id,
+    costo: m.costoReparacion,
+    fechaFin: m.fechaFin,
+    descripcion: m.descripcion,
+    tieneFechaFin: !!m.fechaFin
+  })));
 
   const totalGastosGenerales = gastosFiltrados.reduce((sum, gasto) => sum + gasto.amount, 0);
   const totalGastosMantenimiento = gastosMantenimientoFiltrados.reduce((sum, mantenimiento) => sum + (mantenimiento.costoReparacion || 0), 0);

@@ -245,11 +245,29 @@ const Dashboard: React.FC = () => {
         };
       });
       const mantenimientosFiltrados = todosLosMantenimientos.filter(mantenimiento => {
-        if (!mantenimiento.fechaFin) return false; // Solo mantenimientos finalizados
-        const fechaMantenimiento = new Date(mantenimiento.fechaFin);
+        // Usar fechaInicio o createdAt para determinar cuándo se hizo efectivo el gasto
+        const fechaMantenimiento = mantenimiento.fechaInicio || mantenimiento.createdAt;
         return fechaMantenimiento >= fechaInicio && fechaMantenimiento <= fechaFin;
       });
       const totalGastosMantenimiento = mantenimientosFiltrados.reduce((sum, mantenimiento) => sum + (mantenimiento.costoReparacion || 0), 0);
+      
+      console.log('🔧 Gastos de mantenimiento - Debug:');
+      console.log('📊 Total mantenimientos encontrados:', todosLosMantenimientos.length);
+      console.log('📅 Mantenimientos filtrados:', mantenimientosFiltrados.length);
+      console.log('💰 Total gastos mantenimiento:', totalGastosMantenimiento);
+      console.log('📋 Todos los mantenimientos (detalles):', todosLosMantenimientos.map(m => ({
+        id: m.id,
+        costo: m.costoReparacion,
+        fechaFin: m.fechaFin,
+        fechaInicio: m.fechaInicio,
+        descripcion: m.descripcion,
+        tieneFechaFin: !!m.fechaFin
+      })));
+      console.log('📅 Filtro de fechas:', {
+        fechaInicio: fechaInicio,
+        fechaFin: fechaFin,
+        tipo: 'Mantenimientos por fechaInicio/createdAt (gastos efectivos desde creación)'
+      });
       
       const totalGastos = totalGastosGenerales + totalGastosMantenimiento;
 

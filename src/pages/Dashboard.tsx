@@ -597,6 +597,18 @@ const Dashboard: React.FC = () => {
           return fechaA - fechaB;
         });
         
+        // Ordenar pedidos pendientes de recoger por recogida prioritaria y fecha
+        pendientesRecoger.sort((a, b) => {
+          // Primero por recogida prioritaria (prioritarios primero)
+          if (a.recogidaPrioritaria && !b.recogidaPrioritaria) return -1;
+          if (!a.recogidaPrioritaria && b.recogidaPrioritaria) return 1;
+          
+          // Luego por fecha de recogida calculada
+          const fechaA = a.fechaRecogidaCalculada?.getTime() || 0;
+          const fechaB = b.fechaRecogidaCalculada?.getTime() || 0;
+          return fechaA - fechaB;
+        });
+        
         setReporteDiario(reportePersonalizado);
         setPedidosPendientes(pendientesRecoger); // Mantener para compatibilidad
         setPedidosPendientesEntregar(pendientesEntregar);

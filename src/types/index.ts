@@ -93,6 +93,11 @@ export interface Pedido {
   isPrioritario: boolean; // true = pedido prioritario, false = normal
   motivoPrioridad?: string; // motivo de la prioridad (ej: "cliente sale a las 8 AM")
   
+  // Sistema de recogida prioritaria
+  recogidaPrioritaria?: boolean; // true = recogida prioritaria, false = normal
+  horaRecogida?: string; // hora prioritaria de recogida (formato "HH:mm")
+  observacionRecogida?: string; // observaciones para la recogida prioritaria
+  
   // Timestamps editables
   fechaAsignacion: Date;
   fechaEntrega?: Date;

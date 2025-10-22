@@ -18,6 +18,9 @@ interface ModalValidacionQRProps {
     cobrosAdicionales: CobroAdicional[];
     horasAdicionales: number;
     observacionesPago?: string;
+    recogidaPrioritaria?: boolean;
+    horaRecogida?: string;
+    observacionRecogida?: string;
   }) => void;
   pedido: Pedido;
   lavadoras: Lavadora[];
@@ -53,6 +56,11 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
     monto: '',
     descripcion: ''
   });
+  
+  // Estados para recogida prioritaria
+  const [recogidaPrioritaria, setRecogidaPrioritaria] = useState(false);
+  const [horaRecogida, setHoraRecogida] = useState('');
+  const [observacionRecogida, setObservacionRecogida] = useState('');
 
   if (!isOpen) return null;
 
@@ -193,7 +201,10 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
         observacionesValidacion,
         cobrosAdicionales,
         horasAdicionales: parseInt(horasAdicionales) || 0,
-        observacionesPago
+        observacionesPago,
+        recogidaPrioritaria,
+        horaRecogida,
+        observacionRecogida
       });
     } catch (error) {
       console.error('Error al subir foto:', error);
@@ -216,6 +227,10 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
     setObservacionesPago('');
     setMostrarFormularioCobro(false);
     setNuevoCobro({ concepto: '', monto: '', descripcion: '' });
+    // Resetear estados de recogida prioritaria
+    setRecogidaPrioritaria(false);
+    setHoraRecogida('');
+    setObservacionRecogida('');
     onClose();
   };
 
@@ -558,6 +573,54 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               rows={3}
             />
+          </div>
+
+          {/* Recogida Prioritaria */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium text-gray-900">7. ⏰ Recogida Prioritaria (Opcional)</h3>
+            
+            <div className="flex items-center space-x-3">
+              <input
+                type="checkbox"
+                id="recogidaPrioritaria"
+                checked={recogidaPrioritaria}
+                onChange={(e) => setRecogidaPrioritaria(e.target.checked)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="recogidaPrioritaria" className="text-sm font-medium text-gray-700">
+                Marcar como recogida prioritaria
+              </label>
+            </div>
+
+            {recogidaPrioritaria && (
+              <div className="space-y-4 pl-7 border-l-2 border-blue-200 bg-blue-50 p-4 rounded-r-lg">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Hora Prioritaria de Recogida
+                  </label>
+                  <input
+                    type="time"
+                    value={horaRecogida}
+                    onChange={(e) => setHoraRecogida(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Seleccionar hora"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Observación de Recogida
+                  </label>
+                  <textarea
+                    value={observacionRecogida}
+                    onChange={(e) => setObservacionRecogida(e.target.value)}
+                    placeholder="Instrucciones especiales para la recogida..."
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    rows={3}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Resumen de Totales */}

@@ -537,11 +537,8 @@ const Pedidos: React.FC = () => {
         fechaEntrega: new Date() // Agregar fecha de entrega
       };
 
-      // Si no pagó anticipado, agregar método de pago
-      if (pedidoAFacturar.estadoPago !== 'pagado_anticipado' && facturacion.paymentMethod) {
-        updateData.paymentMethod = facturacion.paymentMethod;
-        updateData.estadoPago = 'pagado_entrega';
-      } else if (pedidoAFacturar.estadoPago === 'pagado_anticipado') {
+      // Actualizar estado de pago
+      if (pedidoAFacturar.estadoPago === 'pagado_anticipado') {
         updateData.estadoPago = 'pagado_entrega';
       }
 
@@ -592,10 +589,8 @@ const Pedidos: React.FC = () => {
       };
 
       // Si no ha pagado, agregar método de pago
-      if (pedidoAFacturar.estadoPago === 'pendiente' && liquidacion.paymentMethod) {
-        updateData.paymentMethod = liquidacion.paymentMethod;
-        updateData.estadoPago = 'pagado_recogida';
-      } else if (pedidoAFacturar.estadoPago === 'pagado_entrega') {
+      // Actualizar estado de pago
+      if (pedidoAFacturar.estadoPago === 'pagado_entrega') {
         updateData.estadoPago = 'pagado_recogida';
       }
 

@@ -140,7 +140,7 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
     }
 
     if (!fotoFile) {
-      alert('Debe tomar una foto de la instalación');
+      alert('Debe tomar una foto de la instalación antes de continuar');
       return;
     }
 
@@ -319,7 +319,12 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
 
           {/* Foto de instalación */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium text-gray-900">2. Foto de la Instalación</h3>
+            <h3 className="text-lg font-medium text-gray-900">
+              2. 📸 Foto de la Instalación
+            </h3>
+            <p className="text-sm text-gray-600">
+              Tome una foto de la instalación para documentar el servicio
+            </p>
             
             <div className="space-y-4">
               <input
@@ -333,10 +338,16 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
               
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                  fotoFile 
+                    ? 'bg-green-600 text-white hover:bg-green-700' 
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
               >
                 <CameraIcon className="h-5 w-5" />
-                <span>Tomar Foto de la Instalación</span>
+                <span>
+                  {fotoFile ? '✅ Foto Tomada' : '📸 Tomar Foto'}
+                </span>
               </button>
               
               {fotoInstalacion && (
@@ -376,9 +387,22 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
           <button
             onClick={handleConfirmar}
             disabled={!qrEscaneado || !fotoFile || subiendoFoto || !!errorLavadora}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            className={`px-6 py-2 rounded-lg transition-colors ${
+              !qrEscaneado || !fotoFile || subiendoFoto || !!errorLavadora
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
+            title={
+              !qrEscaneado ? 'Debe escanear el código QR' :
+              !fotoFile ? 'Debe tomar una foto de la instalación' :
+              errorLavadora ? 'Lavadora ya está alquilada' :
+              subiendoFoto ? 'Subiendo foto...' :
+              'Continuar con la entrega'
+            }
           >
-            {subiendoFoto ? 'Subiendo Foto...' : 'Continuar a Facturación'}
+            {subiendoFoto ? 'Subiendo Foto...' : 
+             !fotoFile ? 'Tomar Foto Primero' :
+             'Continuar a Facturación'}
           </button>
         </div>
 

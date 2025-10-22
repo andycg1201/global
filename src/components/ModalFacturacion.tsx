@@ -9,7 +9,6 @@ interface ModalFacturacionProps {
   onConfirm: (facturacion: {
     cobrosAdicionales: CobroAdicional[];
     horasAdicionales: number;
-    paymentMethod?: PaymentMethod;
     observacionesPago?: string;
   }) => void;
   pedido: Pedido;
@@ -25,11 +24,6 @@ const ModalFacturacion: React.FC<ModalFacturacionProps> = ({
 }) => {
   const [cobrosAdicionales, setCobrosAdicionales] = useState<CobroAdicional[]>([]);
   const [horasAdicionales, setHorasAdicionales] = useState<string>('0');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>({
-    type: 'efectivo',
-    method: 'efectivo',
-    amount: 0
-  });
   const [observacionesPago, setObservacionesPago] = useState('');
   const [loading, setLoading] = useState(false);
   const [mostrarFormularioCobro, setMostrarFormularioCobro] = useState(false);
@@ -54,7 +48,6 @@ const ModalFacturacion: React.FC<ModalFacturacionProps> = ({
       const facturacion = {
         cobrosAdicionales,
         horasAdicionales: horasAdicionalesNum,
-        paymentMethod: pedido.estadoPago === 'pagado_anticipado' ? undefined : paymentMethod,
         observacionesPago
       };
       
@@ -73,11 +66,6 @@ const ModalFacturacion: React.FC<ModalFacturacionProps> = ({
   const handleClose = () => {
     setCobrosAdicionales([]);
     setHorasAdicionales('0');
-    setPaymentMethod({
-      type: 'efectivo',
-      method: 'efectivo',
-      amount: 0
-    });
     setObservacionesPago('');
     setMostrarFormularioCobro(false);
     setNuevoCobro({ concepto: '', monto: '', descripcion: '' });
@@ -316,83 +304,6 @@ const ModalFacturacion: React.FC<ModalFacturacionProps> = ({
             </div>
 
             {/* Método de pago (solo si no pagó anticipado) */}
-            {pedido.estadoPago !== 'pagado_anticipado' && (
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Método de Pago
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod(prev => ({ 
-                      ...prev, 
-                      type: 'efectivo',
-                      method: 'efectivo',
-                      amount: total
-                    }))}
-                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                      paymentMethod.type === 'efectivo'
-                        ? 'bg-primary-50 border-primary-500 text-primary-700'
-                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    Efectivo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod(prev => ({ 
-                      ...prev, 
-                      type: 'nequi',
-                      method: 'deposito',
-                      amount: total
-                    }))}
-                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                      paymentMethod.type === 'nequi'
-                        ? 'bg-primary-50 border-primary-500 text-primary-700'
-                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    Nequi
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod(prev => ({ 
-                      ...prev, 
-                      type: 'daviplata',
-                      method: 'deposito',
-                      amount: total
-                    }))}
-                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                      paymentMethod.type === 'daviplata'
-                        ? 'bg-primary-50 border-primary-500 text-primary-700'
-                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    Daviplata
-                  </button>
-                </div>
-
-                {/* Número de comprobante para transferencias */}
-                {paymentMethod.type !== 'efectivo' && (
-                  <div className="mt-3">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Número de Comprobante
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
-                      value={paymentMethod.reference || ''}
-                      onChange={(e) => setPaymentMethod(prev => ({ 
-                        ...prev, 
-                        reference: e.target.value 
-                      }))}
-                      placeholder="Número de comprobante"
-                      required
-                    />
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Observaciones de pago */}
             <div className="mb-6">

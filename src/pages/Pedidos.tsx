@@ -17,6 +17,7 @@ import EditarPedido from '../components/EditarPedido';
 import ModalCancelacion from '../components/ModalCancelacion';
 import ModalFacturacion from '../components/ModalFacturacion';
 import ModalLiquidacion from '../components/ModalLiquidacion';
+import ModalLiquidacionUniversal from '../components/ModalLiquidacionUniversal';
 import ModalValidacionQR from '../components/ModalValidacionQR';
 import ModalFotoInstalacion from '../components/ModalFotoInstalacion';
 import CalendarioHorarios from '../components/CalendarioHorarios';
@@ -43,7 +44,9 @@ const Pedidos: React.FC = () => {
   // Estados para modales de facturación
   const [mostrarModalFacturacion, setMostrarModalFacturacion] = useState(false);
   const [mostrarModalLiquidacion, setMostrarModalLiquidacion] = useState(false);
+  const [mostrarModalLiquidacionUniversal, setMostrarModalLiquidacionUniversal] = useState(false);
   const [pedidoAFacturar, setPedidoAFacturar] = useState<Pedido | null>(null);
+  const [pedidoALiquidar, setPedidoALiquidar] = useState<Pedido | null>(null);
   const [configuracion, setConfiguracion] = useState<any>(null);
   
   // Estados para validación QR
@@ -366,6 +369,32 @@ const Pedidos: React.FC = () => {
     }
   };
 
+  const getLiquidacionButton = (pedido: Pedido) => {
+    const saldoPendiente = pedido.saldoPendiente || pedido.total || 0;
+    
+    if (saldoPendiente <= 0) return null;
+
+    const getBadgeColor = (saldo: number) => {
+      if (saldo > 50000) return 'bg-red-100 text-red-800 border-red-200';
+      if (saldo > 20000) return 'bg-orange-100 text-orange-800 border-orange-200';
+      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    };
+
+    return (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setPedidoALiquidar(pedido);
+          setMostrarModalLiquidacionUniversal(true);
+        }}
+        className={`px-3 py-2 text-xs font-medium rounded-lg border transition-colors hover:shadow-md ${getBadgeColor(saldoPendiente)}`}
+        title={`Saldo pendiente: ${formatCurrency(saldoPendiente)}`}
+      >
+        💰 Liquidar {formatCurrency(saldoPendiente)}
+      </button>
+    );
+  };
+
   const getProgresoButton = (pedido: Pedido) => {
     if (pedido.status === 'pendiente') {
       return (
@@ -600,9 +629,53 @@ const Pedidos: React.FC = () => {
       setMostrarModalLiquidacion(false);
       setPedidoAFacturar(null);
       alert('Liquidación procesada exitosamente');
+      
+      // Disparar evento para recargar dashboard
+      window.dispatchEvent(new CustomEvent('pagoRealizado'));
     } catch (error) {
       console.error('Error al procesar liquidación:', error);
       alert('Error al procesar la liquidación: ' + (error instanceof Error ? error.message : 'Error desconocido'));
+    }
+  };
+
+  const handleLiquidacionUniversal = async (paymentData: {
+    amount: number;
+    medioPago: 'efectivo' | 'nequi' | 'daviplata';
+    reference?: string;
+    isPartial: boolean;
+  }) => {
+    if (!pedidoALiquidar) return;
+
+    try {
+      const nuevoPago: any = {
+        monto: paymentData.amount,
+        medioPago: paymentData.medioPago,
+        fecha: new Date(),
+        isPartial: paymentData.isPartial,
+        ...(paymentData.reference && { referencia: paymentData.reference })
+      };
+
+      // Actualizar el pedido con el nuevo pago
+      const pagosActuales = pedidoALiquidar.pagosRealizados || [];
+      const nuevosPagos = [...pagosActuales, nuevoPago];
+      const nuevoSaldoPendiente = Math.max(0, pedidoALiquidar.saldoPendiente - paymentData.amount);
+
+      await pedidoService.updatePedido(pedidoALiquidar.id, {
+        pagosRealizados: nuevosPagos,
+        saldoPendiente: nuevoSaldoPendiente,
+        estadoPago: nuevoSaldoPendiente === 0 ? 'pagado_recogida' : 'debe'
+      });
+
+      // Recargar pedidos
+      await cargarPedidos();
+      setMostrarModalLiquidacionUniversal(false);
+      setPedidoALiquidar(null);
+      
+      // Disparar evento para recargar dashboard
+      window.dispatchEvent(new CustomEvent('pagoRealizado'));
+    } catch (error) {
+      console.error('Error al procesar liquidación universal:', error);
+      alert('Error al procesar la liquidación');
     }
   };
 
@@ -748,9 +821,9 @@ const Pedidos: React.FC = () => {
                 </div>
         <div>
                   <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                    Gestión de Pedidos
+                    Gestión de Servicios
                   </h1>
-                  <p className="text-gray-600 text-lg mt-1">Administra y monitorea todos los pedidos de lavadoras</p>
+                  <p className="text-gray-600 text-lg mt-1">Administra y monitorea todos los servicios de lavadoras</p>
                 </div>
               </div>
               
@@ -787,7 +860,7 @@ const Pedidos: React.FC = () => {
                 className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 flex items-center space-x-2"
         >
                 <PlusIcon className="h-5 w-5" />
-          <span>Nuevo Pedido</span>
+          <span>Nuevo Servicio</span>
         </button>
             </div>
           </div>
@@ -905,10 +978,10 @@ const Pedidos: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900">
-                    Lista de Pedidos
+                    Lista de Servicios
         </h3>
                   <p className="text-sm text-gray-600">
-                    {pedidosFiltrados.length} pedido{pedidosFiltrados.length !== 1 ? 's' : ''} encontrado{pedidosFiltrados.length !== 1 ? 's' : ''}
+                    {pedidosFiltrados.length} servicio{pedidosFiltrados.length !== 1 ? 's' : ''} encontrado{pedidosFiltrados.length !== 1 ? 's' : ''}
                   </p>
                 </div>
               </div>
@@ -920,13 +993,13 @@ const Pedidos: React.FC = () => {
               <div className="mx-auto w-24 h-24 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full flex items-center justify-center mb-6">
                 <ClipboardDocumentListIcon className="h-12 w-12 text-gray-400" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No se encontraron pedidos</h3>
-              <p className="text-gray-500 mb-6">Intenta ajustar los filtros o crear un nuevo pedido</p>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No se encontraron servicios</h3>
+              <p className="text-gray-500 mb-6">Intenta ajustar los filtros o crear un nuevo servicio</p>
               <button
                 onClick={() => setMostrarNuevoPedido(true)}
                 className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
               >
-                Crear Primer Pedido
+                Crear Primer Servicio
               </button>
           </div>
         ) : (
@@ -989,6 +1062,9 @@ const Pedidos: React.FC = () => {
                       <div className="flex items-center space-x-2">
                         {/* Botón progresivo de estado */}
                         {getProgresoButton(pedido)}
+                        
+                        {/* Botón de liquidación universal */}
+                        {getLiquidacionButton(pedido)}
                         
                         {/* Separador visual */}
                         <div className="w-px h-6 bg-gray-300"></div>
@@ -1155,7 +1231,7 @@ const Pedidos: React.FC = () => {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Nuevo Pedido</h3>
+              <h3 className="text-lg font-medium text-gray-900">Nuevo Servicio</h3>
               <button
                 onClick={() => setMostrarNuevoPedido(false)}
                 className="text-gray-400 hover:text-gray-600"
@@ -1179,7 +1255,7 @@ const Pedidos: React.FC = () => {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-2xl shadow-lg rounded-md bg-white">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Detalles del Pedido</h3>
+              <h3 className="text-lg font-medium text-gray-900">Detalles del Servicio</h3>
               <button
                 onClick={() => setMostrarModalDetalles(false)}
                 className="text-gray-400 hover:text-gray-600"
@@ -1391,7 +1467,7 @@ const Pedidos: React.FC = () => {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Editar Pedido</h3>
+              <h3 className="text-lg font-medium text-gray-900">Editar Servicio</h3>
               <button
                 onClick={() => setMostrarModalEditar(false)}
                 className="text-gray-400 hover:text-gray-600"
@@ -1458,6 +1534,19 @@ const Pedidos: React.FC = () => {
           onConfirm={handleLiquidacion}
           pedido={pedidoAFacturar}
           precioHoraAdicional={configuracion?.horaAdicional || 2000}
+        />
+      )}
+
+      {/* Modal de Liquidación Universal */}
+      {mostrarModalLiquidacionUniversal && pedidoALiquidar && (
+        <ModalLiquidacionUniversal
+          isOpen={mostrarModalLiquidacionUniversal}
+          onClose={() => {
+            setMostrarModalLiquidacionUniversal(false);
+            setPedidoALiquidar(null);
+          }}
+          onConfirm={handleLiquidacionUniversal}
+          pedido={pedidoALiquidar}
         />
       )}
 

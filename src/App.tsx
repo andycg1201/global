@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import NuevoPedido from './pages/NuevoPedido';
 import Clientes from './pages/Clientes';
 import Pedidos from './pages/Pedidos';
+import Pagos from './pages/Pagos';
 import InventarioLavadoras from './pages/InventarioLavadoras';
 import Gastos from './pages/Gastos';
 import Reportes from './pages/Reportes';
@@ -82,6 +83,14 @@ const AppContent: React.FC = () => {
           element={
             <ProtectedRoute>
               <Pedidos />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/pagos" 
+          element={
+            <ProtectedRoute>
+              <Pagos />
             </ProtectedRoute>
           } 
         />

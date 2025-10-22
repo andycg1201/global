@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { XMarkIcon, QrCodeIcon, CameraIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, QrCodeIcon, CameraIcon } from '@heroicons/react/24/outline';
 import { Pedido, Lavadora } from '../types';
 import { storageService } from '../services/storageService';
 // Usaremos html5-qrcode para escanear con la cámara
@@ -31,8 +31,7 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [subiendoFoto, setSubiendoFoto] = useState(false);
   const [observacionesValidacion, setObservacionesValidacion] = useState<string>('');
-  const [mostrarConfirmacion, setMostrarConfirmacion] = useState<boolean>(false);
-  const [cambioDetectado, setCambioDetectado] = useState<boolean>(false);
+  const [errorLavadora, setErrorLavadora] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const qrRegionId = 'qr-reader-region';
@@ -40,8 +39,6 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
 
   if (!isOpen) return null;
 
-  const lavadoraOriginal = pedido.lavadoraAsignada?.codigoQR || '';
-  const lavadoraOriginalData = lavadoras.find(l => l.codigoQR === lavadoraOriginal);
   const lavadoraEscaneadaData = lavadoras.find(l => l.codigoQR === qrEscaneado);
 
   const stopScanner = async () => {
@@ -91,10 +88,15 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
         (decodedText: string) => {
           const code = decodedText.trim();
           setQrEscaneado(code);
-          if (code !== lavadoraOriginal) {
-            setCambioDetectado(true);
-            setMostrarConfirmacion(true);
+          
+          // Verificar si la lavadora ya está alquilada
+          const lavadoraData = lavadoras.find(l => l.codigoQR === code);
+          if (lavadoraData && lavadoraData.estado === 'alquilada') {
+            setErrorLavadora('Esta lavadora ya está alquilada. Por favor, escanee otra lavadora.');
+          } else {
+            setErrorLavadora('');
           }
+          
           stopScanner();
         },
         () => {}
@@ -125,13 +127,15 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
     }
   };
 
-  const handleConfirmarCambio = () => {
-    setMostrarConfirmacion(false);
-  };
 
   const handleConfirmar = async () => {
     if (!qrEscaneado) {
       alert('Debe escanear el código QR de la lavadora');
+      return;
+    }
+
+    if (errorLavadora) {
+      alert('No se puede continuar con una lavadora ya alquilada');
       return;
     }
 
@@ -167,7 +171,7 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
       
       onConfirm({
         lavadoraEscaneada: qrEscaneado,
-        cambioRealizado: cambioDetectado,
+        cambioRealizado: false, // Ya no hay validación de cambio
         fotoInstalacion: fotoUrl, // Ahora es una URL, no base64
         observacionesValidacion
       });
@@ -185,8 +189,7 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
     setFotoFile(null);
     setSubiendoFoto(false);
     setObservacionesValidacion('');
-    setMostrarConfirmacion(false);
-    setCambioDetectado(false);
+    setErrorLavadora('');
     onClose();
   };
 
@@ -226,9 +229,6 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
             </p>
             <p className="text-sm text-blue-800">
               <strong>Plan:</strong> {pedido.plan.name}
-            </p>
-            <p className="text-sm text-blue-800">
-              <strong>Lavadora asignada:</strong> {lavadoraOriginal} ({lavadoraOriginalData?.marca} {lavadoraOriginalData?.modelo})
             </p>
           </div>
 
@@ -272,8 +272,25 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
               </div>
             )}
 
+            {/* Mostrar error si lavadora ya está alquilada */}
+            {errorLavadora && (
+              <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-red-800">Lavadora no disponible</h4>
+                    <p className="text-sm text-red-700 mt-1">{errorLavadora}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Mostrar información de la lavadora escaneada */}
-            {qrEscaneado && lavadoraEscaneadaData && (
+            {qrEscaneado && lavadoraEscaneadaData && !errorLavadora && (
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h4 className="font-medium text-gray-900 mb-2">Lavadora escaneada:</h4>
                 <p className="text-sm text-gray-700">
@@ -358,66 +375,13 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
           </button>
           <button
             onClick={handleConfirmar}
-            disabled={!qrEscaneado || !fotoFile || subiendoFoto}
+            disabled={!qrEscaneado || !fotoFile || subiendoFoto || !!errorLavadora}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
           >
             {subiendoFoto ? 'Subiendo Foto...' : 'Continuar a Facturación'}
           </button>
         </div>
 
-        {/* Modal de confirmación de cambio */}
-        {mostrarConfirmacion && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-              <div className="p-6">
-                <div className="flex items-center space-x-3 mb-4">
-                  <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600" />
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    Cambio de Lavadora Detectado
-                  </h3>
-                </div>
-                
-                <div className="space-y-3 mb-6">
-                  <p className="text-sm text-gray-600">
-                    Se detectó que la lavadora escaneada es diferente a la asignada:
-                  </p>
-                  
-                  <div className="bg-yellow-50 p-4 rounded-lg space-y-2">
-                    <p className="text-sm">
-                      <strong>Lavadora asignada:</strong> {lavadoraOriginal} ({lavadoraOriginalData?.marca} {lavadoraOriginalData?.modelo})
-                    </p>
-                    <p className="text-sm">
-                      <strong>Lavadora escaneada:</strong> {qrEscaneado} ({lavadoraEscaneadaData?.marca} {lavadoraEscaneadaData?.modelo})
-                    </p>
-                  </div>
-                  
-                  <p className="text-sm text-gray-600">
-                    ¿Desea continuar con la lavadora escaneada?
-                  </p>
-                </div>
-                
-                <div className="flex items-center justify-end space-x-4">
-                  <button
-                    onClick={() => {
-                      setMostrarConfirmacion(false);
-                      setQrEscaneado(lavadoraOriginal);
-                      setCambioDetectado(false);
-                    }}
-                    className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-                  >
-                    Usar Original
-                  </button>
-                  <button
-                    onClick={handleConfirmarCambio}
-                    className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
-                  >
-                    Continuar con {qrEscaneado}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

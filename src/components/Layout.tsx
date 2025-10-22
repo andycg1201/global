@@ -30,7 +30,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigation = [
     { name: 'Dashboard', href: '/', icon: HomeIcon },
     { name: 'Clientes', href: '/clientes', icon: UserGroupIcon },
-    { name: 'Pedidos', href: '/pedidos', icon: ClipboardDocumentListIcon },
+    { name: 'Servicios', href: '/pedidos', icon: ClipboardDocumentListIcon },
+    { name: 'Pagos', href: '/pagos', icon: CurrencyDollarIcon },
     { name: 'Inventario', href: '/inventario', icon: CubeIcon },
     { name: 'Gastos', href: '/gastos', icon: CurrencyDollarIcon },
     { name: 'Reportes', href: '/reportes', icon: ChartBarIcon },

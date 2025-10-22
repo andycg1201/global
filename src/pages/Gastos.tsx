@@ -32,7 +32,8 @@ const Gastos: React.FC = () => {
     conceptoId: '',
     amount: '',
     description: '',
-    date: new Date() // Usar new Date() directamente para fecha actual
+    date: new Date(), // Usar new Date() directamente para fecha actual
+    medioPago: 'efectivo' as 'efectivo' | 'nequi' | 'daviplata'
   });
 
   // Debug: Verificar fecha inicial
@@ -134,6 +135,7 @@ const Gastos: React.FC = () => {
         amount: amountNumerico,
         description: nuevoGasto.description,
         date: fechaActual, // Fecha actual real
+        medioPago: nuevoGasto.medioPago,
         createdBy: user.id
       });
       
@@ -141,7 +143,8 @@ const Gastos: React.FC = () => {
         conceptoId: '',
         amount: '',
         description: '',
-        date: new Date() // Resetear con fecha actual
+        date: new Date(), // Resetear con fecha actual
+        medioPago: 'efectivo'
       });
       setMostrarFormulario(false);
       cargarDatos();
@@ -469,6 +472,46 @@ const Gastos: React.FC = () => {
                   placeholder="Descripción detallada del gasto..."
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Medio de Pago *
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNuevoGasto(prev => ({ ...prev, medioPago: 'efectivo' }))}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                      nuevoGasto.medioPago === 'efectivo'
+                        ? 'bg-green-50 border-green-500 text-green-700'
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    💵 Efectivo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNuevoGasto(prev => ({ ...prev, medioPago: 'nequi' }))}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                      nuevoGasto.medioPago === 'nequi'
+                        ? 'bg-blue-50 border-blue-500 text-blue-700'
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    📱 Nequi
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNuevoGasto(prev => ({ ...prev, medioPago: 'daviplata' }))}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                      nuevoGasto.medioPago === 'daviplata'
+                        ? 'bg-purple-50 border-purple-500 text-purple-700'
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    📱 Daviplata
+                  </button>
+                </div>
+              </div>
             </div>
             <div className="flex justify-end space-x-3">
               <button
@@ -728,6 +771,9 @@ const Gastos: React.FC = () => {
                     Monto
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Medio de Pago
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Fecha
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -753,6 +799,17 @@ const Gastos: React.FC = () => {
                       <div className="text-sm font-medium text-danger-600">
                         {formatCurrency(gasto.amount)}
                       </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        gasto.medioPago === 'efectivo' ? 'bg-green-100 text-green-800' :
+                        gasto.medioPago === 'nequi' ? 'bg-blue-100 text-blue-800' :
+                        'bg-purple-100 text-purple-800'
+                      }`}>
+                        {gasto.medioPago === 'efectivo' ? '💵 Efectivo' :
+                         gasto.medioPago === 'nequi' ? '📱 Nequi' :
+                         '📱 Daviplata'}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {formatDate(gasto.date, 'dd/MM/yyyy HH:mm')}

@@ -123,6 +123,10 @@ export interface Pedido {
   observaciones?: string;
   observacionesPago?: string; // observaciones específicas del pago
   
+  // Sistema de liquidación universal
+  pagosRealizados?: PagoRealizado[]; // historial de pagos realizados
+  saldoPendiente: number; // saldo pendiente de liquidación
+  
   // Gestión de lavadoras
   lavadoraAsignada?: {
     lavadoraId: string;
@@ -150,6 +154,15 @@ export interface Pedido {
   createdBy: string; // ID del usuario que creó el pedido
   createdAt: Date;
   updatedAt: Date;
+}
+
+// Tipos de pago
+export interface PagoRealizado {
+  monto: number;
+  medioPago: 'efectivo' | 'nequi' | 'daviplata';
+  referencia?: string;
+  fecha: Date;
+  isPartial: boolean;
 }
 
 // Tipos de mantenimiento
@@ -218,6 +231,7 @@ export interface Gasto {
   amount: number;
   description: string;
   date: Date;
+  medioPago: 'efectivo' | 'nequi' | 'daviplata';
   createdBy: string;
   createdAt: Date;
 }

@@ -56,6 +56,115 @@ const Dashboard: React.FC = () => {
     pedidosCompletados: 0
   });
 
+  // Estados para saldos por medio de pago
+  const [saldosPorMedio, setSaldosPorMedio] = useState({
+    efectivo: { ingresos: 0, gastos: 0, saldo: 0 },
+    nequi: { ingresos: 0, gastos: 0, saldo: 0 },
+    daviplata: { ingresos: 0, gastos: 0, saldo: 0 }
+  });
+
+  // Estados para sección de pagos
+  const [filtroPagos, setFiltroPagos] = useState({
+    tipo: 'hoy' as 'hoy' | 'ayer' | 'personalizado',
+    fechaInicio: getCurrentDateColombia(),
+    fechaFin: getCurrentDateColombia()
+  });
+  const [pagosRecibidos, setPagosRecibidos] = useState<any[]>([]);
+  const [resumenPagos, setResumenPagos] = useState({
+    total: 0,
+    efectivo: 0,
+    nequi: 0,
+    daviplata: 0,
+    cantidad: 0
+  });
+
+  // Función para obtener pagos recibidos
+  const obtenerPagosRecibidos = async (filtro: typeof filtroPagos) => {
+    try {
+      let fechaInicio: Date;
+      let fechaFin: Date;
+
+      if (filtro.tipo === 'hoy') {
+        fechaInicio = getCurrentDateColombia();
+        fechaFin = getCurrentDateColombia();
+      } else if (filtro.tipo === 'ayer') {
+        const ayer = new Date(getCurrentDateColombia());
+        ayer.setDate(ayer.getDate() - 1);
+        fechaInicio = ayer;
+        fechaFin = ayer;
+      } else {
+        fechaInicio = filtro.fechaInicio;
+        fechaFin = filtro.fechaFin;
+      }
+
+      // Normalizar fechas para comparación
+      fechaInicio.setHours(0, 0, 0, 0);
+      fechaFin.setHours(23, 59, 59, 999);
+
+      const pedidos = await pedidoService.getAllPedidos();
+      console.log('🔍 Dashboard - Filtros de pagos:', {
+        tipo: filtro.tipo,
+        fechaInicio: fechaInicio.toISOString(),
+        fechaFin: fechaFin.toISOString()
+      });
+      console.log('📊 Dashboard - Total pedidos:', pedidos.length);
+      
+      const todosLosPagos: any[] = [];
+
+      // Recopilar todos los pagos de los pedidos
+      pedidos.forEach(pedido => {
+        if (pedido.pagosRealizados && pedido.pagosRealizados.length > 0) {
+          pedido.pagosRealizados.forEach(pago => {
+            // Manejar correctamente los timestamps de Firebase
+            let fechaPago: Date;
+            if (pago.fecha instanceof Date) {
+              fechaPago = pago.fecha;
+            } else if (pago.fecha && typeof pago.fecha === 'object' && 'toDate' in pago.fecha) {
+              fechaPago = pago.fecha.toDate();
+            } else {
+              fechaPago = new Date(pago.fecha);
+            }
+            
+            if (fechaPago >= fechaInicio && fechaPago <= fechaFin) {
+              todosLosPagos.push({
+                ...pago,
+                pedidoId: pedido.id,
+                clienteName: pedido.cliente.name,
+                planName: pedido.plan.name,
+                servicioId: pedido.id.slice(-6)
+              });
+            }
+          });
+        }
+      });
+
+      // Ordenar por fecha (más recientes primero)
+      todosLosPagos.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+
+      console.log('✅ Dashboard - Pagos encontrados:', todosLosPagos.length);
+      console.log('📋 Dashboard - Pagos:', todosLosPagos.map(p => ({
+        cliente: p.clienteName,
+        monto: p.monto,
+        fecha: p.fecha,
+        medioPago: p.medioPago
+      })));
+
+      // Calcular resumen
+      const resumen = {
+        total: todosLosPagos.reduce((sum, pago) => sum + pago.monto, 0),
+        efectivo: todosLosPagos.filter(p => p.medioPago === 'efectivo').reduce((sum, pago) => sum + pago.monto, 0),
+        nequi: todosLosPagos.filter(p => p.medioPago === 'nequi').reduce((sum, pago) => sum + pago.monto, 0),
+        daviplata: todosLosPagos.filter(p => p.medioPago === 'daviplata').reduce((sum, pago) => sum + pago.monto, 0),
+        cantidad: todosLosPagos.length
+      };
+
+      setPagosRecibidos(todosLosPagos);
+      setResumenPagos(resumen);
+    } catch (error) {
+      console.error('Error al obtener pagos recibidos:', error);
+    }
+  };
+
   // Función para calcular datos financieros basados en el filtro
   const calcularDatosFinancieros = async (filtro: typeof filtroFinanciero) => {
     try {
@@ -143,10 +252,97 @@ const Dashboard: React.FC = () => {
       
       const totalGastos = totalGastosGenerales + totalGastosMantenimiento;
 
-      // Calcular ingresos
-      const ingresos = pedidosFiltrados
-        .filter(p => p.status === 'recogido')
-        .reduce((sum, p) => sum + (p.total || 0), 0);
+      // Calcular ingresos reales (solo pagos recibidos)
+      const ingresosReales = pedidosFiltrados.reduce((sum, pedido) => {
+        if (pedido.pagosRealizados && pedido.pagosRealizados.length > 0) {
+          return sum + pedido.pagosRealizados.reduce((sumPagos, pago) => {
+            // Verificar que el pago esté en el rango de fechas
+            let fechaPago: Date;
+            if (pago.fecha instanceof Date) {
+              fechaPago = pago.fecha;
+            } else if (pago.fecha && typeof pago.fecha === 'object' && 'toDate' in pago.fecha) {
+              fechaPago = pago.fecha.toDate();
+            } else {
+              fechaPago = new Date(pago.fecha);
+            }
+            
+            if (fechaPago >= fechaInicio && fechaPago <= fechaFin) {
+              return sumPagos + pago.monto;
+            }
+            return sumPagos;
+          }, 0);
+        }
+        return sum;
+      }, 0);
+
+      // Calcular cuentas por cobrar (saldos pendientes de todos los servicios)
+      const cuentasPorCobrar = pedidosFiltrados.reduce((sum, pedido) => {
+        return sum + (pedido.saldoPendiente || 0);
+      }, 0);
+
+      // Calcular ingresos por medio de pago
+      const ingresosPorMedioPago = {
+        efectivo: 0,
+        nequi: 0,
+        daviplata: 0
+      };
+
+      pedidosFiltrados.forEach(pedido => {
+        if (pedido.pagosRealizados && pedido.pagosRealizados.length > 0) {
+          pedido.pagosRealizados.forEach(pago => {
+            // Verificar que el pago esté en el rango de fechas
+            let fechaPago: Date;
+            if (pago.fecha instanceof Date) {
+              fechaPago = pago.fecha;
+            } else if (pago.fecha && typeof pago.fecha === 'object' && 'toDate' in pago.fecha) {
+              fechaPago = pago.fecha.toDate();
+            } else {
+              fechaPago = new Date(pago.fecha);
+            }
+            
+            if (fechaPago >= fechaInicio && fechaPago <= fechaFin) {
+              if (pago.medioPago === 'efectivo') {
+                ingresosPorMedioPago.efectivo += pago.monto;
+              } else if (pago.medioPago === 'nequi') {
+                ingresosPorMedioPago.nequi += pago.monto;
+              } else if (pago.medioPago === 'daviplata') {
+                ingresosPorMedioPago.daviplata += pago.monto;
+              }
+            }
+          });
+        }
+      });
+
+      // Calcular cuentas por cobrar por cliente
+      const cuentasPorCobrarPorCliente: { [clienteId: string]: { 
+        clienteName: string; 
+        totalSaldo: number; 
+        servicios: number;
+        serviciosDetalle: Array<{servicioId: string; saldo: number; plan: string}>;
+      } } = {};
+
+      pedidosFiltrados.forEach(pedido => {
+        const saldoPendiente = pedido.saldoPendiente || 0;
+        if (saldoPendiente > 0) {
+          const clienteId = pedido.clienteId;
+          if (!cuentasPorCobrarPorCliente[clienteId]) {
+            cuentasPorCobrarPorCliente[clienteId] = {
+              clienteName: pedido.cliente.name,
+              totalSaldo: 0,
+              servicios: 0,
+              serviciosDetalle: []
+            };
+          }
+          
+          cuentasPorCobrarPorCliente[clienteId].totalSaldo += saldoPendiente;
+          cuentasPorCobrarPorCliente[clienteId].servicios += 1;
+          cuentasPorCobrarPorCliente[clienteId].serviciosDetalle.push({
+            servicioId: pedido.id.slice(-6),
+            saldo: saldoPendiente,
+            plan: pedido.plan.name
+          });
+        }
+      });
 
       // Calcular ingresos por plan
       const ingresosPorPlanCalculado: { [key: string]: { name: string; amount: number; count: number } } = {};
@@ -170,12 +366,78 @@ const Dashboard: React.FC = () => {
           ingresosPorPlanCalculado[planId].count += 1;
         });
 
+      // Calcular saldos por medio de pago
+      const saldosCalculados = {
+        efectivo: { ingresos: 0, gastos: 0, saldo: 0 },
+        nequi: { ingresos: 0, gastos: 0, saldo: 0 },
+        daviplata: { ingresos: 0, gastos: 0, saldo: 0 }
+      };
+
+      // Calcular ingresos por medio de pago
+      pedidosFiltrados
+        .filter(p => p.status === 'recogido')
+        .forEach(pedido => {
+          const total = pedido.total || 0;
+          if (pedido.paymentMethod?.type === 'efectivo') {
+            saldosCalculados.efectivo.ingresos += total;
+          } else if (pedido.paymentMethod?.type === 'nequi') {
+            saldosCalculados.nequi.ingresos += total;
+          } else if (pedido.paymentMethod?.type === 'daviplata') {
+            saldosCalculados.daviplata.ingresos += total;
+          }
+        });
+
+      // Calcular gastos por medio de pago
+      todosLosGastos.forEach(gasto => {
+        if (gasto.medioPago === 'efectivo') {
+          saldosCalculados.efectivo.gastos += gasto.amount;
+        } else if (gasto.medioPago === 'nequi') {
+          saldosCalculados.nequi.gastos += gasto.amount;
+        } else if (gasto.medioPago === 'daviplata') {
+          saldosCalculados.daviplata.gastos += gasto.amount;
+        }
+      });
+
+      // Distribuir gastos de mantenimiento proporcionalmente entre los medios de pago
+      // basado en los ingresos de cada medio
+      const totalIngresos = saldosCalculados.efectivo.ingresos + saldosCalculados.nequi.ingresos + saldosCalculados.daviplata.ingresos;
+      
+      if (totalIngresos > 0 && totalGastosMantenimiento > 0) {
+        // Distribuir proporcionalmente
+        saldosCalculados.efectivo.gastos += (saldosCalculados.efectivo.ingresos / totalIngresos) * totalGastosMantenimiento;
+        saldosCalculados.nequi.gastos += (saldosCalculados.nequi.ingresos / totalIngresos) * totalGastosMantenimiento;
+        saldosCalculados.daviplata.gastos += (saldosCalculados.daviplata.ingresos / totalIngresos) * totalGastosMantenimiento;
+      } else if (totalGastosMantenimiento > 0) {
+        // Si no hay ingresos, asignar todo a efectivo por defecto
+        saldosCalculados.efectivo.gastos += totalGastosMantenimiento;
+      }
+
+      // Calcular saldos
+      Object.keys(saldosCalculados).forEach(medio => {
+        const medioKey = medio as keyof typeof saldosCalculados;
+        saldosCalculados[medioKey].saldo = saldosCalculados[medioKey].ingresos - saldosCalculados[medioKey].gastos;
+      });
+
+      setSaldosPorMedio(saldosCalculados);
+
       const resultado = {
-        ingresos,
+        // Ingresos reales (solo pagos recibidos)
+        ingresos: ingresosReales,
+        ingresosPorMedioPago,
+        
+        // Gastos reales
         gastos: totalGastos,
         gastosGenerales: totalGastosGenerales,
         gastosMantenimiento: totalGastosMantenimiento,
-        neto: ingresos - totalGastos,
+        
+        // Cuentas por cobrar
+        cuentasPorCobrar,
+        cuentasPorCobrarPorCliente,
+        
+        // Cálculo del neto
+        neto: ingresosReales - totalGastos,
+        
+        // Datos adicionales
         ingresosPorPlan: ingresosPorPlanCalculado,
         pedidosCompletados: pedidosFiltrados.filter(p => p.status === 'recogido').length
       };
@@ -306,6 +568,21 @@ const Dashboard: React.FC = () => {
     cargarConfiguracion();
   }, []);
 
+  // Listener para detectar cambios en pagos y recargar dashboard
+  useEffect(() => {
+    const handlePagoRealizado = () => {
+      console.log('Pago realizado detectado, recargando dashboard...');
+      recargarDashboard();
+    };
+
+    // Escuchar eventos personalizados de pago realizado
+    window.addEventListener('pagoRealizado', handlePagoRealizado);
+    
+    return () => {
+      window.removeEventListener('pagoRealizado', handlePagoRealizado);
+    };
+  }, []);
+
   // Función para cargar lavadoras
   const cargarLavadoras = async () => {
     try {
@@ -335,6 +612,41 @@ const Dashboard: React.FC = () => {
     
     cargarDatosFinancieros();
   }, [filtroFinanciero]);
+
+  // Cargar pagos cuando cambie el filtro de pagos
+  useEffect(() => {
+    const cargarPagos = async () => {
+      await obtenerPagosRecibidos(filtroPagos);
+    };
+    
+    cargarPagos();
+  }, [filtroPagos]);
+
+  // Función para recargar datos del dashboard
+  const recargarDashboard = async () => {
+    try {
+      const hoy = getCurrentDateColombia();
+      
+      // Obtener todos los pedidos históricos
+      const todosLosPedidos = await pedidoService.getAllPedidos();
+      
+      // Obtener todos los gastos históricos
+      const fechaInicio = new Date(2024, 0, 1); // Desde enero 2024
+      const fechaFin = new Date();
+      const todosLosGastos = await gastoService.getGastosDelRango(fechaInicio, fechaFin);
+      
+      // Calcular datos financieros actualizados
+      const datosFinancieros = await calcularDatosFinancieros(filtroFinanciero);
+      setDatosFinancieros(datosFinancieros);
+      
+      // Recargar pagos
+      await obtenerPagosRecibidos(filtroPagos);
+      
+      console.log('Dashboard recargado exitosamente');
+    } catch (error) {
+      console.error('Error al recargar dashboard:', error);
+    }
+  };
 
   // Funciones para manejar validación QR y facturación
   const handleValidacionQR = async (validacionData: any) => {
@@ -626,11 +938,23 @@ const Dashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-700 to-primary-800 bg-clip-text text-transparent">Dashboard</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Resumen histórico completo - Todos los datos registrados
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-700 to-primary-800 bg-clip-text text-transparent">Dashboard</h1>
+          <p className="mt-1 text-sm text-gray-600">
+            Resumen histórico completo - Todos los datos registrados
+          </p>
+        </div>
+        <button
+          onClick={recargarDashboard}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+          title="Recargar datos del dashboard"
+        >
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span>Recargar</span>
+        </button>
       </div>
 
       {/* Estadísticas */}
@@ -728,6 +1052,286 @@ const Dashboard: React.FC = () => {
         </div>
         </div>
       )}
+
+      {/* Saldos por Medio de Pago */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-900">💳 Saldos por Medio de Pago</h3>
+          <div className="text-xs text-gray-500 bg-blue-50 px-2 py-1 rounded">
+            * Incluye gastos de mantenimiento
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Efectivo */}
+          <div className={`p-4 rounded-lg border-2 ${
+            saldosPorMedio.efectivo.saldo >= 0 
+              ? 'bg-green-50 border-green-200' 
+              : 'bg-red-50 border-red-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className={`p-2 rounded-lg ${
+                  saldosPorMedio.efectivo.saldo >= 0 ? 'bg-green-100' : 'bg-red-100'
+                }`}>
+                  <span className="text-2xl">💵</span>
+                </div>
+                <div className="ml-3">
+                  <p className={`text-sm font-medium ${
+                    saldosPorMedio.efectivo.saldo >= 0 ? 'text-green-800' : 'text-red-800'
+                  }`}>
+                    Efectivo
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    Ingresos: {formatCurrency(saldosPorMedio.efectivo.ingresos)}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    Gastos: {formatCurrency(saldosPorMedio.efectivo.gastos)}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className={`text-lg font-bold ${
+                  saldosPorMedio.efectivo.saldo >= 0 ? 'text-green-900' : 'text-red-900'
+                }`}>
+                  {formatCurrency(saldosPorMedio.efectivo.saldo)}
+                </p>
+                <p className={`text-xs ${
+                  saldosPorMedio.efectivo.saldo >= 0 ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {saldosPorMedio.efectivo.saldo >= 0 ? 'Saldo positivo' : 'Saldo negativo'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Nequi */}
+          <div className={`p-4 rounded-lg border-2 ${
+            saldosPorMedio.nequi.saldo >= 0 
+              ? 'bg-blue-50 border-blue-200' 
+              : 'bg-red-50 border-red-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className={`p-2 rounded-lg ${
+                  saldosPorMedio.nequi.saldo >= 0 ? 'bg-blue-100' : 'bg-red-100'
+                }`}>
+                  <span className="text-2xl">📱</span>
+                </div>
+                <div className="ml-3">
+                  <p className={`text-sm font-medium ${
+                    saldosPorMedio.nequi.saldo >= 0 ? 'text-blue-800' : 'text-red-800'
+                  }`}>
+                    Nequi
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    Ingresos: {formatCurrency(saldosPorMedio.nequi.ingresos)}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    Gastos: {formatCurrency(saldosPorMedio.nequi.gastos)}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className={`text-lg font-bold ${
+                  saldosPorMedio.nequi.saldo >= 0 ? 'text-blue-900' : 'text-red-900'
+                }`}>
+                  {formatCurrency(saldosPorMedio.nequi.saldo)}
+                </p>
+                <p className={`text-xs ${
+                  saldosPorMedio.nequi.saldo >= 0 ? 'text-blue-600' : 'text-red-600'
+                }`}>
+                  {saldosPorMedio.nequi.saldo >= 0 ? 'Saldo positivo' : 'Saldo negativo'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Daviplata */}
+          <div className={`p-4 rounded-lg border-2 ${
+            saldosPorMedio.daviplata.saldo >= 0 
+              ? 'bg-purple-50 border-purple-200' 
+              : 'bg-red-50 border-red-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className={`p-2 rounded-lg ${
+                  saldosPorMedio.daviplata.saldo >= 0 ? 'bg-purple-100' : 'bg-red-100'
+                }`}>
+                  <span className="text-2xl">📱</span>
+                </div>
+                <div className="ml-3">
+                  <p className={`text-sm font-medium ${
+                    saldosPorMedio.daviplata.saldo >= 0 ? 'text-purple-800' : 'text-red-800'
+                  }`}>
+                    Daviplata
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    Ingresos: {formatCurrency(saldosPorMedio.daviplata.ingresos)}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    Gastos: {formatCurrency(saldosPorMedio.daviplata.gastos)}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className={`text-lg font-bold ${
+                  saldosPorMedio.daviplata.saldo >= 0 ? 'text-purple-900' : 'text-red-900'
+                }`}>
+                  {formatCurrency(saldosPorMedio.daviplata.saldo)}
+                </p>
+                <p className={`text-xs ${
+                  saldosPorMedio.daviplata.saldo >= 0 ? 'text-purple-600' : 'text-red-600'
+                }`}>
+                  {saldosPorMedio.daviplata.saldo >= 0 ? 'Saldo positivo' : 'Saldo negativo'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+
+      {/* Sección de Pagos Recibidos */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-900">💰 Pagos Recibidos</h3>
+          
+          {/* Controles de filtro para pagos */}
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
+              <FunnelIcon className="h-4 w-4 text-gray-500" />
+              <select
+                className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:ring-primary-500 focus:border-primary-500"
+                value={filtroPagos.tipo}
+                onChange={(e) => {
+                  const tipo = e.target.value as 'hoy' | 'ayer' | 'personalizado';
+                  if (tipo === 'personalizado') {
+                    setFiltroPagos(prev => ({ ...prev, tipo }));
+                  } else {
+                    setFiltroPagos(prev => ({ ...prev, tipo }));
+                  }
+                }}
+              >
+                <option value="hoy">Hoy</option>
+                <option value="ayer">Ayer</option>
+                <option value="personalizado">Rango Personalizado</option>
+              </select>
+            </div>
+            
+            {filtroPagos.tipo === 'personalizado' && (
+              <div className="flex items-center space-x-2">
+                <input
+                  type="date"
+                  className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:ring-primary-500 focus:border-primary-500"
+                  value={filtroPagos.fechaInicio.toISOString().split('T')[0]}
+                  onChange={(e) => setFiltroPagos(prev => ({ 
+                    ...prev, 
+                    fechaInicio: new Date(e.target.value) 
+                  }))}
+                />
+                <span className="text-gray-500">a</span>
+                <input
+                  type="date"
+                  className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:ring-primary-500 focus:border-primary-500"
+                  value={filtroPagos.fechaFin.toISOString().split('T')[0]}
+                  onChange={(e) => setFiltroPagos(prev => ({ 
+                    ...prev, 
+                    fechaFin: new Date(e.target.value) 
+                  }))}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Resumen de pagos */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-blue-800">Total Recibido</p>
+                <p className="text-2xl font-bold text-blue-900">{formatCurrency(resumenPagos.total)}</p>
+              </div>
+              <div className="text-3xl">💰</div>
+            </div>
+            <p className="text-xs text-blue-600 mt-1">{resumenPagos.cantidad} pago{resumenPagos.cantidad !== 1 ? 's' : ''}</p>
+          </div>
+
+          <div className="bg-green-50 p-4 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-green-800">Efectivo</p>
+                <p className="text-xl font-bold text-green-900">{formatCurrency(resumenPagos.efectivo)}</p>
+              </div>
+              <div className="text-2xl">💵</div>
+            </div>
+          </div>
+
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-blue-800">Nequi</p>
+                <p className="text-xl font-bold text-blue-900">{formatCurrency(resumenPagos.nequi)}</p>
+              </div>
+              <div className="text-2xl">📱</div>
+            </div>
+          </div>
+
+          <div className="bg-purple-50 p-4 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-purple-800">Daviplata</p>
+                <p className="text-xl font-bold text-purple-900">{formatCurrency(resumenPagos.daviplata)}</p>
+              </div>
+              <div className="text-2xl">📱</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Lista de pagos */}
+        <div className="space-y-3">
+          {pagosRecibidos.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <div className="text-4xl mb-2">💳</div>
+              <p>No se encontraron pagos para el período seleccionado</p>
+            </div>
+          ) : (
+            pagosRecibidos.map((pago, index) => (
+              <div key={index} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-3 h-3 rounded-full ${
+                    pago.medioPago === 'efectivo' ? 'bg-green-500' :
+                    pago.medioPago === 'nequi' ? 'bg-blue-500' :
+                    'bg-purple-500'
+                  }`}></div>
+                  <div className="flex items-center space-x-2">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      pago.medioPago === 'efectivo' ? 'bg-green-100 text-green-800' :
+                      pago.medioPago === 'nequi' ? 'bg-blue-100 text-blue-800' :
+                      'bg-purple-100 text-purple-800'
+                    }`}>
+                      {pago.medioPago === 'efectivo' ? '💵 Efectivo' :
+                       pago.medioPago === 'nequi' ? '📱 Nequi' :
+                       '📱 Daviplata'}
+                    </span>
+                    {pago.isPartial && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                        Abono
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold text-lg text-gray-900">
+                    {formatCurrency(pago.monto)}
+                  </p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
 
       {/* Sección de Pedidos Pendientes */}
       <PedidosPendientes
@@ -864,6 +1468,7 @@ const Dashboard: React.FC = () => {
                 )}
               </div>
             )}
+            
             <div className="border-t pt-3">
               <div className="flex justify-between">
                 <dt className="text-sm font-medium text-gray-900">Neto:</dt>
@@ -873,6 +1478,38 @@ const Dashboard: React.FC = () => {
                 {formatCurrency(datosFinancieros.neto)}
                 </dd>
               </div>
+            </div>
+            
+            {/* Cuentas por cobrar - Información adicional */}
+            <div className="border-t pt-3 mt-3">
+              <div className="flex justify-between">
+                <dt className="text-sm text-gray-500">Cuentas por Cobrar:</dt>
+                <dd className="text-sm font-medium text-blue-600">
+                  {formatCurrency(datosFinancieros.cuentasPorCobrar || 0)}
+                </dd>
+              </div>
+              
+              {/* Desglose de cuentas por cobrar por cliente */}
+              {datosFinancieros.cuentasPorCobrarPorCliente && Object.keys(datosFinancieros.cuentasPorCobrarPorCliente).length > 0 && (
+                <div className="ml-4 space-y-1 border-l-2 border-blue-200 pl-4 mt-2">
+                  <div className="text-xs font-medium text-gray-600 mb-2">Por Cliente:</div>
+                  {Object.entries(datosFinancieros.cuentasPorCobrarPorCliente)
+                    .sort(([,a], [,b]) => b.totalSaldo - a.totalSaldo) // Ordenar por saldo descendente
+                    .map(([clienteId, clienteData]) => (
+                      <div key={clienteId} className="flex justify-between items-center">
+                        <div className="flex items-center space-x-2">
+                          <dt className="text-xs text-gray-500">{clienteData.clienteName}:</dt>
+                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                            {clienteData.servicios} servicios
+                          </span>
+                        </div>
+                        <dd className="text-xs font-medium text-blue-600">
+                          {formatCurrency(clienteData.totalSaldo)}
+                        </dd>
+                      </div>
+                    ))}
+                </div>
+              )}
             </div>
           </dl>
         </div>

@@ -5,7 +5,6 @@ import {
   clienteService, 
   pedidoService, 
   configService,
-  lavadoraService
 } from '../services/firebaseService';
 import { 
   formatDate, 
@@ -17,17 +16,16 @@ import {
   canUsePlan,
   getAvailablePlans
 } from '../utils/dateUtils';
-import { Plan, Cliente, Pedido, PagoAnticipado, Configuracion } from '../types';
-import { MagnifyingGlassIcon, PlusIcon, MapPinIcon, CalendarIcon, CreditCardIcon } from '@heroicons/react/24/outline';
+import { Plan, Cliente, Pedido, Configuracion } from '../types';
+import { MagnifyingGlassIcon, PlusIcon, MapPinIcon, CalendarIcon } from '@heroicons/react/24/outline';
 import ModalCliente from '../components/ModalCliente';
-import SelectorLavadoras from '../components/SelectorLavadoras';
-import ModalPagoAnticipado from '../components/ModalPagoAnticipado';
 
 interface NuevoPedidoProps {
   onClose?: () => void;
+  clientePreSeleccionado?: Cliente;
 }
 
-const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
+const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose, clientePreSeleccionado }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -39,10 +37,8 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
   const [observaciones, setObservaciones] = useState('');
   const [isPrioritario, setIsPrioritario] = useState(false);
   const [motivoPrioridad, setMotivoPrioridad] = useState('');
-  const [lavadoraSeleccionada, setLavadoraSeleccionada] = useState<any | null>(null);
+  const [turno, setTurno] = useState<'mañana' | 'tarde' | null>(null);
   
-  // Estados para pago anticipado
-  const [mostrarModalPagoAnticipado, setMostrarModalPagoAnticipado] = useState(false);
   
   // Estados para búsqueda y datos
   const [planes, setPlanes] = useState<Plan[]>([]);
@@ -55,6 +51,29 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
   useEffect(() => {
     cargarDatos();
   }, []);
+
+  // Establecer cliente pre-seleccionado si se proporciona
+  useEffect(() => {
+    if (clientePreSeleccionado) {
+      setCliente(clientePreSeleccionado);
+    }
+  }, [clientePreSeleccionado]);
+
+  // Establecer turno por defecto según el plan seleccionado
+  useEffect(() => {
+    if (plan) {
+      // Planes 1, 3, 4 → Mañana por defecto
+      if (plan.name === 'PLAN 1' || plan.name === 'PLAN 3' || plan.name === 'PLAN 4') {
+        setTurno('mañana');
+      } else if (plan.name === 'PLAN 2' || plan.name === 'PLAN 5') {
+        // Planes 2, 5 → Tarde por defecto
+        setTurno('tarde');
+      } else {
+        // Plan no reconocido, seleccionar tarde por defecto
+        setTurno('tarde');
+      }
+    }
+  }, [plan]);
 
   // Removido: cálculo automático de totales (ahora se hace en los modales de facturación)
 
@@ -151,26 +170,16 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
         totalReembolsos: 0,
         total: plan.price,
         
+        // Sistema de liquidación universal
+        pagosRealizados: [],
+        saldoPendiente: plan.price,
+        
         observaciones,
-        ...(lavadoraSeleccionada && lavadoraSeleccionada.id && {
-          lavadoraAsignada: {
-            lavadoraId: lavadoraSeleccionada.id,
-            codigoQR: lavadoraSeleccionada.codigoQR,
-            marca: lavadoraSeleccionada.marca,
-            modelo: lavadoraSeleccionada.modelo
-          }
-        }),
         createdBy: user.id
       };
 
       await pedidoService.createPedido(nuevoPedido);
       
-      // Si se asignó una lavadora, actualizar su estado a "alquilada"
-      if (lavadoraSeleccionada && lavadoraSeleccionada.id) {
-        await lavadoraService.updateLavadora(lavadoraSeleccionada.id, {
-          estado: 'alquilada'
-        });
-      }
       
       // Limpiar formulario
       setCliente(null);
@@ -179,9 +188,9 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
       setObservaciones('');
       setIsPrioritario(false);
       setMotivoPrioridad('');
-      setLavadoraSeleccionada(null);
+      setTurno(null);
       
-      alert('Pedido creado exitosamente');
+      alert('Servicio creado exitosamente');
       
       // Cerrar modal si se proporciona la función onClose
       if (onClose) {
@@ -195,12 +204,6 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
     }
   };
 
-  const handlePagoAnticipado = async (pagoAnticipado: PagoAnticipado) => {
-    // Esta función se llamará desde el modal de pago anticipado
-    // Por ahora solo mostramos el modal, la lógica se implementará después
-    console.log('Pago anticipado:', pagoAnticipado);
-    setMostrarModalPagoAnticipado(false);
-  };
 
   // Temporalmente mostrar todos los planes para permitir crear pedidos
   const planesDisponibles = planes; // planes.filter(p => canUsePlan(p.id, fechaEntrega, p.name));
@@ -347,18 +350,10 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
         </div>
 
         {/* Selección de Lavadora */}
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Seleccionar Lavadora</h3>
-          <SelectorLavadoras
-            lavadoraSeleccionada={lavadoraSeleccionada}
-            onLavadoraSeleccionada={setLavadoraSeleccionada}
-            disabled={saving}
-          />
-        </div>
 
         {/* Calendario y Selección de Fecha */}
         <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Seleccionar Fecha y Hora</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Seleccionar Fecha y Turno</h3>
           
           <div className="space-y-4">
             {/* Botón del calendario */}
@@ -382,20 +377,32 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Hora
+                  Turno
                 </label>
-                <input
-                  type="time"
-                  className="input-field"
-                  value={fechaEntrega.toTimeString().slice(0, 5)}
-                  onChange={(e) => {
-                    const [hours, minutes] = e.target.value.split(':');
-                    const newDate = new Date(fechaEntrega);
-                    newDate.setHours(parseInt(hours), parseInt(minutes));
-                    setFechaEntrega(newDate);
-                  }}
-                  required
-                />
+                <div className="flex space-x-4">
+                  <button
+                    type="button"
+                    onClick={() => setTurno('mañana')}
+                    className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 ${
+                      turno === 'mañana'
+                        ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white shadow-lg shadow-yellow-500/25'
+                        : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-600 hover:from-yellow-50 hover:to-orange-50 hover:text-orange-600 border-2 border-transparent hover:border-yellow-200'
+                    }`}
+                  >
+                    🌅 Mañana
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTurno('tarde')}
+                    className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 ${
+                      turno === 'tarde'
+                        ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/25'
+                        : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-600 hover:from-purple-50 hover:to-pink-50 hover:text-purple-600 border-2 border-transparent hover:border-purple-200'
+                    }`}
+                  >
+                    🌆 Tarde
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -404,10 +411,10 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-900">
-                    Fecha y hora seleccionada:
+                    Fecha y turno seleccionados:
                   </p>
                   <p className="text-lg font-semibold text-primary-600">
-                    {formatDate(fechaEntrega, 'dd/MM/yyyy HH:mm')}
+                    {formatDate(fechaEntrega, 'dd/MM/yyyy')} - {turno ? (turno === 'mañana' ? 'Mañana' : 'Tarde') : 'Sin turno seleccionado'}
                   </p>
                 </div>
                 <div className="text-right">
@@ -467,25 +474,6 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
           </div>
         </div>
 
-        {/* Pago Anticipado */}
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Pago Anticipado</h3>
-          
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">
-              El cliente puede pagar ahora o en el momento de la entrega. Si paga ahora, se procesará el pago completo del plan.
-            </p>
-            
-            <button
-              type="button"
-              onClick={() => setMostrarModalPagoAnticipado(true)}
-              className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <CreditCardIcon className="h-5 w-5" />
-              <span>Pagar Ahora</span>
-            </button>
-          </div>
-        </div>
 
         {/* Observaciones */}
         <div className="card">
@@ -539,10 +527,10 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
           </button>
           <button
             type="submit"
-            disabled={!cliente || !plan || !fechaEntrega || saving}
+            disabled={!cliente || !plan || !fechaEntrega || !turno || saving}
             className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {saving ? 'Guardando...' : 'Crear Pedido'}
+            {saving ? 'Guardando...' : 'Crear Servicio'}
           </button>
         </div>
       </form>
@@ -555,19 +543,6 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose }) => {
         title="Crear Nuevo Cliente"
       />
 
-      {/* Modal de Pago Anticipado */}
-      {plan && cliente && (
-        <ModalPagoAnticipado
-          isOpen={mostrarModalPagoAnticipado}
-          onClose={() => setMostrarModalPagoAnticipado(false)}
-          onConfirm={handlePagoAnticipado}
-          montoTotal={plan.price}
-          clienteInfo={{
-            name: cliente.name,
-            plan: plan.name
-          }}
-        />
-      )}
 
     </div>
   );

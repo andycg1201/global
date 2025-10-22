@@ -1201,49 +1201,6 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Resumen de pagos */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-blue-800">Total Recibido</p>
-                <p className="text-2xl font-bold text-blue-900">{formatCurrency(resumenPagos.total)}</p>
-              </div>
-              <div className="text-3xl">💰</div>
-            </div>
-            <p className="text-xs text-blue-600 mt-1">{resumenPagos.cantidad} pago{resumenPagos.cantidad !== 1 ? 's' : ''}</p>
-          </div>
-
-          <div className="bg-green-50 p-4 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-green-800">Efectivo</p>
-                <p className="text-xl font-bold text-green-900">{formatCurrency(resumenPagos.efectivo)}</p>
-              </div>
-              <div className="text-2xl">💵</div>
-            </div>
-          </div>
-
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-blue-800">Nequi</p>
-                <p className="text-xl font-bold text-blue-900">{formatCurrency(resumenPagos.nequi)}</p>
-              </div>
-              <div className="text-2xl">📱</div>
-            </div>
-          </div>
-
-          <div className="bg-purple-50 p-4 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-purple-800">Daviplata</p>
-                <p className="text-xl font-bold text-purple-900">{formatCurrency(resumenPagos.daviplata)}</p>
-              </div>
-              <div className="text-2xl">📱</div>
-            </div>
-          </div>
-        </div>
 
         {/* Lista de pagos */}
         <div className="space-y-3">

@@ -7,7 +7,8 @@ import {
   ExclamationTriangleIcon,
   CalendarIcon,
   FunnelIcon,
-  XMarkIcon
+  XMarkIcon,
+  ChartBarIcon
 } from '@heroicons/react/24/outline';
 import { formatCurrency, formatDate, getCurrentDateColombia } from '../utils/dateUtils';
 import { pedidoService, reporteService, gastoService, clienteService, lavadoraService, configService } from '../services/firebaseService';
@@ -433,6 +434,9 @@ const Dashboard: React.FC = () => {
         // Cuentas por cobrar
         cuentasPorCobrar,
         cuentasPorCobrarPorCliente,
+        
+        // Saldos por medio de pago
+        saldosPorMedio: saldosCalculados,
         
         // Cálculo del neto
         neto: ingresosReales - totalGastos,
@@ -898,8 +902,8 @@ const Dashboard: React.FC = () => {
 
   const stats = [
     {
-      name: 'Ingresos Totales',
-      value: formatCurrency(reporteDiario?.ingresos || 0),
+      name: 'Ingresos Reales',
+      value: formatCurrency(datosFinancieros?.ingresos || 0),
       icon: CurrencyDollarIcon,
       color: 'text-success-600',
       bgColor: 'bg-gradient-to-br from-success-100 to-success-200',
@@ -917,7 +921,7 @@ const Dashboard: React.FC = () => {
     },
     {
       name: 'Total Gastos',
-      value: formatCurrency(reporteDiario?.gastos || 0),
+      value: formatCurrency(datosFinancieros?.gastos || 0),
       icon: ExclamationTriangleIcon,
       color: 'text-warning-600',
       bgColor: 'bg-gradient-to-br from-warning-100 to-warning-200',
@@ -925,13 +929,13 @@ const Dashboard: React.FC = () => {
       link: '/gastos'
     },
     {
-      name: 'Total Clientes',
-      value: totalClientes,
-      icon: UserGroupIcon,
-      color: 'text-accent-600',
-      bgColor: 'bg-gradient-to-br from-accent-100 to-accent-200',
-      borderColor: 'border-accent-300',
-      link: '/clientes'
+      name: 'Cuentas por Cobrar',
+      value: formatCurrency(datosFinancieros?.cuentasPorCobrar || 0),
+      icon: ChartBarIcon,
+      color: 'text-blue-600',
+      bgColor: 'bg-gradient-to-br from-blue-100 to-blue-200',
+      borderColor: 'border-blue-300',
+      link: '/pedidos'
     }
   ];
 
@@ -939,11 +943,11 @@ const Dashboard: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-700 to-primary-800 bg-clip-text text-transparent">Dashboard</h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Resumen histórico completo - Todos los datos registrados
-          </p>
+      <div>
+        <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-700 to-primary-800 bg-clip-text text-transparent">Dashboard</h1>
+        <p className="mt-1 text-sm text-gray-600">
+          Resumen histórico completo - Todos los datos registrados
+        </p>
         </div>
         <button
           onClick={recargarDashboard}
@@ -980,7 +984,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Ingresos por método de pago */}
-      {reporteDiario?.ingresosPorMetodo && (
+      {datosFinancieros?.ingresosPorMedioPago && (
         <div className="card">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Ingresos por Método de Pago</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -996,11 +1000,11 @@ const Dashboard: React.FC = () => {
             </div>
             <div className="text-right">
               <p className="text-lg font-bold text-green-900">
-                {formatCurrency(reporteDiario.ingresosPorMetodo.efectivo)}
+                {formatCurrency(datosFinancieros.ingresosPorMedioPago.efectivo)}
               </p>
               <p className="text-xs text-green-600">
-                {reporteDiario.ingresos > 0 ? 
-                  `${((reporteDiario.ingresosPorMetodo.efectivo / reporteDiario.ingresos) * 100).toFixed(1)}%` 
+                {datosFinancieros.ingresos > 0 ? 
+                  `${((datosFinancieros.ingresosPorMedioPago.efectivo / datosFinancieros.ingresos) * 100).toFixed(1)}%` 
                   : '0%'}
               </p>
             </div>
@@ -1018,11 +1022,11 @@ const Dashboard: React.FC = () => {
             </div>
             <div className="text-right">
               <p className="text-lg font-bold text-blue-900">
-                {formatCurrency(reporteDiario.ingresosPorMetodo.nequi)}
+                {formatCurrency(datosFinancieros.ingresosPorMedioPago.nequi)}
               </p>
               <p className="text-xs text-blue-600">
-                {reporteDiario.ingresos > 0 ? 
-                  `${((reporteDiario.ingresosPorMetodo.nequi / reporteDiario.ingresos) * 100).toFixed(1)}%` 
+                {datosFinancieros.ingresos > 0 ? 
+                  `${((datosFinancieros.ingresosPorMedioPago.nequi / datosFinancieros.ingresos) * 100).toFixed(1)}%` 
                   : '0%'}
               </p>
             </div>
@@ -1040,11 +1044,11 @@ const Dashboard: React.FC = () => {
             </div>
             <div className="text-right">
               <p className="text-lg font-bold text-purple-900">
-                {formatCurrency(reporteDiario.ingresosPorMetodo.daviplata)}
+                {formatCurrency(datosFinancieros.ingresosPorMedioPago.daviplata)}
               </p>
               <p className="text-xs text-purple-600">
-                {reporteDiario.ingresos > 0 ? 
-                  `${((reporteDiario.ingresosPorMetodo.daviplata / reporteDiario.ingresos) * 100).toFixed(1)}%` 
+                {datosFinancieros.ingresos > 0 ? 
+                  `${((datosFinancieros.ingresosPorMedioPago.daviplata / datosFinancieros.ingresos) * 100).toFixed(1)}%` 
                   : '0%'}
               </p>
             </div>
@@ -1064,41 +1068,41 @@ const Dashboard: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Efectivo */}
           <div className={`p-4 rounded-lg border-2 ${
-            saldosPorMedio.efectivo.saldo >= 0 
+            (datosFinancieros?.saldosPorMedio?.efectivo?.saldo || 0) >= 0 
               ? 'bg-green-50 border-green-200' 
               : 'bg-red-50 border-red-200'
           }`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center">
                 <div className={`p-2 rounded-lg ${
-                  saldosPorMedio.efectivo.saldo >= 0 ? 'bg-green-100' : 'bg-red-100'
+                  (datosFinancieros?.saldosPorMedio?.efectivo?.saldo || 0) >= 0 ? 'bg-green-100' : 'bg-red-100'
                 }`}>
                   <span className="text-2xl">💵</span>
                 </div>
                 <div className="ml-3">
                   <p className={`text-sm font-medium ${
-                    saldosPorMedio.efectivo.saldo >= 0 ? 'text-green-800' : 'text-red-800'
+                    (datosFinancieros?.saldosPorMedio?.efectivo?.saldo || 0) >= 0 ? 'text-green-800' : 'text-red-800'
                   }`}>
                     Efectivo
                   </p>
                   <p className="text-xs text-gray-600">
-                    Ingresos: {formatCurrency(saldosPorMedio.efectivo.ingresos)}
+                    Ingresos: {formatCurrency(datosFinancieros?.saldosPorMedio?.efectivo?.ingresos || 0)}
                   </p>
                   <p className="text-xs text-gray-600">
-                    Gastos: {formatCurrency(saldosPorMedio.efectivo.gastos)}
+                    Gastos: {formatCurrency(datosFinancieros?.saldosPorMedio?.efectivo?.gastos || 0)}
                   </p>
                 </div>
               </div>
               <div className="text-right">
                 <p className={`text-lg font-bold ${
-                  saldosPorMedio.efectivo.saldo >= 0 ? 'text-green-900' : 'text-red-900'
+                  (datosFinancieros?.saldosPorMedio?.efectivo?.saldo || 0) >= 0 ? 'text-green-900' : 'text-red-900'
                 }`}>
-                  {formatCurrency(saldosPorMedio.efectivo.saldo)}
+                  {formatCurrency(datosFinancieros?.saldosPorMedio?.efectivo?.saldo || 0)}
                 </p>
                 <p className={`text-xs ${
-                  saldosPorMedio.efectivo.saldo >= 0 ? 'text-green-600' : 'text-red-600'
+                  (datosFinancieros?.saldosPorMedio?.efectivo?.saldo || 0) >= 0 ? 'text-green-600' : 'text-red-600'
                 }`}>
-                  {saldosPorMedio.efectivo.saldo >= 0 ? 'Saldo positivo' : 'Saldo negativo'}
+                  {(datosFinancieros?.saldosPorMedio?.efectivo?.saldo || 0) >= 0 ? 'Saldo positivo' : 'Saldo negativo'}
                 </p>
               </div>
             </div>
@@ -1106,41 +1110,41 @@ const Dashboard: React.FC = () => {
 
           {/* Nequi */}
           <div className={`p-4 rounded-lg border-2 ${
-            saldosPorMedio.nequi.saldo >= 0 
+            (datosFinancieros?.saldosPorMedio?.nequi?.saldo || 0) >= 0 
               ? 'bg-blue-50 border-blue-200' 
               : 'bg-red-50 border-red-200'
           }`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center">
                 <div className={`p-2 rounded-lg ${
-                  saldosPorMedio.nequi.saldo >= 0 ? 'bg-blue-100' : 'bg-red-100'
+                  (datosFinancieros?.saldosPorMedio?.nequi?.saldo || 0) >= 0 ? 'bg-blue-100' : 'bg-red-100'
                 }`}>
                   <span className="text-2xl">📱</span>
                 </div>
                 <div className="ml-3">
                   <p className={`text-sm font-medium ${
-                    saldosPorMedio.nequi.saldo >= 0 ? 'text-blue-800' : 'text-red-800'
+                    (datosFinancieros?.saldosPorMedio?.nequi?.saldo || 0) >= 0 ? 'text-blue-800' : 'text-red-800'
                   }`}>
                     Nequi
                   </p>
                   <p className="text-xs text-gray-600">
-                    Ingresos: {formatCurrency(saldosPorMedio.nequi.ingresos)}
+                    Ingresos: {formatCurrency(datosFinancieros?.saldosPorMedio?.nequi?.ingresos || 0)}
                   </p>
                   <p className="text-xs text-gray-600">
-                    Gastos: {formatCurrency(saldosPorMedio.nequi.gastos)}
+                    Gastos: {formatCurrency(datosFinancieros?.saldosPorMedio?.nequi?.gastos || 0)}
                   </p>
                 </div>
               </div>
               <div className="text-right">
                 <p className={`text-lg font-bold ${
-                  saldosPorMedio.nequi.saldo >= 0 ? 'text-blue-900' : 'text-red-900'
+                  (datosFinancieros?.saldosPorMedio?.nequi?.saldo || 0) >= 0 ? 'text-blue-900' : 'text-red-900'
                 }`}>
-                  {formatCurrency(saldosPorMedio.nequi.saldo)}
+                  {formatCurrency(datosFinancieros?.saldosPorMedio?.nequi?.saldo || 0)}
                 </p>
                 <p className={`text-xs ${
-                  saldosPorMedio.nequi.saldo >= 0 ? 'text-blue-600' : 'text-red-600'
+                  (datosFinancieros?.saldosPorMedio?.nequi?.saldo || 0) >= 0 ? 'text-blue-600' : 'text-red-600'
                 }`}>
-                  {saldosPorMedio.nequi.saldo >= 0 ? 'Saldo positivo' : 'Saldo negativo'}
+                  {(datosFinancieros?.saldosPorMedio?.nequi?.saldo || 0) >= 0 ? 'Saldo positivo' : 'Saldo negativo'}
                 </p>
               </div>
             </div>
@@ -1148,41 +1152,41 @@ const Dashboard: React.FC = () => {
 
           {/* Daviplata */}
           <div className={`p-4 rounded-lg border-2 ${
-            saldosPorMedio.daviplata.saldo >= 0 
+            (datosFinancieros?.saldosPorMedio?.daviplata?.saldo || 0) >= 0 
               ? 'bg-purple-50 border-purple-200' 
               : 'bg-red-50 border-red-200'
           }`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center">
                 <div className={`p-2 rounded-lg ${
-                  saldosPorMedio.daviplata.saldo >= 0 ? 'bg-purple-100' : 'bg-red-100'
+                  (datosFinancieros?.saldosPorMedio?.daviplata?.saldo || 0) >= 0 ? 'bg-purple-100' : 'bg-red-100'
                 }`}>
                   <span className="text-2xl">📱</span>
                 </div>
                 <div className="ml-3">
                   <p className={`text-sm font-medium ${
-                    saldosPorMedio.daviplata.saldo >= 0 ? 'text-purple-800' : 'text-red-800'
+                    (datosFinancieros?.saldosPorMedio?.daviplata?.saldo || 0) >= 0 ? 'text-purple-800' : 'text-red-800'
                   }`}>
                     Daviplata
                   </p>
                   <p className="text-xs text-gray-600">
-                    Ingresos: {formatCurrency(saldosPorMedio.daviplata.ingresos)}
+                    Ingresos: {formatCurrency(datosFinancieros?.saldosPorMedio?.daviplata?.ingresos || 0)}
                   </p>
                   <p className="text-xs text-gray-600">
-                    Gastos: {formatCurrency(saldosPorMedio.daviplata.gastos)}
+                    Gastos: {formatCurrency(datosFinancieros?.saldosPorMedio?.daviplata?.gastos || 0)}
                   </p>
                 </div>
               </div>
               <div className="text-right">
                 <p className={`text-lg font-bold ${
-                  saldosPorMedio.daviplata.saldo >= 0 ? 'text-purple-900' : 'text-red-900'
+                  (datosFinancieros?.saldosPorMedio?.daviplata?.saldo || 0) >= 0 ? 'text-purple-900' : 'text-red-900'
                 }`}>
-                  {formatCurrency(saldosPorMedio.daviplata.saldo)}
+                  {formatCurrency(datosFinancieros?.saldosPorMedio?.daviplata?.saldo || 0)}
                 </p>
                 <p className={`text-xs ${
-                  saldosPorMedio.daviplata.saldo >= 0 ? 'text-purple-600' : 'text-red-600'
+                  (datosFinancieros?.saldosPorMedio?.daviplata?.saldo || 0) >= 0 ? 'text-purple-600' : 'text-red-600'
                 }`}>
-                  {saldosPorMedio.daviplata.saldo >= 0 ? 'Saldo positivo' : 'Saldo negativo'}
+                  {(datosFinancieros?.saldosPorMedio?.daviplata?.saldo || 0) >= 0 ? 'Saldo positivo' : 'Saldo negativo'}
                 </p>
               </div>
             </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   planService, 
@@ -25,7 +25,8 @@ interface NuevoPedidoProps {
   clientePreSeleccionado?: Cliente;
 }
 
-const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose, clientePreSeleccionado }) => {
+const NuevoPedido: React.FC<NuevoPedidoProps> = memo(({ onClose, clientePreSeleccionado }) => {
+  console.log('🔄 NuevoPedido renderizando');
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -46,11 +47,35 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose, clientePreSelecciona
   const [busquedaCliente, setBusquedaCliente] = useState('');
   const [configuracion, setConfiguracion] = useState<Configuracion | null>(null);
   const [mostrarModalCliente, setMostrarModalCliente] = useState(false);
+  const datosCargados = useRef(false);
 
+  const cargarDatos = useCallback(async () => {
+    console.log('🔄 cargarDatos ejecutándose');
+    setLoading(true);
+    try {
+      const [planesData, configData, pedidosData] = await Promise.all([
+        planService.getActivePlans(),
+        configService.getConfiguracion(),
+        pedidoService.getAllPedidos()
+      ]);
+      
+      console.log('🔍 Planes cargados:', planesData.length, planesData);
+      setPlanes(planesData);
+      setConfiguracion(configData);
+    } catch (error) {
+      console.error('Error al cargar datos:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    cargarDatos();
-  }, []);
+    console.log('🔄 useEffect cargarDatos ejecutándose');
+    if (!datosCargados.current) {
+      datosCargados.current = true;
+      cargarDatos();
+    }
+  }, [cargarDatos]);
 
   // Establecer cliente pre-seleccionado si se proporciona
   useEffect(() => {
@@ -76,24 +101,6 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose, clientePreSelecciona
   }, [plan]);
 
   // Removido: cálculo automático de totales (ahora se hace en los modales de facturación)
-
-  const cargarDatos = async () => {
-    setLoading(true);
-    try {
-      const [planesData, configData, pedidosData] = await Promise.all([
-        planService.getActivePlans(),
-        configService.getConfiguracion(),
-        pedidoService.getAllPedidos()
-      ]);
-      
-      setPlanes(planesData);
-      setConfiguracion(configData);
-    } catch (error) {
-      console.error('Error al cargar datos:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const buscarClientes = async (termino: string) => {
     if (termino.length < 2) {
@@ -207,6 +214,8 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose, clientePreSelecciona
 
   // Temporalmente mostrar todos los planes para permitir crear pedidos
   const planesDisponibles = planes; // planes.filter(p => canUsePlan(p.id, fechaEntrega, p.name));
+  
+  console.log('🔍 Planes disponibles para renderizar:', planesDisponibles.length, planesDisponibles);
 
   if (loading) {
     return (
@@ -546,7 +555,7 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = ({ onClose, clientePreSelecciona
 
     </div>
   );
-};
+});
 
 export default NuevoPedido;
 

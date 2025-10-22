@@ -42,8 +42,18 @@ export const planService = {
       createdAt: doc.data().createdAt?.toDate() || new Date()
     })) as Plan[];
     
+    // Eliminar duplicados por nombre (mantener el más reciente)
+    const planesUnicos = planes.reduce((acc, plan) => {
+      const existing = acc.find(p => p.name === plan.name);
+      if (!existing || plan.createdAt > existing.createdAt) {
+        // Si no existe o este es más reciente, reemplazar
+        return acc.filter(p => p.name !== plan.name).concat(plan);
+      }
+      return acc;
+    }, [] as Plan[]);
+    
     // Ordenar en memoria para evitar necesidad de índice compuesto
-    return planes.sort((a, b) => a.name.localeCompare(b.name));
+    return planesUnicos.sort((a, b) => a.name.localeCompare(b.name));
   },
 
   // Obtener plan por ID

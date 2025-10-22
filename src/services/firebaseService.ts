@@ -502,6 +502,11 @@ export const gastoService = {
         createdAt: data.createdAt?.toDate() || new Date()
       } as Gasto;
     });
+  },
+
+  // Eliminar gasto
+  async deleteGasto(id: string): Promise<void> {
+    await deleteDoc(doc(db, 'gastos', id));
   }
 };
 

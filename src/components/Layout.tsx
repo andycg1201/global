@@ -203,7 +203,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <Bars3Icon className="h-6 w-6" />
           </button>
         </div>
-        <main className="flex-1 relative z-0 overflow-y-auto focus:outline-none">
+        <main className="flex-1 relative z-0 overflow-y-auto focus:outline-none bg-white">
           <div className="py-4">
             <div className="max-w-7xl mx-auto px-2 sm:px-4 md:px-6">
               {children}

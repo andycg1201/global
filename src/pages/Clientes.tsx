@@ -446,7 +446,11 @@ const ClienteBadgeDeuda: React.FC<{
       try {
         const pedidos = await pedidoService.getAllPedidos();
         const pedidosCliente = pedidos.filter(p => p.clienteId === cliente.id);
-        const totalDeuda = pedidosCliente.reduce((sum, p) => sum + (p.saldoPendiente || 0), 0);
+        const totalDeuda = pedidosCliente.reduce((sum, p) => {
+          const totalPagado = p.pagosRealizados?.reduce((sumPago, pago) => sumPago + pago.monto, 0) || 0;
+          const saldoPendiente = Math.max(0, (p.total || 0) - totalPagado);
+          return sum + saldoPendiente;
+        }, 0);
         setSaldoPendiente(totalDeuda);
       } catch (error) {
         console.error('Error al obtener saldo pendiente:', error);

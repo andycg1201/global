@@ -24,12 +24,9 @@ interface FiltrosRendimiento {
 
 interface MetricasRendimiento {
   totalPedidos: number;
-  entregasATiempo: number;
-  entregasRetrasadas: number;
-  tiempoPromedioEntrega: number;
-  tiempoMaximoEntrega: number;
-  tiempoMinimoEntrega: number;
-  tasaEficiencia: number;
+  pedidosEntregados: number;
+  pedidosRecogidos: number;
+  eficienciaGeneral: number;
 }
 
 const RendimientoTecnico: React.FC = () => {
@@ -45,12 +42,9 @@ const RendimientoTecnico: React.FC = () => {
   const [planes, setPlanes] = useState<Plan[]>([]);
   const [metricas, setMetricas] = useState<MetricasRendimiento>({
     totalPedidos: 0,
-    entregasATiempo: 0,
-    entregasRetrasadas: 0,
-    tiempoPromedioEntrega: 0,
-    tiempoMaximoEntrega: 0,
-    tiempoMinimoEntrega: 0,
-    tasaEficiencia: 0
+    pedidosEntregados: 0,
+    pedidosRecogidos: 0,
+    eficienciaGeneral: 0
   });
   const [loading, setLoading] = useState(false);
 
@@ -109,103 +103,21 @@ const RendimientoTecnico: React.FC = () => {
   };
 
   const calcularMetricas = (pedidosData: Pedido[]) => {
-    // Solo considerar pedidos que tienen entrega
-    const pedidosConEntrega = pedidosData.filter(p => p.fechaEntrega);
-    
-    if (pedidosConEntrega.length === 0) {
-      setMetricas({
-        totalPedidos: pedidosData.length,
-        entregasATiempo: 0,
-        entregasRetrasadas: 0,
-        tiempoPromedioEntrega: 0,
-        tiempoMaximoEntrega: 0,
-        tiempoMinimoEntrega: 0,
-        tasaEficiencia: 0
-      });
-      return;
-    }
+    const totalPedidos = pedidosData.length;
+    const pedidosEntregados = pedidosData.filter(p => p.status === 'entregado' || p.status === 'recogido').length;
+    const pedidosRecogidos = pedidosData.filter(p => p.status === 'recogido').length;
 
-    // Calcular tiempos de entrega (desde creación hasta entrega)
-    const tiemposEntrega = pedidosConEntrega.map(pedido => {
-      const tiempoCreacion = pedido.createdAt;
-      const tiempoEntrega = pedido.fechaEntrega!;
-      const diferenciaMs = tiempoEntrega.getTime() - tiempoCreacion.getTime();
-      return diferenciaMs / (1000 * 60); // Convertir a minutos
-    });
-
-    // Definir tiempo esperado de entrega (ejemplo: 2 horas = 120 minutos)
-    const tiempoEsperadoEntrega = 120; // 2 horas en minutos
-
-    const entregasATiempo = tiemposEntrega.filter(tiempo => tiempo <= tiempoEsperadoEntrega).length;
-    const entregasRetrasadas = tiemposEntrega.filter(tiempo => tiempo > tiempoEsperadoEntrega).length;
-
-    const tiempoPromedio = tiemposEntrega.reduce((sum, tiempo) => sum + tiempo, 0) / tiemposEntrega.length;
-    const tiempoMaximo = Math.max(...tiemposEntrega);
-    const tiempoMinimo = Math.min(...tiemposEntrega);
-    const tasaEficiencia = (entregasATiempo / pedidosConEntrega.length) * 100;
+    // Calcular eficiencia general (entregas completadas vs total)
+    const eficienciaGeneral = totalPedidos > 0 ? Math.round((pedidosRecogidos / totalPedidos) * 100) : 0;
 
     setMetricas({
-      totalPedidos: pedidosData.length,
-      entregasATiempo,
-      entregasRetrasadas,
-      tiempoPromedioEntrega: Math.round(tiempoPromedio),
-      tiempoMaximoEntrega: Math.round(tiempoMaximo),
-      tiempoMinimoEntrega: Math.round(tiempoMinimo),
-      tasaEficiencia: Math.round(tasaEficiencia)
+      totalPedidos,
+      pedidosEntregados,
+      pedidosRecogidos,
+      eficienciaGeneral
     });
   };
 
-  const calcularTiempoEntrega = (pedido: Pedido): number => {
-    if (!pedido.fechaEntrega) return 0;
-    
-    const tiempoCreacion = pedido.createdAt;
-    const tiempoEntrega = pedido.fechaEntrega;
-    const diferenciaMs = tiempoEntrega.getTime() - tiempoCreacion.getTime();
-    return diferenciaMs / (1000 * 60); // Convertir a minutos
-  };
-
-  const esEntregaRetrasada = (pedido: Pedido): boolean => {
-    const tiempoEntrega = calcularTiempoEntrega(pedido);
-    return tiempoEntrega > 120; // 2 horas = 120 minutos
-  };
-
-  const calcularTiempoRecogida = (pedido: Pedido): string => {
-    if (!pedido.fechaRecogida || !pedido.fechaEntrega) return '-';
-
-    const tiempoEntrega = pedido.fechaEntrega;
-    const tiempoRecogida = pedido.fechaRecogida;
-    
-    // Lógica según el plan
-    if (pedido.plan.id === 'plan1') {
-      // Plan 1: recogida mismo día
-      const diferenciaMs = tiempoRecogida.getTime() - tiempoEntrega.getTime();
-      const diferenciaMinutos = diferenciaMs / (1000 * 60);
-      return `${Math.round(diferenciaMinutos)} min`;
-    } else {
-      // Planes 2+: recogida día siguiente
-      const diaEntrega = tiempoEntrega.getDay(); // 0 = domingo, 6 = sábado
-      let fechaRecogidaEsperada = new Date(tiempoEntrega);
-      
-      if (diaEntrega === 6) { // Sábado
-        // Recoger el lunes siguiente a las 7:00 AM
-        fechaRecogidaEsperada.setDate(tiempoEntrega.getDate() + 2);
-        fechaRecogidaEsperada.setHours(7, 0, 0, 0);
-      } else {
-        // Recoger el día siguiente a las 7:00 AM
-        fechaRecogidaEsperada.setDate(tiempoEntrega.getDate() + 1);
-        fechaRecogidaEsperada.setHours(7, 0, 0, 0);
-      }
-      
-      const diferenciaMs = tiempoRecogida.getTime() - fechaRecogidaEsperada.getTime();
-      const diferenciaMinutos = diferenciaMs / (1000 * 60);
-      
-      if (diferenciaMinutos <= 0) {
-        return 'A tiempo';
-      } else {
-        return `+${Math.round(diferenciaMinutos)} min`;
-      }
-    }
-  };
 
   const formatearTiempo = (minutos: number): string => {
     if (minutos < 60) {
@@ -223,9 +135,8 @@ const RendimientoTecnico: React.FC = () => {
       'Cliente',
       'Plan',
       'Estado',
-      'Tiempo Entrega (min)',
-      'Entrega Retrasada',
-      'Tiempo Recogida',
+      'Fecha Entrega',
+      'Fecha Recogida',
       'Dirección',
       'Total'
     ];
@@ -235,9 +146,8 @@ const RendimientoTecnico: React.FC = () => {
       pedido.cliente.name,
       pedido.plan.name,
       pedido.status,
-      calcularTiempoEntrega(pedido),
-      esEntregaRetrasada(pedido) ? 'Sí' : 'No',
-      calcularTiempoRecogida(pedido),
+      pedido.fechaEntrega ? formatDate(pedido.fechaEntrega, 'dd/MM HH:mm') : '-',
+      pedido.fechaRecogida ? formatDate(pedido.fechaRecogida, 'dd/MM HH:mm') : '-',
       pedido.cliente.address,
       pedido.total
     ]);
@@ -353,7 +263,7 @@ const RendimientoTecnico: React.FC = () => {
       </div>
 
       {/* Métricas Principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="card-colored border-l-4 border-primary-500">
           <div className="flex items-center">
             <div className="p-3 rounded-full bg-gradient-to-r from-primary-500 to-primary-600 text-white">
@@ -361,7 +271,7 @@ const RendimientoTecnico: React.FC = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total Pedidos</p>
-              <p className="text-2xl font-bold text-gray-900">{metricas.totalPedidos}</p>
+              <p className="text-3xl font-bold text-gray-900">{metricas.totalPedidos}</p>
             </div>
           </div>
         </div>
@@ -372,20 +282,8 @@ const RendimientoTecnico: React.FC = () => {
               <CheckCircleIcon className="h-6 w-6" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Entregas a Tiempo</p>
-              <p className="text-2xl font-bold text-gray-900">{metricas.entregasATiempo}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card-colored border-l-4 border-red-500">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-gradient-to-r from-red-500 to-red-600 text-white">
-              <ExclamationTriangleIcon className="h-6 w-6" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Entregas Retrasadas</p>
-              <p className="text-2xl font-bold text-gray-900">{metricas.entregasRetrasadas}</p>
+              <p className="text-sm font-medium text-gray-600">Completados</p>
+              <p className="text-3xl font-bold text-gray-900">{metricas.pedidosRecogidos}</p>
             </div>
           </div>
         </div>
@@ -396,60 +294,13 @@ const RendimientoTecnico: React.FC = () => {
               <ChartBarIcon className="h-6 w-6" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Tasa de Eficiencia</p>
-              <p className="text-2xl font-bold text-gray-900">{metricas.tasaEficiencia}%</p>
+              <p className="text-sm font-medium text-gray-600">Eficiencia</p>
+              <p className="text-3xl font-bold text-gray-900">{metricas.eficienciaGeneral}%</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Detalles de Tiempos */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="card">
-          <h3 className="text-lg font-semibold mb-4 flex items-center">
-            <ClockIcon className="h-5 w-5 text-primary-600 mr-2" />
-            Tiempo Promedio de Entrega
-          </h3>
-          <div className="text-center">
-            <p className="text-3xl font-bold text-primary-600">
-              {formatearTiempo(metricas.tiempoPromedioEntrega)}
-            </p>
-            <p className="text-sm text-gray-600 mt-1">
-              Tiempo esperado: 2 horas
-            </p>
-          </div>
-        </div>
-
-        <div className="card">
-          <h3 className="text-lg font-semibold mb-4 flex items-center">
-            <ClockIcon className="h-5 w-5 text-yellow-600 mr-2" />
-            Tiempo Máximo de Entrega
-          </h3>
-          <div className="text-center">
-            <p className="text-3xl font-bold text-yellow-600">
-              {formatearTiempo(metricas.tiempoMaximoEntrega)}
-            </p>
-            <p className="text-sm text-gray-600 mt-1">
-              Entrega más lenta
-            </p>
-          </div>
-        </div>
-
-        <div className="card">
-          <h3 className="text-lg font-semibold mb-4 flex items-center">
-            <ClockIcon className="h-5 w-5 text-green-600 mr-2" />
-            Tiempo Mínimo de Entrega
-          </h3>
-          <div className="text-center">
-            <p className="text-3xl font-bold text-green-600">
-              {formatearTiempo(metricas.tiempoMinimoEntrega)}
-            </p>
-            <p className="text-sm text-gray-600 mt-1">
-              Entrega más rápida
-            </p>
-          </div>
-        </div>
-      </div>
 
       {/* Tabla de Pedidos */}
       <div className="card">
@@ -465,16 +316,13 @@ const RendimientoTecnico: React.FC = () => {
                   Plan
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Fecha Creación
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tiempo Entrega
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Estado
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tiempo Recogida
+                  Fecha Entrega
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Fecha Recogida
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Total
@@ -498,21 +346,6 @@ const RendimientoTecnico: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {pedido.plan.name}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatDate(pedido.createdAt)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <span className={`text-sm font-medium ${
-                        esEntregaRetrasada(pedido) ? 'text-red-600' : 'text-green-600'
-                      }`}>
-                        {formatearTiempo(calcularTiempoEntrega(pedido))}
-                      </span>
-                      {esEntregaRetrasada(pedido) && (
-                        <ExclamationTriangleIcon className="h-4 w-4 text-red-600 ml-1" />
-                      )}
-                    </div>
-                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`badge ${
                       pedido.status === 'pendiente' ? 'badge-warning' :
@@ -524,7 +357,10 @@ const RendimientoTecnico: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {calcularTiempoRecogida(pedido)}
+                    {pedido.fechaEntrega ? formatDate(pedido.fechaEntrega, 'dd/MM HH:mm') : '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {pedido.fechaRecogida ? formatDate(pedido.fechaRecogida, 'dd/MM HH:mm') : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     ${pedido.total.toLocaleString()}

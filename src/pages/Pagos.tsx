@@ -96,8 +96,8 @@ const Pagos: React.FC = () => {
       console.log('📋 Pedidos con pagos:', pedidosConPagos.length);
       pedidosConPagos.forEach(pedido => {
         console.log(`📋 Pedido ${pedido.id.slice(-6)} (${pedido.cliente.name}):`, {
-          totalPagos: pedido.pagosRealizados.length,
-          pagos: pedido.pagosRealizados.map(p => ({
+          totalPagos: pedido.pagosRealizados?.length || 0,
+          pagos: pedido.pagosRealizados?.map(p => ({
             monto: p.monto,
             fecha: p.fecha,
             medioPago: p.medioPago
@@ -117,7 +117,7 @@ const Pagos: React.FC = () => {
             if (pago.fecha instanceof Date) {
               fechaPago = pago.fecha;
             } else if (pago.fecha && typeof pago.fecha === 'object' && 'toDate' in pago.fecha) {
-              fechaPago = pago.fecha.toDate();
+              fechaPago = (pago.fecha as any).toDate();
             } else {
               fechaPago = new Date(pago.fecha);
             }

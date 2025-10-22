@@ -113,11 +113,10 @@ const Reportes: React.FC = () => {
   };
 
   const calcularEstadisticas = () => {
-    const ingresos = pedidos.reduce((sum, p) => sum + p.total, 0);
-    const gastosTotal = gastos.reduce((sum, g) => sum + g.amount, 0);
-    const neto = ingresos - gastosTotal;
+    // Calcular ingresos reales (solo lo que se ha pagado)
+    let ingresos = 0;
+    let totalPendiente = 0;
     
-    // Calcular ingresos por método de pago
     const ingresosPorMetodo = {
       efectivo: 0,
       nequi: 0,
@@ -125,15 +124,28 @@ const Reportes: React.FC = () => {
     };
     
     pedidos.forEach(pedido => {
-      const total = pedido.total || 0;
-      if (pedido.paymentMethod?.type === 'efectivo') {
-        ingresosPorMetodo.efectivo += total;
-      } else if (pedido.paymentMethod?.type === 'nequi') {
-        ingresosPorMetodo.nequi += total;
-      } else if (pedido.paymentMethod?.type === 'daviplata') {
-        ingresosPorMetodo.daviplata += total;
+      const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
+      const saldoPendiente = pedido.total - totalPagado;
+      
+      ingresos += totalPagado;
+      totalPendiente += saldoPendiente;
+      
+      // Calcular ingresos por método de pago basado en pagos reales
+      if (pedido.pagosRealizados) {
+        pedido.pagosRealizados.forEach(pago => {
+          if (pago.medioPago === 'efectivo') {
+            ingresosPorMetodo.efectivo += pago.monto;
+          } else if (pago.medioPago === 'nequi') {
+            ingresosPorMetodo.nequi += pago.monto;
+          } else if (pago.medioPago === 'daviplata') {
+            ingresosPorMetodo.daviplata += pago.monto;
+          }
+        });
       }
     });
+    
+    const gastosTotal = gastos.reduce((sum, g) => sum + g.amount, 0);
+    const neto = ingresos - gastosTotal;
     
     const pedidosPorEstado = {
       pendiente: pedidos.filter(p => p.status === 'pendiente').length,
@@ -156,6 +168,7 @@ const Reportes: React.FC = () => {
 
     return {
       ingresos,
+      totalPendiente,
       gastos: gastosTotal,
       neto,
       totalPedidos: pedidos.length,
@@ -178,7 +191,8 @@ const Reportes: React.FC = () => {
       ['Período', `${fechaInicioStr} - ${fechaFinStr}`],
       [''],
       ['RESUMEN FINANCIERO'],
-      ['Ingresos', formatCurrency(stats.ingresos)],
+      ['Ingresos Cobrados', formatCurrency(stats.ingresos)],
+      ['Total Pendiente', formatCurrency(stats.totalPendiente)],
       ['Gastos', formatCurrency(stats.gastos)],
       ['Neto', formatCurrency(stats.neto)],
       ['Promedio por pedido', formatCurrency(stats.promedioPorPedido)],
@@ -409,7 +423,7 @@ const Reportes: React.FC = () => {
       </div>
 
       {/* Resumen de resultados */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="card-colored border-l-4 border-success-500">
           <div className="flex items-center">
             <div className="flex-shrink-0 p-4 rounded-xl bg-gradient-to-br from-success-100 to-success-200 border border-success-300 shadow-md">
@@ -419,6 +433,20 @@ const Reportes: React.FC = () => {
               <p className="text-sm font-medium text-gray-600">Ingresos</p>
               <p className="text-2xl font-bold text-gray-900">
                 {formatCurrency(stats.ingresos)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="card-colored border-l-4 border-warning-500">
+          <div className="flex items-center">
+            <div className="flex-shrink-0 p-4 rounded-xl bg-gradient-to-br from-warning-100 to-warning-200 border border-warning-300 shadow-md">
+              <CurrencyDollarIcon className="h-7 w-7 text-warning-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Pendiente</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {formatCurrency(stats.totalPendiente)}
               </p>
             </div>
           </div>

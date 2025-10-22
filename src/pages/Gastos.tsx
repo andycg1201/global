@@ -13,6 +13,7 @@ import { Gasto, ConceptoGasto } from '../types';
 import { formatDate, formatCurrency, getCurrentDateColombia } from '../utils/dateUtils';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { calcularSaldosActuales, validarSaldoSuficiente, obtenerMediosDisponibles, SaldoPorMedio } from '../utils/saldoUtils';
 
 interface FiltrosGastos {
   fechaInicio: Date;
@@ -57,9 +58,76 @@ const Gastos: React.FC = () => {
     description: ''
   });
 
+  // Estados para validación de saldos
+  const [saldosActuales, setSaldosActuales] = useState<SaldoPorMedio>({
+    efectivo: 0,
+    nequi: 0,
+    daviplata: 0
+  });
+  const [mediosDisponibles, setMediosDisponibles] = useState<Array<'efectivo' | 'nequi' | 'daviplata'>>(['efectivo', 'nequi', 'daviplata']);
+
   useEffect(() => {
     cargarDatos();
+    cargarSaldos();
   }, [filtros]);
+
+  const cargarSaldos = async () => {
+    try {
+      const saldos = await calcularSaldosActuales();
+      setSaldosActuales(saldos);
+      console.log('💰 Saldos actuales cargados:', saldos);
+    } catch (error) {
+      console.error('Error al cargar saldos:', error);
+    }
+  };
+
+  const eliminarGasto = async (gasto: Gasto) => {
+    if (!window.confirm(`¿Estás seguro de que quieres eliminar el gasto "${gasto.concepto.name}" por ${formatCurrency(gasto.amount)}?`)) {
+      return;
+    }
+
+    try {
+      await gastoService.deleteGasto(gasto.id);
+      alert('Gasto eliminado exitosamente');
+      cargarDatos();
+      cargarSaldos(); // Recargar saldos después de eliminar
+    } catch (error) {
+      console.error('Error al eliminar gasto:', error);
+      alert('Error al eliminar el gasto');
+    }
+  };
+
+  const eliminarGastoMantenimiento = async (mantenimiento: any) => {
+    if (!window.confirm(`¿Estás seguro de que quieres eliminar el gasto de mantenimiento "${mantenimiento.tipoFalla}" por ${formatCurrency(mantenimiento.costoReparacion || 0)}?`)) {
+      return;
+    }
+
+    try {
+      const { eliminarMantenimiento } = await import('../services/mantenimientoService');
+      await eliminarMantenimiento(mantenimiento.id);
+      alert('Gasto de mantenimiento eliminado exitosamente');
+      cargarDatos();
+      cargarSaldos(); // Recargar saldos después de eliminar
+    } catch (error) {
+      console.error('Error al eliminar gasto de mantenimiento:', error);
+      alert('Error al eliminar el gasto de mantenimiento');
+    }
+  };
+
+  const validarMontoYMedios = (monto: string) => {
+    const montoNumerico = parseFloat(monto) || 0;
+    if (montoNumerico > 0) {
+      const mediosDisponibles = obtenerMediosDisponibles(saldosActuales, montoNumerico);
+      setMediosDisponibles(mediosDisponibles);
+      
+      // Si el medio de pago actual no está disponible, cambiar a uno disponible
+      if (mediosDisponibles.length > 0 && !mediosDisponibles.includes(nuevoGasto.medioPago)) {
+        setNuevoGasto(prev => ({ ...prev, medioPago: mediosDisponibles[0] }));
+      }
+    } else {
+      setMediosDisponibles(['efectivo', 'nequi', 'daviplata']);
+    }
+  };
 
   const cargarDatos = async () => {
     setLoading(true);
@@ -114,6 +182,12 @@ const Gastos: React.FC = () => {
       return;
     }
 
+    // Validar que el medio de pago tenga saldo suficiente
+    if (!validarSaldoSuficiente(saldosActuales, amountNumerico, nuevoGasto.medioPago)) {
+      alert(`⚠️ No hay saldo suficiente en ${nuevoGasto.medioPago}. Saldo disponible: $${saldosActuales[nuevoGasto.medioPago].toLocaleString()}`);
+      return;
+    }
+
     if (!user) {
       alert('Usuario no autenticado');
       return;
@@ -148,6 +222,7 @@ const Gastos: React.FC = () => {
       });
       setMostrarFormulario(false);
       cargarDatos();
+      cargarSaldos(); // Recargar saldos después de crear el gasto
       alert('Gasto registrado exitosamente');
     } catch (error) {
       console.error('Error al crear gasto:', error);
@@ -456,9 +531,20 @@ const Gastos: React.FC = () => {
                   step="100"
                   className="input-field"
                   value={nuevoGasto.amount}
-                  onChange={(e) => setNuevoGasto(prev => ({ ...prev, amount: e.target.value }))}
+                  onChange={(e) => {
+                    setNuevoGasto(prev => ({ ...prev, amount: e.target.value }));
+                    validarMontoYMedios(e.target.value);
+                  }}
                   required
                 />
+                {parseFloat(nuevoGasto.amount) > 0 && (
+                  <div className="mt-2 text-xs text-gray-600">
+                    💰 Saldos disponibles: 
+                    Efectivo: ${saldosActuales.efectivo.toLocaleString()} | 
+                    Nequi: ${saldosActuales.nequi.toLocaleString()} | 
+                    Daviplata: ${saldosActuales.daviplata.toLocaleString()}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -491,35 +577,44 @@ const Gastos: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setNuevoGasto(prev => ({ ...prev, medioPago: 'efectivo' }))}
+                    disabled={!mediosDisponibles.includes('efectivo')}
                     className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
                       nuevoGasto.medioPago === 'efectivo'
                         ? 'bg-green-50 border-green-500 text-green-700'
-                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                        : mediosDisponibles.includes('efectivo')
+                        ? 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                        : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
                     }`}
                   >
-                    💵 Efectivo
+                    💵 Efectivo {!mediosDisponibles.includes('efectivo') && '(Sin saldo)'}
                   </button>
                   <button
                     type="button"
                     onClick={() => setNuevoGasto(prev => ({ ...prev, medioPago: 'nequi' }))}
+                    disabled={!mediosDisponibles.includes('nequi')}
                     className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
                       nuevoGasto.medioPago === 'nequi'
                         ? 'bg-blue-50 border-blue-500 text-blue-700'
-                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                        : mediosDisponibles.includes('nequi')
+                        ? 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                        : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
                     }`}
                   >
-                    📱 Nequi
+                    📱 Nequi {!mediosDisponibles.includes('nequi') && '(Sin saldo)'}
                   </button>
                   <button
                     type="button"
                     onClick={() => setNuevoGasto(prev => ({ ...prev, medioPago: 'daviplata' }))}
+                    disabled={!mediosDisponibles.includes('daviplata')}
                     className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
                       nuevoGasto.medioPago === 'daviplata'
                         ? 'bg-purple-50 border-purple-500 text-purple-700'
-                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                        : mediosDisponibles.includes('daviplata')
+                        ? 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                        : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
                     }`}
                   >
-                    📱 Daviplata
+                    📱 Daviplata {!mediosDisponibles.includes('daviplata') && '(Sin saldo)'}
                   </button>
                 </div>
               </div>
@@ -773,6 +868,9 @@ const Gastos: React.FC = () => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Acciones
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Concepto
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -787,15 +885,23 @@ const Gastos: React.FC = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Fecha
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Registrado por
-                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {/* Gastos generales */}
                 {gastosFiltrados.map((gasto) => (
                   <tr key={gasto.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <button
+                        onClick={() => eliminarGasto(gasto)}
+                        className="inline-flex items-center justify-center w-8 h-8 bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-700 rounded-full transition-colors duration-200"
+                        title="Eliminar gasto"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
                         {gasto.concepto.name}
@@ -825,15 +931,23 @@ const Gastos: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {formatDate(gasto.date, 'dd/MM/yyyy HH:mm')}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(gasto.createdAt, 'HH:mm')}
-                    </td>
                   </tr>
                 ))}
                 
                 {/* Gastos de mantenimiento */}
                 {gastosMantenimientoFiltrados.map((mantenimiento) => (
                   <tr key={`mant-${mantenimiento.id}`} className="hover:bg-gray-50 bg-red-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <button
+                        onClick={() => eliminarGastoMantenimiento(mantenimiento)}
+                        className="inline-flex items-center justify-center w-8 h-8 bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-700 rounded-full transition-colors duration-200"
+                        title="Eliminar gasto de mantenimiento"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-red-800">
                         Mantenimiento - {mantenimiento.tipoFalla}
@@ -849,11 +963,15 @@ const Gastos: React.FC = () => {
                         {formatCurrency(mantenimiento.costoReparacion || 0)}
                       </div>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                        {mantenimiento.medioPago === 'efectivo' ? '💵 Efectivo' :
+                         mantenimiento.medioPago === 'nequi' ? '📱 Nequi' :
+                         '📱 Daviplata'}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {formatDate(mantenimiento.fechaFin, 'dd/MM/yyyy HH:mm')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(mantenimiento.createdAt, 'HH:mm')}
                     </td>
                   </tr>
                 ))}

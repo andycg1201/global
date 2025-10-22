@@ -41,7 +41,8 @@ export const crearMantenimiento = async (
   fechaEstimadaFin: Date,
   createdBy: string,
   fotos?: string[],
-  observaciones?: string
+  observaciones?: string,
+  medioPago?: 'efectivo' | 'nequi' | 'daviplata'
 ): Promise<string> => {
   try {
     // Validar que createdBy no sea undefined
@@ -59,6 +60,7 @@ export const crearMantenimiento = async (
       fechaEstimadaFin: Timestamp.fromDate(fechaEstimadaFin),
       fotos: fotos || [],
       observaciones: observaciones || '',
+      medioPago: medioPago || 'efectivo',
       createdBy,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
@@ -313,6 +315,17 @@ export const obtenerEstadisticasMantenimiento = async (): Promise<{
     };
   } catch (error) {
     console.error('Error obteniendo estadísticas de mantenimiento:', error);
+    throw error;
+  }
+};
+
+// Eliminar mantenimiento
+export const eliminarMantenimiento = async (mantenimientoId: string): Promise<void> => {
+  try {
+    const { deleteDoc } = await import('firebase/firestore');
+    await deleteDoc(doc(db, MANTENIMIENTOS_COLLECTION, mantenimientoId));
+  } catch (error) {
+    console.error('Error eliminando mantenimiento:', error);
     throw error;
   }
 };

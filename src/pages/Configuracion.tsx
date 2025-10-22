@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Cog6ToothIcon, 
   CurrencyDollarIcon,
@@ -43,17 +43,13 @@ const Configuracion: React.FC = () => {
     isWeekendOnly: false
   });
 
-  useEffect(() => {
-    cargarDatos();
-  }, []);
-
-  const cargarDatos = async () => {
+  const cargarDatos = useCallback(async () => {
     setLoading(true);
     try {
-      const [config, planesData, stats] = await Promise.all([
+      // Cargar datos críticos primero
+      const [config, planesData] = await Promise.all([
         configService.getConfiguracion(),
-        planService.getActivePlans(),
-        storageService.obtenerEstadisticas()
+        planService.getActivePlans()
       ]);
       
       if (config) {
@@ -64,15 +60,26 @@ const Configuracion: React.FC = () => {
       }
       
       setPlanes(planesData);
-      setEstadisticasStorage(stats);
+      
+      // Cargar estadísticas de storage de forma asíncrona (no bloquea la UI)
+      storageService.obtenerEstadisticas().then(stats => {
+        setEstadisticasStorage(stats);
+      }).catch(error => {
+        console.error('Error al cargar estadísticas de storage:', error);
+      });
+      
     } catch (error) {
       console.error('Error al cargar datos:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const guardarConfiguracion = async (e: React.FormEvent) => {
+  useEffect(() => {
+    cargarDatos();
+  }, [cargarDatos]);
+
+  const guardarConfiguracion = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     
@@ -86,7 +93,7 @@ const Configuracion: React.FC = () => {
     } finally {
       setSaving(false);
     }
-  };
+  }, [formData]);
 
   const abrirFormularioPlan = (plan?: Plan) => {
     if (plan) {
@@ -224,9 +231,9 @@ const Configuracion: React.FC = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-4 p-2 sm:p-4 min-h-screen bg-white relative z-10">
       <div>
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-700 to-primary-800 bg-clip-text text-transparent">
+        <h1 className="text-2xl sm:text-3xl font-bold text-primary-700">
           Configuración
         </h1>
         <p className="mt-1 text-sm text-gray-500">
@@ -235,7 +242,7 @@ const Configuracion: React.FC = () => {
       </div>
 
       {/* Configuración de precios */}
-      <div className="card">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
         <div className="flex items-center mb-4">
           <CurrencyDollarIcon className="h-6 w-6 text-primary-600 mr-3" />
           <h3 className="text-lg font-medium text-gray-900">Configuración de Precios</h3>
@@ -274,7 +281,7 @@ const Configuracion: React.FC = () => {
       </div>
 
       {/* Gestión de Fotos */}
-      <div className="card">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
           <h3 className="text-lg font-medium text-blue-800 mb-2">📸 Gestión de Fotos de Instalación</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -310,7 +317,7 @@ const Configuracion: React.FC = () => {
       </div>
 
       {/* Gestión de planes */}
-      <div className="card">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center">
             <Cog6ToothIcon className="h-6 w-6 text-primary-600 mr-3" />
@@ -334,9 +341,9 @@ const Configuracion: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {planes.map((plan) => (
-            <div key={plan.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+            <div key={plan.id} className="border border-gray-200 rounded-lg p-3 hover:shadow-sm transition-shadow bg-gray-50">
               <div className="flex justify-between items-start mb-2">
                 <h4 className="font-semibold text-gray-900">{plan.name}</h4>
                 <div className="flex space-x-1">
@@ -415,7 +422,7 @@ const Configuracion: React.FC = () => {
             </div>
             
             <form onSubmit={guardarPlan} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Nombre del Plan
@@ -458,7 +465,7 @@ const Configuracion: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Duración (horas)

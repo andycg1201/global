@@ -54,7 +54,14 @@ const Dashboard: React.FC = () => {
     gastosMantenimiento: 0,
     neto: 0,
     ingresosPorPlan: {} as { [key: string]: { name: string; amount: number; count: number } },
-    pedidosCompletados: 0
+    pedidosCompletados: 0,
+    cuentasPorCobrar: 0,
+    cuentasPorCobrarPorCliente: {} as { [key: string]: any },
+    saldosPorMedio: {
+      efectivo: { ingresos: 0, gastos: 0, saldo: 0 },
+      nequi: { ingresos: 0, gastos: 0, saldo: 0 },
+      daviplata: { ingresos: 0, gastos: 0, saldo: 0 }
+    }
   });
 
   // Estados para saldos por medio de pago
@@ -121,7 +128,7 @@ const Dashboard: React.FC = () => {
             if (pago.fecha instanceof Date) {
               fechaPago = pago.fecha;
             } else if (pago.fecha && typeof pago.fecha === 'object' && 'toDate' in pago.fecha) {
-              fechaPago = pago.fecha.toDate();
+              fechaPago = (pago.fecha as any).toDate();
             } else {
               fechaPago = new Date(pago.fecha);
             }
@@ -280,7 +287,7 @@ const Dashboard: React.FC = () => {
             if (pago.fecha instanceof Date) {
               fechaPago = pago.fecha;
             } else if (pago.fecha && typeof pago.fecha === 'object' && 'toDate' in pago.fecha) {
-              fechaPago = pago.fecha.toDate();
+              fechaPago = (pago.fecha as any).toDate();
             } else {
               fechaPago = new Date(pago.fecha);
             }
@@ -314,7 +321,7 @@ const Dashboard: React.FC = () => {
             if (pago.fecha instanceof Date) {
               fechaPago = pago.fecha;
             } else if (pago.fecha && typeof pago.fecha === 'object' && 'toDate' in pago.fecha) {
-              fechaPago = pago.fecha.toDate();
+              fechaPago = (pago.fecha as any).toDate();
             } else {
               fechaPago = new Date(pago.fecha);
             }
@@ -341,7 +348,9 @@ const Dashboard: React.FC = () => {
       } } = {};
 
       pedidosFiltrados.forEach(pedido => {
-        const saldoPendiente = pedido.saldoPendiente || 0;
+        // Calcular saldo pendiente restando los pagos ya realizados
+        const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
+        const saldoPendiente = Math.max(0, (pedido.total || 0) - totalPagado);
         if (saldoPendiente > 0) {
           const clienteId = pedido.clienteId;
           if (!cuentasPorCobrarPorCliente[clienteId]) {
@@ -405,7 +414,7 @@ const Dashboard: React.FC = () => {
             if (pago.fecha instanceof Date) {
               fechaPago = pago.fecha;
             } else if (pago.fecha && typeof pago.fecha === 'object' && 'toDate' in pago.fecha) {
-              fechaPago = pago.fecha.toDate();
+              fechaPago = (pago.fecha as any).toDate();
             } else {
               fechaPago = new Date(pago.fecha);
             }
@@ -500,7 +509,14 @@ const Dashboard: React.FC = () => {
         gastosMantenimiento: 0,
         neto: 0,
         ingresosPorPlan: {},
-        pedidosCompletados: 0
+        pedidosCompletados: 0,
+        cuentasPorCobrar: 0,
+        cuentasPorCobrarPorCliente: {},
+        saldosPorMedio: {
+          efectivo: { ingresos: 0, gastos: 0, saldo: 0 },
+          nequi: { ingresos: 0, gastos: 0, saldo: 0 },
+          daviplata: { ingresos: 0, gastos: 0, saldo: 0 }
+        }
       };
     }
   };
@@ -629,15 +645,24 @@ const Dashboard: React.FC = () => {
 
   // Listener para detectar cambios en pagos y recargar dashboard
   useEffect(() => {
-    const handlePagoRealizado = () => {
-      console.log('Pago realizado detectado, recargando dashboard...');
-      recargarDashboard();
+    console.log('🎧 Registrando listener pagoRealizado en Dashboard...');
+    
+    const handlePagoRealizado = async () => {
+      console.log('🔄 Pago realizado detectado, recargando dashboard...');
+      // Pequeño delay para asegurar que los datos se hayan actualizado
+      setTimeout(async () => {
+        console.log('🔄 Ejecutando recargarDashboard...');
+        await recargarDashboard();
+        console.log('✅ Dashboard recargado después de pago');
+      }, 500);
     };
 
     // Escuchar eventos personalizados de pago realizado
     window.addEventListener('pagoRealizado', handlePagoRealizado);
+    console.log('✅ Listener pagoRealizado registrado');
     
     return () => {
+      console.log('🗑️ Removiendo listener pagoRealizado');
       window.removeEventListener('pagoRealizado', handlePagoRealizado);
     };
   }, []);
@@ -1040,7 +1065,7 @@ const Dashboard: React.FC = () => {
 
 
       {/* Saldos por Medio de Pago */}
-      <div className="card">
+        <div className="card">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-medium text-gray-900">💳 Saldos por Medio de Pago</h3>
           <div className="text-xs text-gray-500 bg-blue-50 px-2 py-1 rounded">
@@ -1055,13 +1080,13 @@ const Dashboard: React.FC = () => {
               : 'bg-red-50 border-red-200'
           }`}>
             <div className="flex items-center justify-between">
-              <div className="flex items-center">
+            <div className="flex items-center">
                 <div className={`p-2 rounded-lg ${
                   (datosFinancieros?.saldosPorMedio?.efectivo?.saldo || 0) >= 0 ? 'bg-green-100' : 'bg-red-100'
                 }`}>
                   <span className="text-2xl">💵</span>
-                </div>
-                <div className="ml-3">
+              </div>
+              <div className="ml-3">
                   <p className={`text-sm font-medium ${
                     (datosFinancieros?.saldosPorMedio?.efectivo?.saldo || 0) >= 0 ? 'text-green-800' : 'text-red-800'
                   }`}>
@@ -1073,9 +1098,9 @@ const Dashboard: React.FC = () => {
                   <p className="text-xs text-gray-600">
                     Gastos: {formatCurrency(datosFinancieros?.saldosPorMedio?.efectivo?.gastos || 0)}
                   </p>
-                </div>
               </div>
-              <div className="text-right">
+            </div>
+            <div className="text-right">
                 <p className={`text-lg font-bold ${
                   (datosFinancieros?.saldosPorMedio?.efectivo?.saldo || 0) >= 0 ? 'text-green-900' : 'text-red-900'
                 }`}>
@@ -1097,13 +1122,13 @@ const Dashboard: React.FC = () => {
               : 'bg-red-50 border-red-200'
           }`}>
             <div className="flex items-center justify-between">
-              <div className="flex items-center">
+            <div className="flex items-center">
                 <div className={`p-2 rounded-lg ${
                   (datosFinancieros?.saldosPorMedio?.nequi?.saldo || 0) >= 0 ? 'bg-blue-100' : 'bg-red-100'
                 }`}>
                   <span className="text-2xl">📱</span>
-                </div>
-                <div className="ml-3">
+              </div>
+              <div className="ml-3">
                   <p className={`text-sm font-medium ${
                     (datosFinancieros?.saldosPorMedio?.nequi?.saldo || 0) >= 0 ? 'text-blue-800' : 'text-red-800'
                   }`}>
@@ -1115,9 +1140,9 @@ const Dashboard: React.FC = () => {
                   <p className="text-xs text-gray-600">
                     Gastos: {formatCurrency(datosFinancieros?.saldosPorMedio?.nequi?.gastos || 0)}
                   </p>
-                </div>
               </div>
-              <div className="text-right">
+            </div>
+            <div className="text-right">
                 <p className={`text-lg font-bold ${
                   (datosFinancieros?.saldosPorMedio?.nequi?.saldo || 0) >= 0 ? 'text-blue-900' : 'text-red-900'
                 }`}>
@@ -1139,13 +1164,13 @@ const Dashboard: React.FC = () => {
               : 'bg-red-50 border-red-200'
           }`}>
             <div className="flex items-center justify-between">
-              <div className="flex items-center">
+            <div className="flex items-center">
                 <div className={`p-2 rounded-lg ${
                   (datosFinancieros?.saldosPorMedio?.daviplata?.saldo || 0) >= 0 ? 'bg-purple-100' : 'bg-red-100'
                 }`}>
                   <span className="text-2xl">📱</span>
-                </div>
-                <div className="ml-3">
+              </div>
+              <div className="ml-3">
                   <p className={`text-sm font-medium ${
                     (datosFinancieros?.saldosPorMedio?.daviplata?.saldo || 0) >= 0 ? 'text-purple-800' : 'text-red-800'
                   }`}>
@@ -1157,9 +1182,9 @@ const Dashboard: React.FC = () => {
                   <p className="text-xs text-gray-600">
                     Gastos: {formatCurrency(datosFinancieros?.saldosPorMedio?.daviplata?.gastos || 0)}
                   </p>
-                </div>
               </div>
-              <div className="text-right">
+            </div>
+            <div className="text-right">
                 <p className={`text-lg font-bold ${
                   (datosFinancieros?.saldosPorMedio?.daviplata?.saldo || 0) >= 0 ? 'text-purple-900' : 'text-red-900'
                 }`}>
@@ -1169,10 +1194,10 @@ const Dashboard: React.FC = () => {
                   (datosFinancieros?.saldosPorMedio?.daviplata?.saldo || 0) >= 0 ? 'text-purple-600' : 'text-red-600'
                 }`}>
                   {(datosFinancieros?.saldosPorMedio?.daviplata?.saldo || 0) >= 0 ? 'Saldo positivo' : 'Saldo negativo'}
-                </p>
-              </div>
+              </p>
             </div>
           </div>
+        </div>
         </div>
       </div>
 
@@ -1226,8 +1251,8 @@ const Dashboard: React.FC = () => {
                     fechaFin: new Date(e.target.value) 
                   }))}
                 />
-              </div>
-            )}
+        </div>
+      )}
           </div>
         </div>
 
@@ -1437,17 +1462,17 @@ const Dashboard: React.FC = () => {
                 <div className="ml-4 space-y-1 border-l-2 border-blue-200 pl-4 mt-2">
                   <div className="text-xs font-medium text-gray-600 mb-2">Por Cliente:</div>
                   {Object.entries(datosFinancieros.cuentasPorCobrarPorCliente)
-                    .sort(([,a], [,b]) => b.totalSaldo - a.totalSaldo) // Ordenar por saldo descendente
+                    .sort(([,a], [,b]) => (b as any).totalSaldo - (a as any).totalSaldo) // Ordenar por saldo descendente
                     .map(([clienteId, clienteData]) => (
                       <div key={clienteId} className="flex justify-between items-center">
                         <div className="flex items-center space-x-2">
-                          <dt className="text-xs text-gray-500">{clienteData.clienteName}:</dt>
+                          <dt className="text-xs text-gray-500">{(clienteData as any).clienteName}:</dt>
                           <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                            {clienteData.servicios} servicios
+                            {(clienteData as any).servicios} servicios
                           </span>
                         </div>
                         <dd className="text-xs font-medium text-blue-600">
-                          {formatCurrency(clienteData.totalSaldo)}
+                          {formatCurrency((clienteData as any).totalSaldo)}
                         </dd>
                       </div>
                     ))}
@@ -1468,6 +1493,7 @@ const Dashboard: React.FC = () => {
           onConfirm={handleValidacionQR}
           pedido={pedidoAValidar}
           lavadoras={lavadoras}
+          precioHoraAdicional={configuracion?.horaAdicional || 2000}
         />
       )}
 

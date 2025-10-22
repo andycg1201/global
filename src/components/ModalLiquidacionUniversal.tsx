@@ -28,7 +28,9 @@ const ModalLiquidacionUniversal: React.FC<ModalLiquidacionUniversalProps> = ({
 
   if (!isOpen) return null;
 
-  const saldoPendiente = pedido.saldoPendiente || pedido.total || 0;
+  // Calcular saldo pendiente restando los pagos ya realizados
+  const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
+  const saldoPendiente = Math.max(0, (pedido.total || 0) - totalPagado);
   const montoNumerico = parseFloat(montoAbono) || 0;
   const esAbonoParcial = montoNumerico < saldoPendiente;
   const saldoRestante = saldoPendiente - montoNumerico;
@@ -110,6 +112,9 @@ const ModalLiquidacionUniversal: React.FC<ModalLiquidacionUniversalProps> = ({
               <div>
                 <h4 className="text-lg font-medium text-red-800">Saldo Pendiente</h4>
                 <p className="text-sm text-red-600">Monto total a liquidar</p>
+                <p className="text-xs text-red-500 mt-1">
+                  Total: {formatCurrency(pedido.total || 0)} - Pagado: {formatCurrency(totalPagado)} = {formatCurrency(saldoPendiente)}
+                </p>
               </div>
               <div className="text-right">
                 <p className="text-2xl font-bold text-red-900">
@@ -135,7 +140,7 @@ const ModalLiquidacionUniversal: React.FC<ModalLiquidacionUniversalProps> = ({
                     fechaValida = !isNaN(fechaPago.getTime());
                   } else if (pago.fecha && typeof pago.fecha === 'object' && 'toDate' in pago.fecha) {
                     // Es un Timestamp de Firebase
-                    fechaPago = pago.fecha.toDate();
+                    fechaPago = (pago.fecha as any).toDate();
                     fechaValida = !isNaN(fechaPago.getTime());
                   } else {
                     // Intentar convertir string o número

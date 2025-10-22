@@ -183,6 +183,7 @@ export interface Mantenimiento {
   fechaFin?: Date; // cuando se marca como disponible
   fotos?: string[]; // URLs de fotos del daño
   observaciones?: string;
+  medioPago?: 'efectivo' | 'nequi' | 'daviplata'; // medio de pago para el mantenimiento
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;

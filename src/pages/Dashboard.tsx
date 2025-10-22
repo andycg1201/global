@@ -374,22 +374,45 @@ const Dashboard: React.FC = () => {
         daviplata: { ingresos: 0, gastos: 0, saldo: 0 }
       };
 
-      // Calcular ingresos por medio de pago
-      pedidosFiltrados
-        .filter(p => p.status === 'recogido')
-        .forEach(pedido => {
-          const total = pedido.total || 0;
-          if (pedido.paymentMethod?.type === 'efectivo') {
-            saldosCalculados.efectivo.ingresos += total;
-          } else if (pedido.paymentMethod?.type === 'nequi') {
-            saldosCalculados.nequi.ingresos += total;
-          } else if (pedido.paymentMethod?.type === 'daviplata') {
-            saldosCalculados.daviplata.ingresos += total;
-          }
-        });
+      console.log('📊 Debug saldos - Pedidos filtrados:', pedidosFiltrados.length);
+      console.log('📊 Debug saldos - Gastos totales:', todosLosGastos.length);
+
+      // Calcular ingresos por medio de pago (basado en pagos reales)
+      let pagosProcesados = 0;
+      pedidosFiltrados.forEach(pedido => {
+        if (pedido.pagosRealizados && pedido.pagosRealizados.length > 0) {
+          pedido.pagosRealizados.forEach(pago => {
+            // Verificar que el pago esté en el rango de fechas
+            let fechaPago: Date;
+            if (pago.fecha instanceof Date) {
+              fechaPago = pago.fecha;
+            } else if (pago.fecha && typeof pago.fecha === 'object' && 'toDate' in pago.fecha) {
+              fechaPago = pago.fecha.toDate();
+            } else {
+              fechaPago = new Date(pago.fecha);
+            }
+            
+            if (fechaPago >= fechaInicio && fechaPago <= fechaFin) {
+              pagosProcesados++;
+              console.log('💰 Procesando pago:', pago.medioPago, pago.monto);
+              if (pago.medioPago === 'efectivo') {
+                saldosCalculados.efectivo.ingresos += pago.monto;
+              } else if (pago.medioPago === 'nequi') {
+                saldosCalculados.nequi.ingresos += pago.monto;
+              } else if (pago.medioPago === 'daviplata') {
+                saldosCalculados.daviplata.ingresos += pago.monto;
+              }
+            }
+          });
+        }
+      });
+      console.log('📊 Pagos procesados para saldos:', pagosProcesados);
 
       // Calcular gastos por medio de pago
+      let gastosProcesados = 0;
       todosLosGastos.forEach(gasto => {
+        gastosProcesados++;
+        console.log('💸 Procesando gasto:', gasto.medioPago, gasto.amount);
         if (gasto.medioPago === 'efectivo') {
           saldosCalculados.efectivo.gastos += gasto.amount;
         } else if (gasto.medioPago === 'nequi') {
@@ -398,6 +421,7 @@ const Dashboard: React.FC = () => {
           saldosCalculados.daviplata.gastos += gasto.amount;
         }
       });
+      console.log('📊 Gastos procesados para saldos:', gastosProcesados);
 
       // Distribuir gastos de mantenimiento proporcionalmente entre los medios de pago
       // basado en los ingresos de cada medio
@@ -419,6 +443,7 @@ const Dashboard: React.FC = () => {
         saldosCalculados[medioKey].saldo = saldosCalculados[medioKey].ingresos - saldosCalculados[medioKey].gastos;
       });
 
+      console.log('🔍 Saldos calculados:', saldosCalculados);
       setSaldosPorMedio(saldosCalculados);
 
       const resultado = {
@@ -983,79 +1008,6 @@ const Dashboard: React.FC = () => {
         ))}
       </div>
 
-      {/* Ingresos por método de pago */}
-      {datosFinancieros?.ingresosPorMedioPago && (
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Ingresos por Método de Pago</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <CurrencyDollarIcon className="h-6 w-6 text-green-600" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-green-800">Efectivo</p>
-                <p className="text-xs text-green-600">Dinero en efectivo</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-lg font-bold text-green-900">
-                {formatCurrency(datosFinancieros.ingresosPorMedioPago.efectivo)}
-              </p>
-              <p className="text-xs text-green-600">
-                {datosFinancieros.ingresos > 0 ? 
-                  `${((datosFinancieros.ingresosPorMedioPago.efectivo / datosFinancieros.ingresos) * 100).toFixed(1)}%` 
-                  : '0%'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <CurrencyDollarIcon className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-blue-800">Nequi</p>
-                <p className="text-xs text-blue-600">Billetera digital Nequi</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-lg font-bold text-blue-900">
-                {formatCurrency(datosFinancieros.ingresosPorMedioPago.nequi)}
-              </p>
-              <p className="text-xs text-blue-600">
-                {datosFinancieros.ingresos > 0 ? 
-                  `${((datosFinancieros.ingresosPorMedioPago.nequi / datosFinancieros.ingresos) * 100).toFixed(1)}%` 
-                  : '0%'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg border border-purple-200">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <CurrencyDollarIcon className="h-6 w-6 text-purple-600" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-purple-800">Daviplata</p>
-                <p className="text-xs text-purple-600">Billetera digital Daviplata</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-lg font-bold text-purple-900">
-                {formatCurrency(datosFinancieros.ingresosPorMedioPago.daviplata)}
-              </p>
-              <p className="text-xs text-purple-600">
-                {datosFinancieros.ingresos > 0 ? 
-                  `${((datosFinancieros.ingresosPorMedioPago.daviplata / datosFinancieros.ingresos) * 100).toFixed(1)}%` 
-                  : '0%'}
-              </p>
-            </div>
-          </div>
-        </div>
-        </div>
-      )}
 
       {/* Saldos por Medio de Pago */}
       <div className="card">

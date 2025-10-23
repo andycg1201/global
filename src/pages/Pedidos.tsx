@@ -19,6 +19,7 @@ import ModalLiquidacion from '../components/ModalLiquidacion';
 import ModalLiquidacionUniversal from '../components/ModalLiquidacionUniversal';
 import ModalValidacionQR from '../components/ModalValidacionQR';
 import ModalFotoInstalacion from '../components/ModalFotoInstalacion';
+import ModalWhatsApp from '../components/ModalWhatsApp';
 import CalendarioHorarios from '../components/CalendarioHorarios';
 
 interface FiltrosPedidos {
@@ -61,6 +62,10 @@ const Pedidos: React.FC = () => {
   // Estados para modal de foto de instalación
   const [mostrarModalFoto, setMostrarModalFoto] = useState(false);
   const [pedidoParaFoto, setPedidoParaFoto] = useState<Pedido | null>(null);
+  
+  // Estados para WhatsApp
+  const [mostrarModalWhatsApp, setMostrarModalWhatsApp] = useState(false);
+  const [pedidoParaWhatsApp, setPedidoParaWhatsApp] = useState<Pedido | null>(null);
   
   
   const [filtros, setFiltros] = useState<FiltrosPedidos>({
@@ -200,6 +205,16 @@ const Pedidos: React.FC = () => {
         status: nuevoEstado as any,
         updatedAt: new Date()
       });
+      
+      // Si se marca como entregado, abrir modal de WhatsApp
+      if (nuevoEstado === 'entregado') {
+        const pedido = pedidos.find(p => p.id === pedidoId);
+        if (pedido) {
+          setPedidoParaWhatsApp(pedido);
+          setMostrarModalWhatsApp(true);
+        }
+      }
+      
       cargarPedidos();
     } catch (error) {
       console.error('Error al actualizar pedido:', error);
@@ -1552,6 +1567,18 @@ const Pedidos: React.FC = () => {
             setPedidoParaFoto(null);
           }}
           pedido={pedidoParaFoto}
+        />
+      )}
+
+      {/* Modal de WhatsApp */}
+      {mostrarModalWhatsApp && pedidoParaWhatsApp && (
+        <ModalWhatsApp
+          isOpen={mostrarModalWhatsApp}
+          onClose={() => {
+            setMostrarModalWhatsApp(false);
+            setPedidoParaWhatsApp(null);
+          }}
+          pedido={pedidoParaWhatsApp}
         />
       )}
 

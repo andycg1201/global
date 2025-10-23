@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getAnalytics } from 'firebase/analytics';
+import { getStorage } from 'firebase/storage';
 
 // Suprimir errores de BloomFilter de Firebase (errores internos que no afectan funcionalidad)
 const originalConsoleWarn = console.warn;
@@ -30,6 +31,7 @@ const app = initializeApp(firebaseConfig);
 // Inicializar servicios
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+export const storage = getStorage(app);
 
 // Inicializar Analytics solo en el navegador
 export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;

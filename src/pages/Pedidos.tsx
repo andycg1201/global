@@ -1300,7 +1300,23 @@ const Pedidos: React.FC = () => {
                   </div>
                   <div>
                     <span className="text-gray-500">Estado de Pago:</span>
-                    <span className="ml-2">{getEstadoPagoBadge(pedidoSeleccionado.estadoPago)}</span>
+                    <span className="ml-2">
+                      {pedidoSeleccionado.pagosRealizados && pedidoSeleccionado.pagosRealizados.length > 0 ? (
+                        pedidoSeleccionado.pagosRealizados.reduce((sum, pago) => sum + pago.monto, 0) >= pedidoSeleccionado.total ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            ✅ Pagado
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            ⚠️ Parcial
+                          </span>
+                        )
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                          ❌ Pendiente
+                        </span>
+                      )}
+                    </span>
                   </div>
                   
                   {/* Información de Recogida Prioritaria */}
@@ -1410,20 +1426,69 @@ const Pedidos: React.FC = () => {
                 </div>
               </div>
 
+              {/* Información de Lavadora */}
+              {pedidoSeleccionado.lavadoraAsignada && (
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-medium text-gray-900 mb-2">Lavadora Asignada</h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-500">Código QR:</span>
+                      <span className="ml-2 font-medium">{pedidoSeleccionado.lavadoraAsignada.codigoQR}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Marca:</span>
+                      <span className="ml-2 font-medium">{pedidoSeleccionado.lavadoraAsignada.marca}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Modelo:</span>
+                      <span className="ml-2 font-medium">{pedidoSeleccionado.lavadoraAsignada.modelo}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Estado:</span>
+                      <span className="ml-2 font-medium capitalize">Asignada</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Pagos y Descuentos */}
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h4 className="font-medium text-gray-900 mb-2">Pagos y Descuentos</h4>
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Método de Pago:</span>
-                    <span className="font-medium">
-                      {pedidoSeleccionado.paymentMethod?.method || 'No especificado'}
-                    </span>
-                  </div>
+                  {/* Pagos Realizados */}
+                  {pedidoSeleccionado.pagosRealizados && pedidoSeleccionado.pagosRealizados.length > 0 ? (
+                    <div>
+                      <span className="text-gray-500">Pagos Realizados:</span>
+                      <ul className="ml-4 mt-1 space-y-1">
+                        {pedidoSeleccionado.pagosRealizados.map((pago, index) => (
+                          <li key={index} className="text-sm">
+                            {formatCurrency(pago.monto)} - {pago.medioPago} ({formatDate(pago.fecha, 'dd/MM HH:mm')})
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="flex justify-between mt-2 pt-2 border-t">
+                        <span className="text-gray-500">Total Pagado:</span>
+                        <span className="font-medium text-green-600">
+                          {formatCurrency(pedidoSeleccionado.pagosRealizados.reduce((sum, pago) => sum + pago.monto, 0))}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Saldo Pendiente:</span>
+                        <span className="font-medium text-red-600">
+                          {formatCurrency(pedidoSeleccionado.total - pedidoSeleccionado.pagosRealizados.reduce((sum, pago) => sum + pago.monto, 0))}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-gray-500">
+                      No hay pagos realizados
+                    </div>
+                  )}
+                  
                   {pedidoSeleccionado.horasAdicionales > 0 && (
                     <div className="flex justify-between">
                       <span className="text-gray-500">Horas Adicionales:</span>
-                      <span className="font-medium">{pedidoSeleccionado.horasAdicionales}h</span>
+                      <span className="font-medium">{pedidoSeleccionado.horasAdicionales}h (+{formatCurrency(pedidoSeleccionado.horasAdicionales * 2000)})</span>
                     </div>
                   )}
                   {pedidoSeleccionado.descuentos.length > 0 && (
@@ -1432,14 +1497,14 @@ const Pedidos: React.FC = () => {
                       <ul className="ml-4 mt-1">
                         {pedidoSeleccionado.descuentos.map((desc, index) => (
                           <li key={index} className="text-sm">
-                            {desc.reason}: {formatCurrency(desc.amount)}
+                            {desc.reason}: -{formatCurrency(desc.amount)}
                           </li>
                         ))}
                       </ul>
                     </div>
                   )}
                   <div className="flex justify-between border-t pt-2">
-                    <span className="text-gray-500 font-medium">Total:</span>
+                    <span className="text-gray-500 font-medium">Total del Servicio:</span>
                     <span className="font-bold text-lg">{formatCurrency(pedidoSeleccionado.total)}</span>
                   </div>
                 </div>

@@ -1664,10 +1664,11 @@ const Pedidos: React.FC = () => {
                     return false;
                   });
 
-                  // Si no se encuentra pedido asociado pero la lavadora está alquilada,
-                  // buscar el pedido más reciente que esté entregado
+                  // Si no se encuentra pedido asociado, la lavadora debería estar libre
+                  // Solo mostrar como alquilada si realmente tiene un pedido asociado
                   if (!pedidoAsociado && lavadora.estado === 'alquilada') {
-                    pedidoAsociado = pedidos.find(p => p.status === 'entregado');
+                    console.log('🔴 Lavadora marcada como alquilada pero sin pedido asociado:', lavadora.codigoQR);
+                    // No asociar ningún pedido, la lavadora debería estar libre
                   }
 
                   // Función para calcular fecha de recogida según el plan
@@ -1711,6 +1712,11 @@ const Pedidos: React.FC = () => {
                   };
                   
                   const getEstadoColor = () => {
+                    // Si está marcada como alquilada pero no tiene pedido asociado, tratarla como libre
+                    if (lavadora.estado === 'alquilada' && !pedidoAsociado) {
+                      return 'bg-green-100 border-green-300 text-green-800';
+                    }
+                    
                     switch (lavadora.estado) {
                       case 'disponible':
                         return 'bg-green-100 border-green-300 text-green-800';
@@ -1726,6 +1732,11 @@ const Pedidos: React.FC = () => {
                   };
 
                   const getEstadoIcon = () => {
+                    // Si está marcada como alquilada pero no tiene pedido asociado, tratarla como libre
+                    if (lavadora.estado === 'alquilada' && !pedidoAsociado) {
+                      return '🟢';
+                    }
+                    
                     switch (lavadora.estado) {
                       case 'disponible':
                         return '🟢';
@@ -1752,13 +1763,13 @@ const Pedidos: React.FC = () => {
                         </div>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getEstadoColor()}`}>
                           {lavadora.estado === 'disponible' ? 'Libre' :
-                           lavadora.estado === 'alquilada' ? 'Alquilada' :
+                           (lavadora.estado === 'alquilada' && pedidoAsociado) ? 'Alquilada' :
                            lavadora.estado === 'mantenimiento' ? 'Mantenimiento' :
                            'Fuera de Servicio'}
                         </span>
                       </div>
 
-                      {lavadora.estado === 'alquilada' && (
+                      {lavadora.estado === 'alquilada' && pedidoAsociado && (
                         <div className="mt-3 pt-3 border-t border-current border-opacity-20">
                           {pedidoAsociado ? (
                             <div className="grid grid-cols-2 gap-3">

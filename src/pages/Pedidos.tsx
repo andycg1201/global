@@ -976,22 +976,16 @@ const Pedidos: React.FC = () => {
                 <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                 <tr>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Evidencia
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Acciones
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Cliente
+                    Total
                   </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Plan
                   </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Estado
-                  </th>
+                      Acciones
+                    </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Pago
+                    Cliente
                   </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Pedido
@@ -1003,90 +997,20 @@ const Pedidos: React.FC = () => {
                     Recogida
                   </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Total
-                  </th>
+                      Evidencia
+                    </th>
                 </tr>
               </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
                   {pedidosFiltrados.map((pedido, index) => (
                     <tr key={pedido.id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-200 group">
-                    {/* Columna de Evidencia */}
-                    <td className="px-3 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
-                      {(pedido.validacionQR?.fotoInstalacion || 
-                        (pedido as any).validacionQR_fotoInstalacion ||
-                        pedido.lavadoraAsignada?.fotoInstalacion) ? (
-                        <button 
-                          type="button"
-                          onClick={() => verFotoInstalacion(pedido)}
-                          className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-all duration-200"
-                          title="Ver foto de instalación"
-                        >
-                          <CameraIcon className="h-4 w-4" />
-                        </button>
-                      ) : (
-                        <div className="p-2 text-gray-300">
-                          <CameraIcon className="h-4 w-4" />
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center space-x-2">
-                        {/* Botón progresivo de estado */}
-                        {getProgresoButton(pedido)}
-                        
-                        {/* Botón de liquidación universal */}
-                        {getLiquidacionButton(pedido)}
-                        
-                        {/* Separador visual */}
-                        <div className="w-px h-6 bg-gray-300"></div>
-                        
-                          <div className="flex items-center space-x-1">
-                        <button
-                          onClick={(e) => {
-                                e.stopPropagation();
-                                editarPedido(pedido);
-                              }}
-                              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
-                          title="Editar"
-                        >
-                          <PencilIcon className="h-4 w-4" />
-                        </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                            if (confirm('¿Estás seguro de que quieres eliminar este pedido?')) {
-                              eliminarPedido(pedido);
-                            }
-                          }}
-                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
-                          title="Eliminar"
-                        >
-                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                          </div>
+                      {/* Total */}
+                      <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
+                        <div className="text-lg font-bold text-gray-900">
+                          {formatCurrency(pedido.total)}
                         </div>
                       </td>
-                      <td className="px-3 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
-                        <div className="flex items-center space-x-2">
-                          <div className="flex-shrink-0">
-                            <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
-                              <span className="text-sm font-bold text-white">
-                                {pedido.cliente.name.charAt(0).toUpperCase()}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm font-semibold text-gray-900 truncate">
-                              {pedido.cliente.name}
-                            </div>
-                            <div className="text-sm text-gray-500 truncate">
-                              {pedido.cliente.phone}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
+                      {/* Plan */}
                       <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
                         <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg px-3 py-2">
                           <div className="flex items-center justify-between">
@@ -1111,38 +1035,112 @@ const Pedidos: React.FC = () => {
                           )}
                         </div>
                       </td>
-                    <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
-                      {getStatusBadge(pedido.status)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
-                      {getEstadoPagoBadge(pedido.estadoPago)}
-                    </td>
-                      <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
-                        <div className="text-sm text-gray-900">
-                          {formatDate(pedido.fechaAsignacion, 'dd/MM HH:mm')}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
-                        <div className="text-sm text-gray-900">
-                          {pedido.status === 'entregado' && pedido.fechaEntrega ? formatDate(pedido.fechaEntrega, 'dd/MM HH:mm') : (
-                            <span className="text-gray-400 italic">Pendiente</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
-                        <div className="text-sm text-gray-900">
-                          {pedido.status === 'recogido' && pedido.fechaRecogida ? (
-                            formatDate(pedido.fechaRecogida, 'dd/MM HH:mm')
+                      {/* Acciones */}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center space-x-2">
+                          {/* Botón progresivo de estado */}
+                          {getProgresoButton(pedido)}
+                          
+                          {/* Botón de liquidación universal */}
+                          {getLiquidacionButton(pedido)}
+                          
+                          {/* Separador visual */}
+                          <div className="w-px h-6 bg-gray-300"></div>
+                          
+                            <div className="flex items-center space-x-1">
+                          <button
+                            onClick={(e) => {
+                                  e.stopPropagation();
+                                  editarPedido(pedido);
+                                }}
+                                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                            title="Editar"
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                          </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                              if (confirm('¿Estás seguro de que quieres eliminar este pedido?')) {
+                                eliminarPedido(pedido);
+                              }
+                            }}
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                            title="Eliminar"
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                            </div>
+                          </div>
+                        </td>
+                        {/* Cliente */}
+                        <td className="px-3 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
+                          <div className="flex items-center space-x-2">
+                            <div className="flex-shrink-0">
+                              <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
+                                <span className="text-sm font-bold text-white">
+                                  {pedido.cliente.name.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-semibold text-gray-900 truncate">
+                                {pedido.cliente.name}
+                              </div>
+                              <div className="text-sm text-gray-500 truncate">
+                                {pedido.cliente.phone}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        {/* Pedido */}
+                        <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
+                          <div className="text-sm text-gray-900">
+                            {formatDate(pedido.createdAt, 'dd/MM/yyyy')}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {formatDate(pedido.createdAt, 'HH:mm')}
+                          </div>
+                        </td>
+                        {/* Entrega */}
+                        <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
+                          <div className="text-sm text-gray-900">
+                            {pedido.status === 'entregado' && pedido.fechaEntrega ? formatDate(pedido.fechaEntrega, 'dd/MM HH:mm') : (
+                              <span className="text-gray-400 italic">Pendiente</span>
+                            )}
+                          </div>
+                        </td>
+                        {/* Recogida */}
+                        <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
+                          <div className="text-sm text-gray-900">
+                            {pedido.status === 'recogido' && pedido.fechaRecogida ? (
+                              formatDate(pedido.fechaRecogida, 'dd/MM HH:mm')
+                            ) : (
+                              <span className="text-gray-400 italic">Pendiente</span>
+                            )}
+                          </div>
+                        </td>
+                        {/* Evidencia */}
+                        <td className="px-3 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
+                          {(pedido.validacionQR?.fotoInstalacion || 
+                            (pedido as any).validacionQR_fotoInstalacion ||
+                            pedido.lavadoraAsignada?.fotoInstalacion) ? (
+                            <button 
+                              type="button"
+                              onClick={() => verFotoInstalacion(pedido)}
+                              className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-all duration-200"
+                              title="Ver foto de instalación"
+                            >
+                              <CameraIcon className="h-4 w-4" />
+                            </button>
                           ) : (
-                            <span className="text-gray-400 italic">Pendiente</span>
+                            <div className="p-2 text-gray-300">
+                              <CameraIcon className="h-4 w-4" />
+                            </div>
                           )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
-                        <div className="text-lg font-bold text-gray-900">
-                          {formatCurrency(pedido.total)}
-                      </div>
-                    </td>
+                        </td>
                   </tr>
                 ))}
               </tbody>

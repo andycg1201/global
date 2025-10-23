@@ -1352,7 +1352,7 @@ const Pedidos: React.FC = () => {
                     <div className="flex-1">
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium text-gray-900">Pedido Asignado</span>
-                        <span className="text-sm text-gray-500">{formatDate(pedidoSeleccionado.fechaAsignacion, 'dd/MM/yyyy HH:mm')}</span>
+                        <span className="text-sm text-gray-500">{pedidoSeleccionado.fechaAsignacion ? formatDate(pedidoSeleccionado.fechaAsignacion, 'dd/MM/yyyy HH:mm') : 'Sin fecha'}</span>
                       </div>
                       <p className="text-xs text-gray-500">Se creó el pedido y se asignó al cliente</p>
                     </div>
@@ -1408,7 +1408,7 @@ const Pedidos: React.FC = () => {
                           {pedidoSeleccionado.status === 'recogido' 
                             ? (pedidoSeleccionado.fechaRecogida ? formatDate(pedidoSeleccionado.fechaRecogida, 'dd/MM/yyyy HH:mm') : '-')
                             : pedidoSeleccionado.status === 'entregado' && pedidoSeleccionado.fechaRecogidaCalculada
-                            ? formatDate(pedidoSeleccionado.fechaRecogidaCalculada, 'dd/MM/yyyy HH:mm')
+                            ? (pedidoSeleccionado.fechaRecogidaCalculada ? formatDate(pedidoSeleccionado.fechaRecogidaCalculada, 'dd/MM/yyyy HH:mm') : 'No calculable')
                             : 'Pendiente'
                           }
                         </span>
@@ -1462,7 +1462,7 @@ const Pedidos: React.FC = () => {
                       <ul className="ml-4 mt-1 space-y-1">
                         {pedidoSeleccionado.pagosRealizados.map((pago, index) => (
                           <li key={index} className="text-sm">
-                            {formatCurrency(pago.monto)} - {pago.medioPago} ({formatDate(pago.fecha, 'dd/MM HH:mm')})
+                            {formatCurrency(pago.monto)} - {pago.medioPago} ({pago.fecha && !isNaN(new Date(pago.fecha).getTime()) ? formatDate(pago.fecha, 'dd/MM HH:mm') : 'Sin fecha'})
                           </li>
                         ))}
                       </ul>
@@ -1885,7 +1885,7 @@ const Pedidos: React.FC = () => {
                             <div className="text-sm">
                               <div className="font-medium mb-1">En mantenimiento desde:</div>
                               <div className="text-xs opacity-80">
-                                {formatDate(lavadora.fechaMantenimiento, 'dd/MM HH:mm')}
+                                {lavadora.fechaMantenimiento ? formatDate(lavadora.fechaMantenimiento, 'dd/MM HH:mm') : 'Sin fecha'}
                               </div>
                             </div>
                             {lavadora.mantenimientoActual && (

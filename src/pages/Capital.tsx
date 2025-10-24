@@ -7,12 +7,18 @@ import {
   BanknotesIcon,
   CreditCardIcon,
   DevicePhoneMobileIcon,
-  ChartBarIcon
+  ChartBarIcon,
+  PlusIcon,
+  ArrowUpIcon,
+  ArrowDownIcon
 } from '@heroicons/react/24/outline';
 import { pedidoService, gastoService } from '../services/firebaseService';
 import { obtenerMantenimientosActivos } from '../services/mantenimientoService';
-import { Pedido, Gasto, Mantenimiento } from '../types';
+import { capitalService } from '../services/capitalService';
+import { Pedido, Gasto, Mantenimiento, CapitalInicial, MovimientoCapital } from '../types';
 import { formatDate, formatCurrency, getCurrentDateColombia } from '../utils/dateUtils';
+import ModalCapitalInicial from '../components/ModalCapitalInicial';
+import ModalMovimientoCapital from '../components/ModalMovimientoCapital';
 
 interface FiltrosCapital {
   fechaInicio: Date;
@@ -31,6 +37,10 @@ interface MovimientoLibroDiario {
   cliente?: string;
   plan?: string;
   referencia?: string;
+  saldoEfectivo: number;
+  saldoNequi: number;
+  saldoDaviplata: number;
+  saldoTotal: number;
 }
 
 interface SaldoMedioPago {
@@ -52,22 +62,30 @@ const Capital: React.FC = () => {
     fechaFin: getCurrentDateColombia(),
     tipo: 'hoy'
   });
+  
+  // Estados para capital
+  const [capitalInicial, setCapitalInicial] = useState<CapitalInicial | null>(null);
+  const [movimientosCapital, setMovimientosCapital] = useState<MovimientoCapital[]>([]);
+  const [showModalCapitalInicial, setShowModalCapitalInicial] = useState(false);
+  const [showModalMovimiento, setShowModalMovimiento] = useState(false);
+  const [tipoMovimiento, setTipoMovimiento] = useState<'inyeccion' | 'retiro'>('inyeccion');
 
   const cargarDatos = async () => {
     try {
       setLoading(true);
       
-      // Obtener pedidos del rango de fechas
-      const pedidos = await pedidoService.getAllPedidos();
-      const pedidosFiltrados = pedidos.filter(pedido => {
-        const fechaPedido = new Date(pedido.fechaAsignacion);
-        const fechaInicio = new Date(filtros.fechaInicio);
-        const fechaFin = new Date(filtros.fechaFin);
-        fechaInicio.setHours(0, 0, 0, 0);
-        fechaFin.setHours(23, 59, 59, 999);
-        return fechaPedido >= fechaInicio && fechaPedido <= fechaFin;
-      });
-
+      // Cargar datos de capital
+      const [capitalInicialData, movimientosCapitalData] = await Promise.all([
+        capitalService.getCapitalInicial(),
+        capitalService.getMovimientosCapital()
+      ]);
+      
+      setCapitalInicial(capitalInicialData);
+      setMovimientosCapital(movimientosCapitalData);
+      
+      // Obtener TODOS los pedidos (sin filtro de fecha de asignación)
+      const todosLosPedidos = await pedidoService.getAllPedidos();
+      
       // Obtener gastos del rango de fechas
       const gastos = await gastoService.getGastosDelRango(filtros.fechaInicio, filtros.fechaFin);
       
@@ -77,30 +95,68 @@ const Capital: React.FC = () => {
 
       // Procesar movimientos de ingresos (pagos de pedidos)
       const movimientosIngresos: MovimientoLibroDiario[] = [];
-      pedidosFiltrados.forEach(pedido => {
+      console.log('🔍 Debug Capital - Total pedidos:', todosLosPedidos.length);
+      
+      todosLosPedidos.forEach(pedido => {
         if (pedido.pagosRealizados && pedido.pagosRealizados.length > 0) {
+          console.log('💰 Pedido con pagos:', pedido.id, 'Pagos:', pedido.pagosRealizados.length);
           pedido.pagosRealizados.forEach(pago => {
-            const fechaPago = new Date(pago.fecha);
+            console.log('🔍 Pago raw:', pago);
+            
+            // Manejar diferentes formatos de fecha
+            let fechaPago: Date;
+            if (pago.fecha instanceof Date) {
+              fechaPago = pago.fecha;
+            } else if (pago.fecha && typeof pago.fecha === 'object' && 'toDate' in pago.fecha) {
+              // Firebase Timestamp
+              fechaPago = (pago.fecha as any).toDate();
+            } else if (typeof pago.fecha === 'string') {
+              fechaPago = new Date(pago.fecha);
+            } else {
+              console.log('❌ Formato de fecha no reconocido:', typeof pago.fecha, pago.fecha);
+              return;
+            }
+            
+            console.log('📅 Fecha pago procesada:', fechaPago, 'Válida:', !isNaN(fechaPago.getTime()));
+            
             if (!isNaN(fechaPago.getTime())) {
-              movimientosIngresos.push({
-                id: `${pedido.id}-${pago.fecha}`,
-                fecha: fechaPago,
-                hora: fechaPago.toLocaleTimeString('es-CO', { 
-                  hour: '2-digit', 
-                  minute: '2-digit' 
-                }),
-                tipo: 'ingreso',
-                concepto: `Pago servicio - ${pedido.plan.name}`,
-                monto: pago.monto,
-                medioPago: pago.medioPago,
-                cliente: pedido.cliente.name,
-                plan: pedido.plan.name,
-                referencia: pago.referencia
-              });
+              // Verificar si el pago está en el rango de fechas
+              const fechaInicio = new Date(filtros.fechaInicio);
+              const fechaFin = new Date(filtros.fechaFin);
+              fechaInicio.setHours(0, 0, 0, 0);
+              fechaFin.setHours(23, 59, 59, 999);
+              
+              console.log('📊 Rango fechas:', fechaInicio, 'a', fechaFin);
+              console.log('📊 Fecha pago en rango:', fechaPago >= fechaInicio && fechaPago <= fechaFin);
+              
+              if (fechaPago >= fechaInicio && fechaPago <= fechaFin) {
+                console.log('✅ Agregando ingreso:', pago.monto, pago.medioPago);
+                movimientosIngresos.push({
+                  id: `${pedido.id}-${pago.fecha}`,
+                  fecha: fechaPago,
+                  hora: fechaPago.toLocaleTimeString('es-CO', { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  }),
+                  tipo: 'ingreso',
+                  concepto: `Pago servicio - ${pedido.plan.name}`,
+                  monto: pago.monto,
+                  medioPago: pago.medioPago,
+                  cliente: pedido.cliente.name,
+                  plan: pedido.plan.name,
+                  referencia: pago.referencia,
+                  saldoEfectivo: 0,
+                  saldoNequi: 0,
+                  saldoDaviplata: 0,
+                  saldoTotal: 0
+                });
+              }
             }
           });
         }
       });
+      
+      console.log('📊 Total ingresos encontrados:', movimientosIngresos.length);
 
       // Procesar movimientos de gastos generales
       const movimientosGastos: MovimientoLibroDiario[] = [];
@@ -118,7 +174,11 @@ const Capital: React.FC = () => {
             concepto: gasto.concepto.name,
             monto: gasto.amount,
             medioPago: gasto.medioPago,
-            referencia: gasto.description
+            referencia: gasto.description,
+            saldoEfectivo: 0,
+            saldoNequi: 0,
+            saldoDaviplata: 0,
+            saldoTotal: 0
           });
         }
       });
@@ -127,19 +187,23 @@ const Capital: React.FC = () => {
       mantenimientosFiltrados.forEach(mant => {
         const fechaMant = new Date(mant.fechaInicio);
         if (!isNaN(fechaMant.getTime())) {
-          movimientosGastos.push({
-            id: `mant-${mant.id}`,
-            fecha: fechaMant,
-            hora: fechaMant.toLocaleTimeString('es-CO', { 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            }),
-            tipo: 'gasto',
-            concepto: `Mantenimiento - ${mant.lavadoraId}`,
-            monto: mant.costoReparacion,
-            medioPago: mant.medioPago || 'efectivo',
-            referencia: mant.observaciones
-          });
+            movimientosGastos.push({
+              id: `mant-${mant.id}`,
+              fecha: fechaMant,
+              hora: fechaMant.toLocaleTimeString('es-CO', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              }),
+              tipo: 'gasto',
+              concepto: `Mantenimiento - ${mant.lavadoraId}`,
+              monto: mant.costoReparacion,
+              medioPago: mant.medioPago || 'efectivo',
+              referencia: mant.observaciones,
+              saldoEfectivo: 0,
+              saldoNequi: 0,
+              saldoDaviplata: 0,
+              saldoTotal: 0
+            });
         }
       });
 
@@ -155,22 +219,109 @@ const Capital: React.FC = () => {
           return fechaA.getTime() - fechaB.getTime();
         });
 
-      setMovimientos(todosLosMovimientos);
+      // Incluir movimientos de capital en el libro diario
+      const movimientosCapitalLibro: MovimientoLibroDiario[] = movimientosCapitalData.map(mov => ({
+        id: `capital-${mov.id}`,
+        fecha: mov.fecha,
+        hora: mov.fecha.toLocaleTimeString('es-CO', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        }),
+        tipo: mov.tipo === 'inyeccion' ? 'ingreso' as const : 'gasto' as const,
+        concepto: `${mov.tipo === 'inyeccion' ? 'Inyección' : 'Retiro'} de Capital - ${mov.concepto}`,
+        monto: mov.efectivo + mov.nequi + mov.daviplata,
+        medioPago: 'efectivo' as const, // Se mostrará como efectivo pero se procesará por separado
+        referencia: mov.observaciones || '',
+        saldoEfectivo: 0,
+        saldoNequi: 0,
+        saldoDaviplata: 0,
+        saldoTotal: 0
+      }));
 
-      // Calcular saldos por medio de pago
-      const saldosCalculados = {
-        efectivo: 0,
-        nequi: 0,
-        daviplata: 0
-      };
+      // Incluir capital inicial si existe
+      const capitalInicialLibro: MovimientoLibroDiario[] = capitalInicialData ? [{
+        id: 'capital-inicial',
+        fecha: capitalInicialData.fecha,
+        hora: capitalInicialData.fecha.toLocaleTimeString('es-CO', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        }),
+        tipo: 'ingreso' as const,
+        concepto: 'Capital Inicial',
+        monto: capitalInicialData.efectivo + capitalInicialData.nequi + capitalInicialData.daviplata,
+        medioPago: 'efectivo' as const,
+        referencia: '',
+        saldoEfectivo: 0,
+        saldoNequi: 0,
+        saldoDaviplata: 0,
+        saldoTotal: 0
+      }] : [];
 
-      todosLosMovimientos.forEach(mov => {
-        if (mov.tipo === 'ingreso') {
-          saldosCalculados[mov.medioPago] += mov.monto;
+      // Combinar todos los movimientos incluyendo capital
+      const todosLosMovimientosCompletos = [...movimientosIngresos, ...movimientosGastos, ...capitalInicialLibro, ...movimientosCapitalLibro]
+        .sort((a, b) => {
+          const fechaA = new Date(a.fecha);
+          const fechaB = new Date(b.fecha);
+          if (fechaA.getTime() === fechaB.getTime()) {
+            return a.hora.localeCompare(b.hora);
+          }
+          return fechaA.getTime() - fechaB.getTime();
+        });
+
+      // Calcular saldos acumulados para cada movimiento
+      let saldoEfectivo = 0;
+      let saldoNequi = 0;
+      let saldoDaviplata = 0;
+      
+      const movimientosConSaldos = todosLosMovimientosCompletos.map(movimiento => {
+        // Procesar movimientos de capital por separado
+        if (movimiento.id.startsWith('capital-')) {
+          const movCapital = movimientosCapitalData.find(m => `capital-${m.id}` === movimiento.id);
+          if (movCapital) {
+            if (movCapital.tipo === 'inyeccion') {
+              saldoEfectivo += movCapital.efectivo;
+              saldoNequi += movCapital.nequi;
+              saldoDaviplata += movCapital.daviplata;
+            } else {
+              saldoEfectivo -= movCapital.efectivo;
+              saldoNequi -= movCapital.nequi;
+              saldoDaviplata -= movCapital.daviplata;
+            }
+          }
+        } else if (movimiento.id === 'capital-inicial' && capitalInicialData) {
+          saldoEfectivo += capitalInicialData.efectivo;
+          saldoNequi += capitalInicialData.nequi;
+          saldoDaviplata += capitalInicialData.daviplata;
         } else {
-          saldosCalculados[mov.medioPago] -= mov.monto;
+          // Movimientos normales (ingresos/gastos)
+          if (movimiento.medioPago === 'efectivo') {
+            saldoEfectivo += movimiento.tipo === 'ingreso' ? movimiento.monto : -movimiento.monto;
+          } else if (movimiento.medioPago === 'nequi') {
+            saldoNequi += movimiento.tipo === 'ingreso' ? movimiento.monto : -movimiento.monto;
+          } else if (movimiento.medioPago === 'daviplata') {
+            saldoDaviplata += movimiento.tipo === 'ingreso' ? movimiento.monto : -movimiento.monto;
+          }
         }
+        
+        const saldoTotal = saldoEfectivo + saldoNequi + saldoDaviplata;
+        
+        return {
+          ...movimiento,
+          saldoEfectivo,
+          saldoNequi,
+          saldoDaviplata,
+          saldoTotal
+        };
       });
+      
+      setMovimientos(movimientosConSaldos);
+
+      // Calcular saldos finales por medio de pago
+      const saldosCalculados = {
+        efectivo: saldoEfectivo,
+        nequi: saldoNequi,
+        daviplata: saldoDaviplata
+      };
 
       setSaldos(saldosCalculados);
 
@@ -191,7 +342,7 @@ const Capital: React.FC = () => {
       [''],
       [`Período: ${formatDate(filtros.fechaInicio, 'dd/MM/yyyy')} - ${formatDate(filtros.fechaFin, 'dd/MM/yyyy')}`],
       [''],
-      ['FECHA', 'HORA', 'TIPO', 'CONCEPTO', 'MONTO', 'MEDIO PAGO', 'CLIENTE/PLAN', 'REFERENCIA'],
+      ['FECHA', 'HORA', 'TIPO', 'CONCEPTO', 'MONTO', 'MEDIO PAGO', 'CLIENTE/PLAN', 'REFERENCIA', 'SALDO EFECTIVO', 'SALDO NEQUI', 'SALDO DAVIPLATA', 'SALDO TOTAL'],
       ...movimientos.map(mov => [
         formatDate(mov.fecha, 'dd/MM/yyyy'),
         mov.hora,
@@ -200,7 +351,11 @@ const Capital: React.FC = () => {
         mov.monto,
         mov.medioPago.toUpperCase(),
         mov.cliente ? `${mov.cliente} - ${mov.plan}` : '',
-        mov.referencia || ''
+        mov.referencia || '',
+        mov.saldoEfectivo,
+        mov.saldoNequi,
+        mov.saldoDaviplata,
+        mov.saldoTotal
       ]),
       [''],
       ['RESUMEN DE SALDOS:'],
@@ -259,14 +414,53 @@ const Capital: React.FC = () => {
             Libro diario y control de movimientos financieros
           </p>
         </div>
-        <button
-          onClick={exportarLibroDiario}
-          disabled={loading || movimientos.length === 0}
-          className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <ArrowDownTrayIcon className="h-5 w-5" />
-          <span>Exportar Libro Diario</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          {/* Botones de gestión de capital */}
+          {!capitalInicial && (
+            <button
+              onClick={() => setShowModalCapitalInicial(true)}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <PlusIcon className="h-5 w-5" />
+              <span>Capital Inicial</span>
+            </button>
+          )}
+          
+          {capitalInicial && (
+            <>
+              <button
+                onClick={() => {
+                  setTipoMovimiento('inyeccion');
+                  setShowModalMovimiento(true);
+                }}
+                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <ArrowUpIcon className="h-5 w-5" />
+                <span>Inyección</span>
+              </button>
+              
+              <button
+                onClick={() => {
+                  setTipoMovimiento('retiro');
+                  setShowModalMovimiento(true);
+                }}
+                className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                <ArrowDownIcon className="h-5 w-5" />
+                <span>Retiro</span>
+              </button>
+            </>
+          )}
+          
+          <button
+            onClick={exportarLibroDiario}
+            disabled={loading || movimientos.length === 0}
+            className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ArrowDownTrayIcon className="h-5 w-5" />
+            <span>Exportar</span>
+          </button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -418,6 +612,18 @@ const Capital: React.FC = () => {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Cliente/Plan
                   </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Saldo Efectivo
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Saldo Nequi
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Saldo Daviplata
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Saldo Total
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -456,6 +662,26 @@ const Capital: React.FC = () => {
                         </div>
                       )}
                     </td>
+                    <td className="px-4 py-3 text-right text-sm font-medium">
+                      <span className={mov.saldoEfectivo >= 0 ? 'text-green-600' : 'text-red-600'}>
+                        {formatCurrency(mov.saldoEfectivo)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm font-medium">
+                      <span className={mov.saldoNequi >= 0 ? 'text-green-600' : 'text-red-600'}>
+                        {formatCurrency(mov.saldoNequi)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm font-medium">
+                      <span className={mov.saldoDaviplata >= 0 ? 'text-green-600' : 'text-red-600'}>
+                        {formatCurrency(mov.saldoDaviplata)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm font-bold">
+                      <span className={mov.saldoTotal >= 0 ? 'text-green-600' : 'text-red-600'}>
+                        {formatCurrency(mov.saldoTotal)}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -463,6 +689,26 @@ const Capital: React.FC = () => {
           </div>
         )}
       </div>
+      
+      {/* Modales */}
+      <ModalCapitalInicial
+        isOpen={showModalCapitalInicial}
+        onClose={() => setShowModalCapitalInicial(false)}
+        onSuccess={() => {
+          cargarDatos();
+          setShowModalCapitalInicial(false);
+        }}
+      />
+      
+      <ModalMovimientoCapital
+        isOpen={showModalMovimiento}
+        onClose={() => setShowModalMovimiento(false)}
+        onSuccess={() => {
+          cargarDatos();
+          setShowModalMovimiento(false);
+        }}
+        tipo={tipoMovimiento}
+      />
     </div>
   );
 };

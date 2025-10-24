@@ -62,30 +62,32 @@ const Pagos: React.FC = () => {
       let fechaFin: Date;
 
       if (filtros.tipo === 'hoy') {
-        fechaInicio = getCurrentDateColombia();
-        fechaFin = getCurrentDateColombia();
+        const hoy = getCurrentDateColombia();
+        fechaInicio = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 0, 0, 0, 0);
+        fechaFin = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59, 999);
       } else if (filtros.tipo === 'ayer') {
         const ayer = new Date(getCurrentDateColombia());
         ayer.setDate(ayer.getDate() - 1);
-        fechaInicio = ayer;
-        fechaFin = ayer;
+        fechaInicio = new Date(ayer.getFullYear(), ayer.getMonth(), ayer.getDate(), 0, 0, 0, 0);
+        fechaFin = new Date(ayer.getFullYear(), ayer.getMonth(), ayer.getDate(), 23, 59, 59, 999);
       } else if (filtros.tipo === 'todos') {
         // Para "todos", usar un rango muy amplio
-        fechaInicio = new Date('2020-01-01');
-        fechaFin = new Date('2030-12-31');
+        fechaInicio = new Date('2020-01-01T00:00:00.000Z');
+        fechaFin = new Date('2030-12-31T23:59:59.999Z');
       } else {
-        fechaInicio = filtros.fechaInicio;
-        fechaFin = filtros.fechaFin;
+        // Personalizado
+        fechaInicio = new Date(filtros.fechaInicio);
+        fechaFin = new Date(filtros.fechaFin);
+        fechaInicio.setHours(0, 0, 0, 0);
+        fechaFin.setHours(23, 59, 59, 999);
       }
-
-      // Normalizar fechas para comparación
-      fechaInicio.setHours(0, 0, 0, 0);
-      fechaFin.setHours(23, 59, 59, 999);
 
       console.log('🔍 Debug Pagos - Filtros:', {
         tipo: filtros.tipo,
         fechaInicio: fechaInicio.toISOString(),
-        fechaFin: fechaFin.toISOString()
+        fechaFin: fechaFin.toISOString(),
+        fechaInicioLocal: fechaInicio.toLocaleString('es-CO'),
+        fechaFinLocal: fechaFin.toLocaleString('es-CO')
       });
 
       const pedidos = await pedidoService.getAllPedidos();
@@ -123,13 +125,23 @@ const Pagos: React.FC = () => {
             }
             
             console.log(`💰 Pago ${index + 1}: ${formatCurrency(pago.monto)} - ${fechaPago.toISOString()}`);
+            
+            // Comparación más robusta de fechas
+            const fechaPagoTime = fechaPago.getTime();
+            const fechaInicioTime = fechaInicio.getTime();
+            const fechaFinTime = fechaFin.getTime();
+            
             console.log(`🔍 Comparación de fechas:`, {
               fechaPago: fechaPago.toISOString(),
+              fechaPagoLocal: fechaPago.toLocaleString('es-CO'),
               fechaInicio: fechaInicio.toISOString(),
               fechaFin: fechaFin.toISOString(),
-              cumpleFiltro: fechaPago >= fechaInicio && fechaPago <= fechaFin
+              cumpleFiltro: fechaPagoTime >= fechaInicioTime && fechaPagoTime <= fechaFinTime,
+              diferenciaInicio: fechaPagoTime - fechaInicioTime,
+              diferenciaFin: fechaFinTime - fechaPagoTime
             });
-            if (fechaPago >= fechaInicio && fechaPago <= fechaFin) {
+            
+            if (fechaPagoTime >= fechaInicioTime && fechaPagoTime <= fechaFinTime) {
               // Calcular saldos
               const pagosAnteriores = pedido.pagosRealizados?.slice(0, index) || [];
               const saldoAnterior = pedido.total - pagosAnteriores.reduce((sum, p) => sum + p.monto, 0);
@@ -385,7 +397,16 @@ const Pagos: React.FC = () => {
               value={filtros.tipo}
               onChange={(e) => {
                 const tipo = e.target.value as 'todos' | 'hoy' | 'ayer' | 'personalizado';
-                setFiltros(prev => ({ ...prev, tipo }));
+                const hoy = getCurrentDateColombia();
+                const ayer = new Date(hoy);
+                ayer.setDate(ayer.getDate() - 1);
+                
+                setFiltros(prev => ({
+                  ...prev,
+                  tipo,
+                  fechaInicio: tipo === 'hoy' ? hoy : tipo === 'ayer' ? ayer : prev.fechaInicio,
+                  fechaFin: tipo === 'hoy' ? hoy : tipo === 'ayer' ? ayer : prev.fechaFin
+                }));
               }}
             >
               <option value="todos">Todos</option>

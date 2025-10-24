@@ -300,3 +300,27 @@ export interface Configuracion {
   };
   updatedAt: Date;
 }
+
+// Tipos de capital
+export interface CapitalInicial {
+  id: string;
+  efectivo: number;
+  nequi: number;
+  daviplata: number;
+  fecha: Date;
+  createdBy: string;
+  createdAt: Date;
+}
+
+export interface MovimientoCapital {
+  id: string;
+  tipo: 'inyeccion' | 'retiro';
+  concepto: string;
+  efectivo: number;
+  nequi: number;
+  daviplata: number;
+  observaciones?: string;
+  fecha: Date;
+  createdBy: string;
+  createdAt: Date;
+}

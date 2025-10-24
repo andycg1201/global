@@ -92,11 +92,12 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
     const diffMs = ahora.getTime() - fechaRecogida.getTime();
     const diffHours = diffMs / (1000 * 60 * 60);
     
+    // Solo marcar como "vencido" si han pasado más de 2 horas desde la hora de recogida programada
     if (diffHours > 2) {
       return { nivel: 'vencido', color: 'bg-red-100 text-red-800 border-red-200', icon: ExclamationTriangleIcon };
     } else if (diffHours > 0) {
       return { nivel: 'venciendo', color: 'bg-orange-100 text-orange-800 border-orange-200', icon: ClockIcon };
-    } else if (diffHours > -2) {
+    } else if (diffHours > -1) {
       return { nivel: 'pronto', color: 'bg-yellow-100 text-yellow-800 border-yellow-200', icon: ClockIcon };
     } else {
       return { nivel: 'normal', color: 'bg-green-100 text-green-800 border-green-200', icon: CheckCircleIcon };
@@ -114,15 +115,32 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
     const diffDays = Math.floor(diffHours / 24);
     
     const isVencido = diffMs < 0;
-    const prefix = isVencido ? 'Vencido hace' : 'Vence en';
     
-    if (diffDays > 0) {
-      return `${prefix} ${diffDays} día${diffDays > 1 ? 's' : ''}`;
-    } else if (diffHours > 1) {
-      return `${prefix} ${Math.floor(diffHours)} hora${Math.floor(diffHours) > 1 ? 's' : ''}`;
+    // Solo mostrar "Vencido" si han pasado más de 2 horas
+    if (isVencido && diffHours > 2) {
+      const prefix = 'Vencido hace';
+      if (diffDays > 0) {
+        return `${prefix} ${diffDays} día${diffDays > 1 ? 's' : ''}`;
+      } else if (diffHours > 1) {
+        return `${prefix} ${Math.floor(diffHours)} hora${Math.floor(diffHours) > 1 ? 's' : ''}`;
+      } else {
+        const diffMinutes = Math.floor(diffHours * 60);
+        return `${prefix} ${diffMinutes} min`;
+      }
+    } else if (isVencido) {
+      // Si está vencido pero menos de 2 horas, mostrar como "Pendiente por recoger"
+      return 'Pendiente por recoger';
     } else {
-      const diffMinutes = Math.floor(diffHours * 60);
-      return `${prefix} ${diffMinutes} min`;
+      // Si no está vencido, mostrar tiempo restante
+      const prefix = 'Vence en';
+      if (diffDays > 0) {
+        return `${prefix} ${diffDays} día${diffDays > 1 ? 's' : ''}`;
+      } else if (diffHours > 1) {
+        return `${prefix} ${Math.floor(diffHours)} hora${Math.floor(diffHours) > 1 ? 's' : ''}`;
+      } else {
+        const diffMinutes = Math.floor(diffHours * 60);
+        return `${prefix} ${diffMinutes} min`;
+      }
     }
   };
 
@@ -170,19 +188,30 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
             )}
             
             <div className="flex items-center gap-4 text-xs text-gray-500">
-              <div className="flex items-center gap-1">
-                <TruckIcon className="h-3 w-3" />
-                {formatDate(pedido.fechaEntrega!, 'dd/MM HH:mm')}
-              </div>
-              {tipo === 'recoger' && (
+              {tipo === 'entregar' && (
                 <div className="flex items-center gap-1">
-                  <HomeIcon className="h-3 w-3" />
-                  {formatDate(
-                    pedido.fechaRecogidaCalculada || 
-                    (pedido.fechaEntrega ? calculatePickupDate(pedido.fechaEntrega, pedido.plan, pedido.horasAdicionales || 0) : new Date()), 
-                    'dd/MM HH:mm'
-                  )}
+                  <TruckIcon className="h-3 w-3" />
+                  <span className="font-medium">Entrega:</span>
+                  {formatDate(pedido.fechaEntrega!, 'dd/MM HH:mm')}
                 </div>
+              )}
+              {tipo === 'recoger' && (
+                <>
+                  <div className="flex items-center gap-1">
+                    <TruckIcon className="h-3 w-3" />
+                    <span className="font-medium">Entregado:</span>
+                    {formatDate(pedido.fechaEntrega!, 'dd/MM HH:mm')}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <HomeIcon className="h-3 w-3" />
+                    <span className="font-medium">Recogida:</span>
+                    {formatDate(
+                      pedido.fechaRecogidaCalculada || 
+                      (pedido.fechaEntrega ? calculatePickupDate(pedido.fechaEntrega, pedido.plan, pedido.horasAdicionales || 0) : new Date()), 
+                      'dd/MM HH:mm'
+                    )}
+                  </div>
+                </>
               )}
               <div className="flex items-center gap-1">
                 <span className="font-medium">{formatCurrency(pedido.total)}</span>

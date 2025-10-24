@@ -242,6 +242,29 @@ export const pedidoService = {
   // Actualizar solo el estado del pedido
   async updatePedidoStatus(id: string, status: 'pendiente' | 'entregado' | 'recogido' | 'cancelado'): Promise<void> {
     const docRef = doc(db, 'pedidos', id);
+    
+    // Obtener el pedido actual para validaciones
+    const pedidoDoc = await getDoc(docRef);
+    if (!pedidoDoc.exists()) {
+      throw new Error('Pedido no encontrado');
+    }
+    
+    const pedidoData = pedidoDoc.data();
+    
+    // Validaciones estrictas de transición de estados
+    if (status === 'entregado' && pedidoData.status !== 'pendiente') {
+      throw new Error('No se puede marcar como entregado si no está pendiente');
+    }
+    
+    if (status === 'recogido') {
+      if (pedidoData.status !== 'entregado') {
+        throw new Error('No se puede marcar como recogido si no ha sido entregado primero');
+      }
+      if (!pedidoData.fechaEntrega) {
+        throw new Error('No se puede marcar como recogido sin fecha de entrega');
+      }
+    }
+    
     const updateData: any = {
       status,
       updatedAt: Timestamp.now()
@@ -250,21 +273,16 @@ export const pedidoService = {
     // Si se marca como entregado, establecer fecha de entrega y calcular fecha de recogida
     if (status === 'entregado') {
       updateData.fechaEntrega = Timestamp.now();
-      // Obtener el pedido para calcular la fecha de recogida
-      const pedidoDoc = await getDoc(docRef);
-      if (pedidoDoc.exists()) {
-        const pedidoData = pedidoDoc.data();
-        const plan = pedidoData.plan;
-        if (plan && plan.duration) {
-          // Importar calculatePickupDate para calcular correctamente
-          const { calculatePickupDate } = await import('../utils/dateUtils');
-          const fechaRecogidaCalculada = calculatePickupDate(
-            new Date(), 
-            plan, 
-            pedidoData.horasAdicionales || 0
-          );
-          updateData.fechaRecogidaCalculada = Timestamp.fromDate(fechaRecogidaCalculada);
-        }
+      const plan = pedidoData.plan;
+      if (plan && plan.duration) {
+        // Importar calculatePickupDate para calcular correctamente
+        const { calculatePickupDate } = await import('../utils/dateUtils');
+        const fechaRecogidaCalculada = calculatePickupDate(
+          new Date(), 
+          plan, 
+          pedidoData.horasAdicionales || 0
+        );
+        updateData.fechaRecogidaCalculada = Timestamp.fromDate(fechaRecogidaCalculada);
       }
     }
 

@@ -8,7 +8,8 @@ import {
   CalendarIcon,
   XMarkIcon,
   CameraIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { pedidoService, configService, lavadoraService } from '../services/firebaseService';
 import { Pedido } from '../types';
@@ -49,6 +50,7 @@ const Pedidos: React.FC = () => {
   const [pedidoAFacturar, setPedidoAFacturar] = useState<Pedido | null>(null);
   const [pedidoALiquidar, setPedidoALiquidar] = useState<Pedido | null>(null);
   const [configuracion, setConfiguracion] = useState<any>(null);
+  const [mostrarDiagnostico, setMostrarDiagnostico] = useState(false);
   
   // Estados para validación QR
   const [mostrarModalValidacionQR, setMostrarModalValidacionQR] = useState(false);
@@ -375,6 +377,137 @@ const Pedidos: React.FC = () => {
     }
   };
 
+  // Función para detectar inconsistencias en pedidos
+  const detectarInconsistencias = (pedido: Pedido): string[] => {
+    const inconsistencias: string[] = [];
+    
+    // Verificar estado vs fechas
+    if (pedido.status === 'entregado' && !pedido.fechaEntrega) {
+      inconsistencias.push('Estado "entregado" sin fecha de entrega');
+    }
+    
+    if (pedido.status === 'recogido' && !pedido.fechaEntrega) {
+      inconsistencias.push('Estado "recogido" sin fecha de entrega');
+    }
+    
+    if (pedido.status === 'recogido' && !pedido.fechaRecogida) {
+      inconsistencias.push('Estado "recogido" sin fecha de recogida');
+    }
+    
+    // Verificar orden lógico de fechas
+    if (pedido.fechaEntrega && pedido.fechaRecogida) {
+      if (pedido.fechaRecogida < pedido.fechaEntrega) {
+        inconsistencias.push('Fecha de recogida anterior a fecha de entrega');
+      }
+    }
+    
+    return inconsistencias;
+  };
+
+  // Función de validación de transiciones de estado
+  const validarTransicionEstado = (pedido: Pedido, nuevoEstado: string): { valido: boolean; mensaje?: string } => {
+    // Primero verificar inconsistencias existentes
+    const inconsistencias = detectarInconsistencias(pedido);
+    if (inconsistencias.length > 0) {
+      return { 
+        valido: false, 
+        mensaje: `Pedido tiene inconsistencias: ${inconsistencias.join(', ')}. Contacte al administrador.` 
+      };
+    }
+    
+    // Validar que no se pueda saltar pasos
+    if (nuevoEstado === 'entregado' && pedido.status !== 'pendiente') {
+      return { valido: false, mensaje: 'No se puede marcar como entregado si no está pendiente' };
+    }
+    
+    if (nuevoEstado === 'recogido') {
+      // Validar que esté entregado antes de recoger
+      if (pedido.status !== 'entregado') {
+        return { valido: false, mensaje: 'No se puede marcar como recogido si no ha sido entregado primero' };
+      }
+      
+      // Validar que tenga fecha de entrega
+      if (!pedido.fechaEntrega) {
+        return { valido: false, mensaje: 'No se puede marcar como recogido sin fecha de entrega' };
+      }
+    }
+    
+    return { valido: true };
+  };
+
+  // Función de diagnóstico completo del sistema
+  const ejecutarDiagnosticoCompleto = () => {
+    const diagnosticos = {
+      pedidosInconsistentes: [] as any[],
+      lavadorasDesincronizadas: [] as any[],
+      resumen: {
+        totalPedidos: pedidos.length,
+        pedidosInconsistentes: 0,
+        lavadorasDesincronizadas: 0,
+        problemasCriticos: 0
+      }
+    };
+
+    // Diagnosticar pedidos
+    pedidos.forEach(pedido => {
+      const inconsistencias = detectarInconsistencias(pedido);
+      if (inconsistencias.length > 0) {
+        diagnosticos.pedidosInconsistentes.push({
+          id: pedido.id,
+          cliente: pedido.cliente.name,
+          estado: pedido.status,
+          inconsistencias,
+          fechaAsignacion: pedido.fechaAsignacion,
+          fechaEntrega: pedido.fechaEntrega,
+          fechaRecogida: pedido.fechaRecogida
+        });
+        diagnosticos.resumen.pedidosInconsistentes++;
+        if (inconsistencias.some(inc => inc.includes('sin fecha'))) {
+          diagnosticos.resumen.problemasCriticos++;
+        }
+      }
+    });
+
+    // Diagnosticar lavadoras
+    lavadoras.forEach(lavadora => {
+      const pedidoAsociado = pedidos.find(p => 
+        p.lavadoraAsignada?.lavadoraId === lavadora.id && 
+        p.status !== 'recogido' && 
+        p.status !== 'cancelado'
+      );
+      
+      if (lavadora.estado === 'alquilada' && !pedidoAsociado) {
+        diagnosticos.lavadorasDesincronizadas.push({
+          codigoQR: lavadora.codigoQR,
+          estado: lavadora.estado,
+          problema: 'Marcada como alquilada pero sin pedido activo'
+        });
+        diagnosticos.resumen.lavadorasDesincronizadas++;
+        diagnosticos.resumen.problemasCriticos++;
+      }
+    });
+
+    console.log('🔍 DIAGNÓSTICO COMPLETO DEL SISTEMA:', diagnosticos);
+    
+    // Mostrar resumen en alert
+    const mensaje = `
+🔍 DIAGNÓSTICO DEL SISTEMA
+
+📊 RESUMEN:
+• Total pedidos: ${diagnosticos.resumen.totalPedidos}
+• Pedidos inconsistentes: ${diagnosticos.resumen.pedidosInconsistentes}
+• Lavadoras desincronizadas: ${diagnosticos.resumen.lavadorasDesincronizadas}
+• Problemas críticos: ${diagnosticos.resumen.problemasCriticos}
+
+${diagnosticos.resumen.problemasCriticos > 0 ? 
+  '⚠️ Se encontraron problemas críticos. Revisar consola para detalles.' : 
+  '✅ Sistema funcionando correctamente.'}
+    `;
+    
+    alert(mensaje);
+    setMostrarDiagnostico(true);
+  };
+
   const cambiarEstadoPedido = async (pedido: Pedido, nuevoEstado: 'pendiente' | 'entregado' | 'recogido' | 'cancelado') => {
     const nombresEstados = {
       pendiente: 'Pendiente',
@@ -382,6 +515,13 @@ const Pedidos: React.FC = () => {
       recogido: 'Recogido',
       cancelado: 'Cancelado'
     };
+
+    // Validar transición de estado
+    const validacion = validarTransicionEstado(pedido, nuevoEstado);
+    if (!validacion.valido) {
+      alert(`❌ Error: ${validacion.mensaje}`);
+      return;
+    }
 
     // Si es cancelación, mostrar modal para motivo
     if (nuevoEstado === 'cancelado') {
@@ -415,12 +555,7 @@ const Pedidos: React.FC = () => {
         // Recalcular total con horas adicionales y descuentos
         updateData.total = pedido.plan.price + (pedido.horasAdicionales * 2000) - pedido.descuentos.reduce((sum, d) => sum + d.amount, 0);
       } else if (nuevoEstado === 'recogido') {
-        // Si no tiene fecha de entrega, la asignamos también
-        if (!pedido.fechaEntrega) {
-          updateData.fechaEntrega = fechaActual;
-          updateData.fechaRecogidaCalculada = calculatePickupDate(fechaActual, pedido.plan, pedido.horasAdicionales);
-          updateData.total = pedido.plan.price + (pedido.horasAdicionales * 2000) - pedido.descuentos.reduce((sum, d) => sum + d.amount, 0);
-        }
+        // Solo establecer fecha de recogida (la entrega ya debe existir por validación)
         updateData.fechaRecogida = fechaActual;
       } else if (nuevoEstado === 'cancelado') {
         // Para cancelado, mantenemos las fechas existentes
@@ -428,15 +563,27 @@ const Pedidos: React.FC = () => {
 
       await pedidoService.updatePedido(pedido.id, updateData);
       
+      // Log de auditoría
+      console.log(`📝 AUDITORÍA: Pedido ${pedido.id} cambió de "${pedido.status}" a "${nuevoEstado}"`, {
+        pedidoId: pedido.id,
+        cliente: pedido.cliente.name,
+        estadoAnterior: pedido.status,
+        estadoNuevo: nuevoEstado,
+        fechaCambio: fechaActual.toISOString(),
+        tieneFechaEntrega: !!pedido.fechaEntrega,
+        tieneFechaRecogida: !!pedido.fechaRecogida
+      });
+      
       // Si se marca como recogido y tiene lavadora asignada, liberar la lavadora
       if (nuevoEstado === 'recogido' && pedido.lavadoraAsignada) {
         await lavadoraService.updateLavadora(pedido.lavadoraAsignada.lavadoraId, {
           estado: 'disponible'
         });
+        console.log(`🔄 AUDITORÍA: Lavadora ${pedido.lavadoraAsignada.codigoQR} liberada tras recogida`);
       }
       
       cargarPedidos();
-      alert(`Pedido actualizado a estado "${nombresEstados[nuevoEstado]}"`);
+      alert(`✅ Pedido actualizado a estado "${nombresEstados[nuevoEstado]}"`);
     } catch (error) {
       console.error('Error al cambiar estado del pedido:', error);
       alert('Error al actualizar el pedido');
@@ -477,13 +624,10 @@ const Pedidos: React.FC = () => {
         const precioHoraAdicional = config?.horaAdicional || 2000;
         updateData.total = pedido.plan.price + (pedido.horasAdicionales * precioHoraAdicional) - pedido.descuentos.reduce((sum, d) => sum + d.amount, 0);
       } else if (nuevoEstado === 'recogido') {
+        // Validar que tenga fecha de entrega antes de marcar como recogido
         if (!pedido.fechaEntrega) {
-          updateData.fechaEntrega = fechaActual;
-          updateData.fechaRecogidaCalculada = calculatePickupDate(fechaActual, pedido.plan, pedido.horasAdicionales);
-          // Obtener configuración para precio de hora adicional
-          const config = await configService.getConfiguracion();
-          const precioHoraAdicional = config?.horaAdicional || 2000;
-          updateData.total = pedido.plan.price + (pedido.horasAdicionales * precioHoraAdicional) - pedido.descuentos.reduce((sum, d) => sum + d.amount, 0);
+          alert('❌ Error: No se puede marcar como recogido sin fecha de entrega. Debe entregar primero.');
+          return;
         }
         updateData.fechaRecogida = fechaActual;
       }
@@ -1050,8 +1194,8 @@ const Pedidos: React.FC = () => {
           </button>
         </div>
 
-        {/* Botón para ver estado de lavadoras */}
-        <div className="flex justify-center mb-4">
+        {/* Botones de acción */}
+        <div className="flex justify-center gap-4 mb-4">
           <button
             onClick={() => setMostrarEstadoLavadoras(true)}
             className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors flex items-center gap-2"
@@ -1059,6 +1203,15 @@ const Pedidos: React.FC = () => {
           >
             <CalendarIcon className="h-4 w-4" />
             Ver Estado Lavadoras
+          </button>
+          
+          <button
+            onClick={ejecutarDiagnosticoCompleto}
+            className="px-4 py-2 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg hover:from-orange-700 hover:to-red-700 transition-colors flex items-center gap-2"
+            title="Ejecutar diagnóstico completo del sistema"
+          >
+            <ExclamationTriangleIcon className="h-4 w-4" />
+            Diagnóstico Sistema
           </button>
         </div>
 
@@ -1245,8 +1398,17 @@ const Pedidos: React.FC = () => {
                               </div>
                             </div>
                             <div className="min-w-0 flex-1">
-                              <div className="text-sm font-semibold text-gray-900 truncate">
-                                {pedido.cliente.name}
+                              <div className="flex items-center space-x-2">
+                                <div className="text-sm font-semibold text-gray-900 truncate">
+                                  {pedido.cliente.name}
+                                </div>
+                                {detectarInconsistencias(pedido).length > 0 && (
+                                  <div className="flex items-center" title={`Inconsistencias: ${detectarInconsistencias(pedido).join(', ')}`}>
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">
+                                      ⚠️ Inconsistente
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                               <div className="text-sm text-gray-500 truncate">
                                 {pedido.cliente.phone}

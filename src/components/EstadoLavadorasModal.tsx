@@ -22,7 +22,7 @@ const EstadoLavadorasModal: React.FC<EstadoLavadorasModalProps> = ({
     if (isOpen) {
       cargarTodosLosPedidos();
     }
-  }, [isOpen]);
+  }, [isOpen, lavadoras]); // Agregar lavadoras como dependencia
 
   const cargarTodosLosPedidos = async () => {
     setLoading(true);
@@ -77,12 +77,14 @@ const EstadoLavadorasModal: React.FC<EstadoLavadorasModalProps> = ({
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
                   <div className="text-2xl font-bold text-green-600">
                     {lavadoras.filter(l => {
-                      // Buscar si tiene pedido asociado
+                      // Buscar si tiene pedido asociado ACTIVO (no completado)
                       const tienePedido = todosLosPedidos.find(p => 
-                        p.lavadoraAsignada?.lavadoraId === l.id || 
-                        p.lavadoraAsignada?.codigoQR === l.codigoQR ||
-                        (p as any).lavadoraAsignada_lavadoraId === l.id ||
-                        (p as any).lavadoraAsignada_codigoQR === l.codigoQR
+                        (p.status !== 'recogido' && p.status !== 'cancelado') && (
+                          p.lavadoraAsignada?.lavadoraId === l.id || 
+                          p.lavadoraAsignada?.codigoQR === l.codigoQR ||
+                          (p as any).lavadoraAsignada_lavadoraId === l.id ||
+                          (p as any).lavadoraAsignada_codigoQR === l.codigoQR
+                        )
                       );
                       return l.estado === 'disponible' && !tienePedido;
                     }).length}
@@ -92,12 +94,14 @@ const EstadoLavadorasModal: React.FC<EstadoLavadorasModalProps> = ({
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
                   <div className="text-2xl font-bold text-red-600">
                     {lavadoras.filter(l => {
-                      // Buscar si tiene pedido asociado
+                      // Buscar si tiene pedido asociado ACTIVO (no completado)
                       const tienePedido = todosLosPedidos.find(p => 
-                        p.lavadoraAsignada?.lavadoraId === l.id || 
-                        p.lavadoraAsignada?.codigoQR === l.codigoQR ||
-                        (p as any).lavadoraAsignada_lavadoraId === l.id ||
-                        (p as any).lavadoraAsignada_codigoQR === l.codigoQR
+                        (p.status !== 'recogido' && p.status !== 'cancelado') && (
+                          p.lavadoraAsignada?.lavadoraId === l.id || 
+                          p.lavadoraAsignada?.codigoQR === l.codigoQR ||
+                          (p as any).lavadoraAsignada_lavadoraId === l.id ||
+                          (p as any).lavadoraAsignada_codigoQR === l.codigoQR
+                        )
                       );
                       return tienePedido;
                     }).length}
@@ -128,29 +132,34 @@ const EstadoLavadorasModal: React.FC<EstadoLavadorasModalProps> = ({
                     return numA - numB;
                   })
                   .map((lavadora) => {
-                  // Buscar pedido asociado usando TODOS los pedidos (sin filtro de fecha)
+                  // Buscar pedido asociado SOLO en pedidos activos (no completados)
                   let pedidoAsociado = todosLosPedidos.find(p => {
+                    // Solo considerar pedidos que NO estén completados
+                    if (p.status === 'recogido' || p.status === 'cancelado') {
+                      return false;
+                    }
+                    
                     // Método 1: Buscar por lavadoraAsignada.lavadoraId (objeto anidado)
                     if (p.lavadoraAsignada?.lavadoraId === lavadora.id) {
-                      console.log(`✅ Encontrado pedido por lavadoraId (objeto): ${lavadora.codigoQR} -> ${p.id}`);
+                      console.log(`✅ Encontrado pedido ACTIVO por lavadoraId (objeto): ${lavadora.codigoQR} -> ${p.id}`);
                       return true;
                     }
                     
                     // Método 2: Buscar por código QR (objeto anidado)
                     if (p.lavadoraAsignada?.codigoQR === lavadora.codigoQR) {
-                      console.log(`✅ Encontrado pedido por codigoQR (objeto): ${lavadora.codigoQR} -> ${p.id}`);
+                      console.log(`✅ Encontrado pedido ACTIVO por codigoQR (objeto): ${lavadora.codigoQR} -> ${p.id}`);
                       return true;
                     }
                     
                     // Método 3: Buscar por campos separados con guiones bajos
                     if ((p as any).lavadoraAsignada_lavadoraId === lavadora.id) {
-                      console.log(`✅ Encontrado pedido por lavadoraId (campo): ${lavadora.codigoQR} -> ${p.id}`);
+                      console.log(`✅ Encontrado pedido ACTIVO por lavadoraId (campo): ${lavadora.codigoQR} -> ${p.id}`);
                       return true;
                     }
                     
                     // Método 4: Buscar por código QR en campos separados
                     if ((p as any).lavadoraAsignada_codigoQR === lavadora.codigoQR) {
-                      console.log(`✅ Encontrado pedido por codigoQR (campo): ${lavadora.codigoQR} -> ${p.id}`);
+                      console.log(`✅ Encontrado pedido ACTIVO por codigoQR (campo): ${lavadora.codigoQR} -> ${p.id}`);
                       return true;
                     }
                     

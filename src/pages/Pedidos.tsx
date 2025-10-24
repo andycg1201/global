@@ -7,7 +7,8 @@ import {
   PlusIcon,
   CalendarIcon,
   XMarkIcon,
-  CameraIcon
+  CameraIcon,
+  CheckCircleIcon
 } from '@heroicons/react/24/outline';
 import { pedidoService, configService, lavadoraService } from '../services/firebaseService';
 import { Pedido } from '../types';
@@ -155,6 +156,33 @@ const Pedidos: React.FC = () => {
     } catch (error) {
       console.error('Error al cargar todos los pedidos:', error);
       return [];
+    }
+  };
+
+  // Función para liberar lavadoras de servicios completados
+  const liberarLavadorasCompletadas = async () => {
+    try {
+      console.log('🔄 Liberando TODAS las lavadoras alquiladas...');
+      
+      // Obtener todas las lavadoras marcadas como "alquilada"
+      const lavadorasAlquiladas = lavadoras.filter(l => l.estado === 'alquilada');
+      console.log(`📊 Lavadoras alquiladas encontradas: ${lavadorasAlquiladas.length}`);
+      
+      let liberadas = 0;
+      for (const lavadora of lavadorasAlquiladas) {
+        console.log(`🔍 Liberando lavadora ${lavadora.codigoQR} (${lavadora.id})`);
+        await lavadoraService.updateLavadora(lavadora.id, {
+          estado: 'disponible'
+        });
+        liberadas++;
+      }
+      
+      console.log(`✅ ${liberadas} lavadoras liberadas`);
+      cargarLavadoras(); // Recargar lavadoras
+      alert(`${liberadas} lavadoras liberadas`);
+    } catch (error) {
+      console.error('❌ Error liberando lavadoras:', error);
+      alert('Error al liberar lavadoras');
     }
   };
 
@@ -499,55 +527,112 @@ const Pedidos: React.FC = () => {
             setMostrarModalLiquidacionUniversal(true);
           }
         }}
-        className={`px-3 py-2 text-xs font-medium rounded-lg border transition-colors ${
+        className={`px-2 py-1 text-xs font-medium rounded-full transition-colors ${
           isPagado ? 'cursor-default' : 'hover:shadow-md'
-        } ${getBadgeColor(saldoPendiente)}`}
-        title={isPagado ? 'Servicio completamente pagado' : `Saldo pendiente: ${formatCurrency(saldoPendiente)}`}
+        } ${isPagado ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-yellow-100 text-yellow-800 border border-yellow-200'}`}
+        title={isPagado ? 'Servicio completamente pagado' : `Click para liquidar: ${formatCurrency(saldoPendiente)}`}
       >
-        {isPagado ? '✅ Pagado' : `💰 Liquidar ${formatCurrency(saldoPendiente)}`}
+        {isPagado ? '✅' : `💰 ${formatCurrency(saldoPendiente)}`}
       </button>
     );
   };
 
   const getProgresoButton = (pedido: Pedido) => {
+    const saldoPendiente = pedido.saldoPendiente || 0;
+    const isPagado = saldoPendiente <= 0;
+    
     if (pedido.status === 'pendiente') {
       return (
-        <button
-          onClick={async (e) => {
-            e.stopPropagation();
-            console.log('Botón Entregar clickeado para pedido:', pedido.id);
-            
-            // Recargar lavadoras antes de abrir el modal para tener datos actualizados
-            await cargarLavadoras();
-            
-            setPedidoAValidar(pedido);
-            setMostrarModalValidacionQR(true);
-          }}
-          className="px-4 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors w-24"
-          title="Validar QR y entregar"
-        >
-          Entregar
-        </button>
+        <div className="relative">
+          <button
+            onClick={async (e) => {
+              e.stopPropagation();
+              console.log('Botón Entregar clickeado para pedido:', pedido.id);
+              
+              // Recargar lavadoras antes de abrir el modal para tener datos actualizados
+              await cargarLavadoras();
+              
+              setPedidoAValidar(pedido);
+              setMostrarModalValidacionQR(true);
+            }}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors w-24"
+            title="Validar QR y entregar"
+          >
+            Entregar
+          </button>
+          {/* Badge de liquidación en esquina */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!isPagado) {
+                setPedidoALiquidar(pedido);
+                setMostrarModalLiquidacionUniversal(true);
+              }
+            }}
+            className={`absolute -top-1 -right-1 w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center transition-all hover:scale-110 ${
+              isPagado ? 'bg-green-500 text-white' : 'bg-yellow-500 text-white'
+            }`}
+            title={isPagado ? 'Pagado' : `Liquidar: ${formatCurrency(saldoPendiente)}`}
+          >
+            {isPagado ? '✓' : '💰'}
+          </button>
+        </div>
       );
     } else if (pedido.status === 'entregado') {
       return (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setPedidoAFacturar(pedido);
-            setMostrarModalLiquidacion(true);
-          }}
-          className="px-4 py-3 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors w-24"
-          title="Liquidar y recoger"
-        >
-          Recoger
-        </button>
+        <div className="relative">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setPedidoAFacturar(pedido);
+              setMostrarModalLiquidacion(true);
+            }}
+            className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors w-24"
+            title="Liquidar y recoger"
+          >
+            Recoger
+          </button>
+          {/* Badge de liquidación en esquina */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!isPagado) {
+                setPedidoALiquidar(pedido);
+                setMostrarModalLiquidacionUniversal(true);
+              }
+            }}
+            className={`absolute -top-1 -right-1 w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center transition-all hover:scale-110 ${
+              isPagado ? 'bg-green-500 text-white' : 'bg-yellow-500 text-white'
+            }`}
+            title={isPagado ? 'Pagado' : `Liquidar: ${formatCurrency(saldoPendiente)}`}
+          >
+            {isPagado ? '✓' : '💰'}
+          </button>
+        </div>
       );
     } else if (pedido.status === 'recogido') {
       return (
-        <span className="px-4 py-3 text-sm font-medium text-white bg-gray-500 rounded-md w-24 inline-block text-center">
-          Completado
-        </span>
+        <div className="relative">
+          <span className="px-4 py-2 text-sm font-medium text-white bg-gray-500 rounded-md w-24 inline-block text-center">
+            Completado
+          </span>
+          {/* Badge de liquidación en esquina */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!isPagado) {
+                setPedidoALiquidar(pedido);
+                setMostrarModalLiquidacionUniversal(true);
+              }
+            }}
+            className={`absolute -top-1 -right-1 w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center transition-all hover:scale-110 ${
+              isPagado ? 'bg-green-500 text-white' : 'bg-yellow-500 text-white'
+            }`}
+            title={isPagado ? 'Pagado' : `Liquidar: ${formatCurrency(saldoPendiente)}`}
+          >
+            {isPagado ? '✓' : '💰'}
+          </button>
+        </div>
       );
     }
     return null;
@@ -975,6 +1060,14 @@ const Pedidos: React.FC = () => {
             <CalendarIcon className="h-4 w-4" />
             Ver Estado Lavadoras
           </button>
+          <button
+            onClick={liberarLavadorasCompletadas}
+            className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-colors flex items-center gap-2"
+            title="Liberar lavadoras de servicios completados"
+          >
+            <CheckCircleIcon className="h-4 w-4" />
+            Liberar Completadas
+          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1117,9 +1210,6 @@ const Pedidos: React.FC = () => {
                         <div className="flex items-center space-x-2">
                           {/* Botón progresivo de estado */}
                           {getProgresoButton(pedido)}
-                          
-                          {/* Botón de liquidación universal */}
-                          {getLiquidacionButton(pedido)}
                           
                           {/* Separador visual */}
                           <div className="w-px h-6 bg-gray-300"></div>

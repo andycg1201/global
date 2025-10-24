@@ -32,6 +32,58 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
     }
   }, [pedido, isOpen, fotoEvidencia]);
 
+  // Función para calcular fecha y hora de recogida correctamente
+  const calcularFechaHoraRecogida = (fechaEntrega: Date, planName: string): Date => {
+    const fecha = new Date(fechaEntrega);
+    
+    if (planName === 'PLAN 1') {
+      // PLAN 1: Recogida 5 horas después de la entrega
+      fecha.setHours(fecha.getHours() + 5);
+      return fecha;
+    } else if (planName === 'PLAN 2') {
+      // PLAN 2: Recogida día siguiente a las 7 AM
+      fecha.setDate(fecha.getDate() + 1);
+      fecha.setHours(7, 0, 0, 0);
+      return fecha;
+    } else if (planName === 'PLAN 3') {
+      // PLAN 3: Recogida 24 horas después
+      fecha.setHours(fecha.getHours() + 24);
+      return fecha;
+    } else if (planName === 'PLAN 4') {
+      // PLAN 4: Recogida lunes a las 7 AM
+      const diasHastaLunes = (1 + 7 - fecha.getDay()) % 7 || 7;
+      fecha.setDate(fecha.getDate() + diasHastaLunes);
+      fecha.setHours(7, 0, 0, 0);
+      return fecha;
+    } else if (planName === 'PLAN 5') {
+      // PLAN 5: Recogida lunes a las 7 AM
+      const diasHastaLunes = (1 + 7 - fecha.getDay()) % 7 || 7;
+      fecha.setDate(fecha.getDate() + diasHastaLunes);
+      fecha.setHours(7, 0, 0, 0);
+      return fecha;
+    }
+    
+    return fecha;
+  };
+
+  // Función para obtener descripción del plan
+  const obtenerDescripcionPlan = (planName: string): string => {
+    switch (planName) {
+      case 'PLAN 1':
+        return 'Servicio 5 horas diurnas';
+      case 'PLAN 2':
+        return 'Servicio nocturno';
+      case 'PLAN 3':
+        return 'Servicio 24 horas';
+      case 'PLAN 4':
+        return 'Promoción fin de semana diurno';
+      case 'PLAN 5':
+        return 'Promoción fin de semana nocturno';
+      default:
+        return planName;
+    }
+  };
+
   const calcularHoraRecogida = (pedido: Pedido): string => {
     if (!pedido.fechaEntrega) return '';
     
@@ -154,15 +206,21 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
     const fechaActual = new Date();
     const fechaEntrega = formatDate(fechaActual, 'dd/MM/yyyy');
     const horaEntrega = formatDate(fechaActual, 'HH:mm');
-    const fechaRecogida = formatDate(pedido.fechaEntrega!, 'dd/MM/yyyy');
+    
+    // Calcular fecha y hora de recogida correctamente
+    const fechaHoraRecogida = calcularFechaHoraRecogida(fechaActual, pedido.plan.name);
+    const fechaRecogida = formatDate(fechaHoraRecogida, 'dd/MM/yyyy');
+    const horaRecogida = formatDate(fechaHoraRecogida, 'HH:mm');
+    
+    // Obtener descripción del plan
+    const descripcionPlan = obtenerDescripcionPlan(pedido.plan.name);
     
     let mensaje = `*¡Lavadora entregada!* ✅\n\n`;
     mensaje += `📅 *Fecha:* ${fechaEntrega}\n`;
     mensaje += `🕐 *Hora:* ${horaEntrega}\n\n`;
     mensaje += `📋 *Detalles del servicio:*\n`;
-    mensaje += `• Plan: ${pedido.plan.name}\n`;
-    mensaje += `• Dirección: ${pedido.cliente.address}\n`;
-    mensaje += `• Lavadora: ${pedido.lavadoraAsignada}\n\n`;
+    mensaje += `• ${descripcionPlan}\n`;
+    mensaje += `• Dirección: ${pedido.cliente.address}\n\n`;
     mensaje += `⏰ *Recogida programada:*\n`;
     mensaje += `📅 Fecha: ${fechaRecogida}\n`;
     mensaje += `🕐 Hora: ${horaRecogida}\n\n`;
@@ -179,22 +237,12 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
   const abrirWhatsApp = async () => {
     if (!pedido) return;
     
-    // Subir foto si existe
-    let fotoUrlFinal = fotoUrl;
-    if (foto && !fotoUrl) {
-      fotoUrlFinal = await subirFoto();
-    }
-    
     // Generar mensaje
     const mensaje = generarMensaje();
     
-    // No agregar la foto al mensaje de texto
-    // WhatsApp no puede mostrar imágenes inline de esta manera
-    const mensajeFinal = mensaje;
-    
     // Abrir WhatsApp
     const numero = pedido.cliente.phone.replace(/\D/g, ''); // Solo números
-    const url = `https://wa.me/${numero}?text=${encodeURIComponent(mensajeFinal)}`;
+    const url = `https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`;
     window.open(url, '_blank');
     
     onClose();
@@ -238,35 +286,6 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
             />
           </div>
 
-          {/* Foto de evidencia pre-cargada */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              📸 Foto de Evidencia (Pre-cargada)
-            </label>
-            {fotoPreview ? (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <div className="flex items-center space-x-2 mb-2">
-                  <CameraIcon className="h-5 w-5 text-green-600" />
-                  <span className="text-sm font-medium text-green-800">Foto de evidencia cargada</span>
-                </div>
-                <img
-                  src={fotoPreview}
-                  alt="Foto de evidencia"
-                  className="w-full h-32 object-cover rounded-md"
-                />
-                <p className="text-xs text-green-600 mt-2">
-                  ✅ Esta foto se enviará automáticamente con el mensaje
-                </p>
-              </div>
-            ) : (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <div className="flex items-center space-x-2">
-                  <CameraIcon className="h-5 w-5 text-yellow-600" />
-                  <span className="text-sm text-yellow-800">No hay foto de evidencia disponible</span>
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* Preview del mensaje */}
           <div>
@@ -288,7 +307,7 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
           </button>
           <button
             onClick={abrirWhatsApp}
-            disabled={!fotoUrl && !foto || isUploading}
+            disabled={isUploading}
             className="w-full sm:w-auto px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center font-medium"
           >
             {isUploading ? (

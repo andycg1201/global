@@ -11,7 +11,7 @@ import Pagos from './pages/Pagos';
 import InventarioLavadoras from './pages/InventarioLavadoras';
 import Gastos from './pages/Gastos';
 import Reportes from './pages/Reportes';
-import RendimientoTecnico from './pages/RendimientoTecnico';
+import Capital from './pages/Capital';
 import Configuracion from './pages/Configuracion';
 import { initializeApp } from './utils/initializeApp';
 import './style.css';
@@ -119,10 +119,10 @@ const AppContent: React.FC = () => {
           } 
         />
         <Route 
-          path="/rendimiento" 
+          path="/capital" 
           element={
             <ProtectedRoute>
-              <RendimientoTecnico />
+              <Capital />
             </ProtectedRoute>
           } 
         />

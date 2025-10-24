@@ -35,7 +35,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Inventario', href: '/inventario', icon: CubeIcon },
     { name: 'Gastos', href: '/gastos', icon: CurrencyDollarIcon },
     { name: 'Reportes', href: '/reportes', icon: ChartBarIcon },
-    { name: 'Rendimiento', href: '/rendimiento', icon: ClockIcon },
+    { name: 'Capital', href: '/capital', icon: CurrencyDollarIcon },
   ];
 
   // Solo mostrar configuración a administradores

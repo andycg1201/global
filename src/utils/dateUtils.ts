@@ -90,28 +90,35 @@ export const calculatePickupDate = (
   horasAdicionales: number = 0
 ): Date => {
   let pickupDate = new Date(deliveryDate);
-
-  // Usar la duración del plan directamente
-  const duracionTotal = plan.duration + horasAdicionales;
   
-  // Si el plan es de fin de semana (planes 4 y 5), usar lógica especial
-  if (plan.name.includes('Plan 4') || plan.name.includes('Plan 5')) {
-    // Para planes de fin de semana, siempre recogida el lunes a las 7 AM
-    pickupDate = addDays(deliveryDate, 2);
+  if (plan.name === 'PLAN 1') {
+    // PLAN 1: Recogida 5 horas después de la entrega
+    pickupDate.setHours(pickupDate.getHours() + 5);
+  } else if (plan.name === 'PLAN 2') {
+    // PLAN 2: Recogida día siguiente a las 7 AM
+    pickupDate.setDate(pickupDate.getDate() + 1);
     pickupDate.setHours(7, 0, 0, 0);
-    // Agregar horas adicionales si las hay
-    if (horasAdicionales > 0) {
-      pickupDate = addHours(pickupDate, horasAdicionales);
-    }
+  } else if (plan.name === 'PLAN 3') {
+    // PLAN 3: Recogida 24 horas después
+    pickupDate.setHours(pickupDate.getHours() + 24);
+  } else if (plan.name === 'PLAN 4') {
+    // PLAN 4: Recogida lunes a las 7 AM
+    const diasHastaLunes = (1 + 7 - pickupDate.getDay()) % 7 || 7;
+    pickupDate.setDate(pickupDate.getDate() + diasHastaLunes);
+    pickupDate.setHours(7, 0, 0, 0);
+  } else if (plan.name === 'PLAN 5') {
+    // PLAN 5: Recogida lunes a las 7 AM
+    const diasHastaLunes = (1 + 7 - pickupDate.getDay()) % 7 || 7;
+    pickupDate.setDate(pickupDate.getDate() + diasHastaLunes);
+    pickupDate.setHours(7, 0, 0, 0);
   } else {
-    // Para otros planes, usar la duración del plan
-    pickupDate = addHours(deliveryDate, duracionTotal);
+    // Fallback: usar duración del plan
+    pickupDate = addHours(deliveryDate, plan.duration);
   }
 
-  // Si la recogida cae en domingo, mover al lunes 7am
-  if (pickupDate.getDay() === 0) { // Domingo
-    pickupDate = addDays(pickupDate, 1);
-    pickupDate.setHours(7, 0, 0, 0);
+  // Agregar horas adicionales si las hay
+  if (horasAdicionales > 0) {
+    pickupDate = addHours(pickupDate, horasAdicionales);
   }
 
   return pickupDate;
@@ -158,7 +165,7 @@ export const generateWhatsAppLink = (phone: string, clientName: string): string 
   const formattedPhone = phone.startsWith('+57') ? phone : formatColombianPhone(phone);
   const cleanPhone = formattedPhone.replace('+', '');
   
-  const message = `Hola ${clientName}, queremos informarle que la lavadora que alquiló se recogerá en breve. Si desea incrementar una hora adicional, por favor infórmenos a este número. ¡Gracias por utilizar nuestros servicios! 😊`;
+  const message = `Hola, te saludamos de Lavadoras Global`;
   
   const encodedMessage = encodeURIComponent(message);
   return `https://wa.me/${cleanPhone}?text=${encodedMessage}`;

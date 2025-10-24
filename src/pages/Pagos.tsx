@@ -328,30 +328,6 @@ const Pagos: React.FC = () => {
             Administra todos los pagos recibidos
           </p>
         </div>
-        <button
-          onClick={async () => {
-            console.log('🔍 Debug Manual - Cargando todos los pedidos...');
-            const pedidos = await pedidoService.getAllPedidos();
-            console.log('📊 Total pedidos:', pedidos.length);
-            pedidos.forEach(pedido => {
-              if (pedido.pagosRealizados && pedido.pagosRealizados.length > 0) {
-                console.log(`📋 Pedido ${pedido.id.slice(-6)}:`, {
-                  cliente: pedido.cliente.name,
-                  total: pedido.total,
-                  saldoPendiente: pedido.saldoPendiente,
-                  pagos: pedido.pagosRealizados.map(p => ({
-                    monto: p.monto,
-                    fecha: p.fecha,
-                    medioPago: p.medioPago
-                  }))
-                });
-              }
-            });
-          }}
-          className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
-        >
-          🔍 Debug
-        </button>
       </div>
 
       {/* Resumen de pagos */}

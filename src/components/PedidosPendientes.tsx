@@ -283,7 +283,7 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-lg font-medium text-gray-900">Pedidos Pendientes de Recoger</h3>
+            <h3 className="text-lg font-medium text-gray-900">Servicios Pendientes de Recoger</h3>
             <p className="text-sm text-gray-500">Ordenados por urgencia de vencimiento</p>
           </div>
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-warning-100 text-warning-800">

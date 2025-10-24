@@ -372,13 +372,13 @@ const Dashboard: React.FC = () => {
         }
       });
 
-      // Calcular ingresos por plan
+      // Calcular ingresos por plan basado en pagos realizados
       const ingresosPorPlanCalculado: { [key: string]: { name: string; amount: number; count: number } } = {};
       
-      pedidosFiltrados
-        .filter(p => p.status === 'recogido')
-        .forEach(pedido => {
-          const total = pedido.total || 0;
+      pedidosFiltrados.forEach(pedido => {
+        // Solo considerar pedidos que tienen pagos realizados
+        if (pedido.pagosRealizados && pedido.pagosRealizados.length > 0) {
+          const totalPagado = pedido.pagosRealizados.reduce((sum, pago) => sum + pago.monto, 0);
           const planId = pedido.plan.id;
           const planName = pedido.plan.name;
           
@@ -390,9 +390,10 @@ const Dashboard: React.FC = () => {
             };
           }
           
-          ingresosPorPlanCalculado[planId].amount += total;
+          ingresosPorPlanCalculado[planId].amount += totalPagado;
           ingresosPorPlanCalculado[planId].count += 1;
-        });
+        }
+      });
 
       // Calcular saldos por medio de pago
       const saldosCalculados = {
@@ -499,6 +500,8 @@ const Dashboard: React.FC = () => {
       };
 
       console.log('Resultado final:', resultado);
+      console.log('📊 Debug ingresosPorPlan:', ingresosPorPlanCalculado);
+      console.log('📊 Debug keys ingresosPorPlan:', Object.keys(ingresosPorPlanCalculado));
       return resultado;
     } catch (error) {
       console.error('Error al calcular datos financieros:', error);
@@ -1382,7 +1385,7 @@ const Dashboard: React.FC = () => {
           </div>
           
           {/* Desglose por plan */}
-          {Object.keys(datosFinancieros.ingresosPorPlan).length > 0 && (
+          {Object.keys(datosFinancieros.ingresosPorPlan).length > 0 ? (
             <div className="ml-4 space-y-2 border-l-2 border-gray-200 pl-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-xs font-medium text-gray-600">Por Plan:</div>
@@ -1402,9 +1405,13 @@ const Dashboard: React.FC = () => {
                     </div>
                     <dd className="text-xs font-medium text-success-600">
                       {formatCurrency(planData.amount)}
-              </dd>
+                    </dd>
                   </div>
                 ))}
+            </div>
+          ) : (
+            <div className="ml-4 text-xs text-gray-400 italic">
+              No hay servicios completados en este período
             </div>
           )}
           

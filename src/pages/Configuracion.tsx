@@ -558,22 +558,10 @@ const Configuracion: React.FC = () => {
             
             <div className="mb-6">
               <p className="text-sm text-gray-500 mb-4">
-                <strong>⚠️ ADVERTENCIA:</strong> Esta acción eliminará los siguientes datos:
+                <strong>⚠️ ADVERTENCIA:</strong> Esta acción eliminará todos los datos excepto clientes, planes y lavadoras.
               </p>
-              <ul className="text-sm text-gray-600 space-y-1 ml-4">
-                <li>• Todos los pedidos</li>
-                <li>• Todos los clientes</li>
-                <li>• Todos los gastos</li>
-                <li>• Todos los conceptos de gastos</li>
-                <li>• Todos los reportes</li>
-                <li>• Todos los mantenimientos realizados</li>
-                <li>• La configuración actual</li>
-              </ul>
-              <p className="text-sm text-green-600 mt-4 font-medium">
-                ✅ Los planes y lavadoras se conservarán (no se eliminan)
-              </p>
-              <p className="text-sm text-gray-500 mt-2">
-                Después se crearán conceptos de gastos básicos si no existen.
+              <p className="text-sm text-green-600 font-medium">
+                ✅ Se conservarán: Clientes, Planes y Lavadoras
               </p>
             </div>
             

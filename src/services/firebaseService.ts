@@ -588,10 +588,7 @@ export const resetService = {
       const pedidosPromises = pedidosSnapshot.docs.map(doc => deleteDoc(doc.ref));
       await Promise.all(pedidosPromises);
 
-      // Eliminar todos los clientes
-      const clientesSnapshot = await getDocs(collection(db, 'clientes'));
-      const clientesPromises = clientesSnapshot.docs.map(doc => deleteDoc(doc.ref));
-      await Promise.all(clientesPromises);
+      // NO eliminar clientes - se conservan
 
       // Eliminar todos los gastos
       const gastosSnapshot = await getDocs(collection(db, 'gastos'));
@@ -602,6 +599,16 @@ export const resetService = {
       const conceptosSnapshot = await getDocs(collection(db, 'conceptosGastos'));
       const conceptosPromises = conceptosSnapshot.docs.map(doc => deleteDoc(doc.ref));
       await Promise.all(conceptosPromises);
+
+      // Eliminar capital inicial
+      const capitalSnapshot = await getDocs(collection(db, 'capital'));
+      const capitalPromises = capitalSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(capitalPromises);
+
+      // Eliminar movimientos de capital (inyecciones y retiros)
+      const movimientosCapitalSnapshot = await getDocs(collection(db, 'movimientosCapital'));
+      const movimientosCapitalPromises = movimientosCapitalSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(movimientosCapitalPromises);
 
       // Eliminar todos los reportes diarios
       const reportesSnapshot = await getDocs(collection(db, 'reportesDiarios'));
@@ -630,7 +637,7 @@ export const resetService = {
 
       // NOTA: Los planes y lavadoras NO se eliminan para preservar la configuración
 
-      console.log('Todos los datos han sido eliminados exitosamente (planes y lavadoras preservados)');
+      console.log('Todos los datos han sido eliminados exitosamente (planes, lavadoras y clientes preservados)');
     } catch (error) {
       console.error('Error al eliminar datos:', error);
       throw error;

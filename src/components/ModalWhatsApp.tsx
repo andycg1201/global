@@ -7,9 +7,10 @@ interface ModalWhatsAppProps {
   isOpen: boolean;
   onClose: () => void;
   pedido: Pedido | null;
+  fotoEvidencia?: string; // URL de la foto de evidencia
 }
 
-const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido }) => {
+const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, fotoEvidencia }) => {
   const [horaRecogida, setHoraRecogida] = useState('');
   const [foto, setFoto] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState<string | null>(null);
@@ -21,8 +22,15 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido }
       // Calcular hora de recogida según el plan
       const horaRecogidaCalculada = calcularHoraRecogida(pedido);
       setHoraRecogida(horaRecogidaCalculada);
+      
+      // Pre-cargar la foto de evidencia si está disponible
+      if (fotoEvidencia) {
+        setFotoUrl(fotoEvidencia);
+        setFotoPreview(fotoEvidencia);
+        console.log('📸 Foto de evidencia pre-cargada:', fotoEvidencia);
+      }
     }
-  }, [pedido, isOpen]);
+  }, [pedido, isOpen, fotoEvidencia]);
 
   const calcularHoraRecogida = (pedido: Pedido): string => {
     if (!pedido.fechaEntrega) return '';
@@ -142,8 +150,10 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido }
   const generarMensaje = (): string => {
     if (!pedido) return '';
     
-    const fechaEntrega = formatDate(pedido.fechaEntrega!, 'dd/MM/yyyy');
-    const horaEntrega = formatDate(pedido.fechaEntrega!, 'HH:mm');
+    // Usar la fecha actual como fecha de entrega real
+    const fechaActual = new Date();
+    const fechaEntrega = formatDate(fechaActual, 'dd/MM/yyyy');
+    const horaEntrega = formatDate(fechaActual, 'HH:mm');
     const fechaRecogida = formatDate(pedido.fechaEntrega!, 'dd/MM/yyyy');
     
     let mensaje = `*¡Lavadora entregada!* ✅\n\n`;
@@ -178,11 +188,9 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido }
     // Generar mensaje
     const mensaje = generarMensaje();
     
-    // Agregar foto al mensaje si existe
-    let mensajeFinal = mensaje;
-    if (fotoUrlFinal) {
-      mensajeFinal += `\n\n📸 *Evidencia de instalación:*\n${fotoUrlFinal}`;
-    }
+    // No agregar la foto al mensaje de texto
+    // WhatsApp no puede mostrar imágenes inline de esta manera
+    const mensajeFinal = mensaje;
     
     // Abrir WhatsApp
     const numero = pedido.cliente.phone.replace(/\D/g, ''); // Solo números
@@ -195,21 +203,21 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido }
   if (!isOpen || !pedido) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-        <div className="flex items-center justify-between p-6 border-b">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[95vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b">
           <h3 className="text-lg font-semibold text-gray-900 flex items-center">
             📱 Notificación WhatsApp
           </h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-400 hover:text-gray-600 p-1"
           >
             <XMarkIcon className="h-6 w-6" />
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-4 sm:p-6 space-y-4">
           {/* Información del cliente */}
           <div className="bg-gray-50 p-4 rounded-lg">
             <h4 className="font-medium text-gray-900 mb-2">Cliente:</h4>
@@ -230,24 +238,32 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido }
             />
           </div>
 
-          {/* Subir foto */}
+          {/* Foto de evidencia pre-cargada */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              📸 Foto de Evidencia (Obligatoria)
+              📸 Foto de Evidencia (Pre-cargada)
             </label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleFotoChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-            {fotoPreview && (
-              <div className="mt-2">
+            {fotoPreview ? (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-center space-x-2 mb-2">
+                  <CameraIcon className="h-5 w-5 text-green-600" />
+                  <span className="text-sm font-medium text-green-800">Foto de evidencia cargada</span>
+                </div>
                 <img
                   src={fotoPreview}
-                  alt="Preview"
+                  alt="Foto de evidencia"
                   className="w-full h-32 object-cover rounded-md"
                 />
+                <p className="text-xs text-green-600 mt-2">
+                  ✅ Esta foto se enviará automáticamente con el mensaje
+                </p>
+              </div>
+            ) : (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-center space-x-2">
+                  <CameraIcon className="h-5 w-5 text-yellow-600" />
+                  <span className="text-sm text-yellow-800">No hay foto de evidencia disponible</span>
+                </div>
               </div>
             )}
           </div>
@@ -263,17 +279,17 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido }
           </div>
         </div>
 
-        <div className="flex justify-end space-x-3 p-6 border-t">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end space-y-2 sm:space-y-0 sm:space-x-3 p-4 sm:p-6 border-t">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800"
+            className="w-full sm:w-auto px-6 py-3 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md"
           >
             Cancelar
           </button>
           <button
             onClick={abrirWhatsApp}
-            disabled={!foto || isUploading}
-            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center"
+            disabled={!fotoUrl && !foto || isUploading}
+            className="w-full sm:w-auto px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center font-medium"
           >
             {isUploading ? (
               <>

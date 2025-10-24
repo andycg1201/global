@@ -226,11 +226,11 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = memo(({ onClose, clientePreSelec
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
         {/* Selección de Cliente */}
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Cliente</h3>
+        <div className="card p-4 sm:p-6">
+          <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Cliente</h3>
           
           {!cliente ? (
             <div className="space-y-4">
@@ -307,8 +307,8 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = memo(({ onClose, clientePreSelec
         </div>
 
         {/* Selección de Plan */}
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Plan de Alquiler</h3>
+        <div className="card p-4 sm:p-6">
+          <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Plan de Alquiler</h3>
           
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -361,8 +361,8 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = memo(({ onClose, clientePreSelec
         {/* Selección de Lavadora */}
 
         {/* Calendario y Selección de Fecha */}
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Seleccionar Fecha y Turno</h3>
+        <div className="card p-4 sm:p-6">
+          <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Seleccionar Fecha y Turno</h3>
           
           <div className="space-y-4">
             {/* Botón del calendario */}
@@ -448,8 +448,8 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = memo(({ onClose, clientePreSelec
         </div>
 
         {/* Pedido Prioritario */}
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Prioridad del Pedido</h3>
+        <div className="card p-4 sm:p-6">
+          <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Prioridad del Pedido</h3>
           
           <div className="space-y-4">
             <div className="flex items-center">
@@ -485,8 +485,8 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = memo(({ onClose, clientePreSelec
 
 
         {/* Observaciones */}
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Observaciones</h3>
+        <div className="card p-4 sm:p-6">
+          <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Observaciones</h3>
           <textarea
             className="input-field"
             rows={3}
@@ -498,8 +498,8 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = memo(({ onClose, clientePreSelec
 
         {/* Resumen del Pedido */}
         {plan && (
-          <div className="card bg-gray-50">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Resumen del Pedido</h3>
+          <div className="card bg-gray-50 p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Resumen del Pedido</h3>
             
             <div className="space-y-2">
               <div className="flex justify-between">
@@ -526,18 +526,18 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = memo(({ onClose, clientePreSelec
         )}
 
         {/* Botones de Acción */}
-        <div className="flex justify-end space-x-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end space-y-2 sm:space-y-0 sm:space-x-4">
           <button
             type="button"
             onClick={() => window.history.back()}
-            className="btn-secondary"
+            className="w-full sm:w-auto px-6 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
           >
             Cancelar
           </button>
           <button
             type="submit"
             disabled={!cliente || !plan || !fechaEntrega || !turno || saving}
-            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full sm:w-auto px-6 py-3 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? 'Guardando...' : 'Crear Servicio'}
           </button>

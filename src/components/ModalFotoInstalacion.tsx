@@ -160,12 +160,14 @@ const ModalFotoInstalacion: React.FC<ModalFotoInstalacionProps> = ({
               </div>
               
               {/* Observaciones de la Instalación */}
-              {(pedido.lavadoraAsignada?.observacionesInstalacion || 
+              {((pedido as any).lavadoraAsignada_observacionesInstalacion || 
+                pedido.lavadoraAsignada?.observacionesInstalacion || 
                 (pedido as any).validacionQR_observacionesInstalacion) && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <h5 className="font-medium text-blue-900 mb-2">📝 Observaciones de la Instalación</h5>
                   <p className="text-sm text-blue-800">
-                    {pedido.lavadoraAsignada?.observacionesInstalacion || 
+                    {(pedido as any).lavadoraAsignada_observacionesInstalacion || 
+                     pedido.lavadoraAsignada?.observacionesInstalacion || 
                      (pedido as any).validacionQR_observacionesInstalacion}
                   </p>
                 </div>

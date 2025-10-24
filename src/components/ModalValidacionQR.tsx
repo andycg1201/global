@@ -109,16 +109,30 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
       
       await instance.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
+        { 
+          fps: 10, 
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0
+        },
         (decodedText: string) => {
           const code = decodedText.trim();
           setQrEscaneado(code);
           
           // Verificar si la lavadora ya está alquilada
           const lavadoraData = lavadoras.find(l => l.codigoQR === code);
+          console.log('🔍 QR escaneado:', code);
+          console.log('🔍 Total lavadoras cargadas:', lavadoras.length);
+          console.log('🔍 Lavadoras disponibles:', lavadoras.filter(l => l.estado === 'disponible').length);
+          console.log('🔍 Lavadoras alquiladas:', lavadoras.filter(l => l.estado === 'alquilada').length);
+          console.log('🔍 Lavadora encontrada:', lavadoraData);
+          console.log('🔍 Estado de lavadora:', lavadoraData?.estado);
+          console.log('🔍 ID de lavadora:', lavadoraData?.id);
+          
           if (lavadoraData && lavadoraData.estado === 'alquilada') {
+            console.log('❌ Lavadora ya está alquilada - BLOQUEANDO proceso');
             setErrorLavadora('Esta lavadora ya está alquilada. Por favor, escanee otra lavadora.');
           } else {
+            console.log('✅ Lavadora disponible - PERMITIENDO proceso');
             setErrorLavadora('');
           }
           
@@ -128,8 +142,45 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
       );
     } catch (e) {
       console.error('Error al iniciar escáner QR', e);
-      alert('No se pudo acceder a la cámara. Verifica permisos HTTPS y otorgar acceso.');
-      setIsScanning(false);
+      
+      // Intentar con configuración alternativa para móviles
+      try {
+        console.log('Intentando configuración alternativa para móviles...');
+        await html5QrCodeRef.current.start(
+          { facingMode: 'user' }, // Cámara frontal como alternativa
+          { 
+            fps: 5, 
+            qrbox: { width: 200, height: 200 },
+            aspectRatio: 1.0
+          },
+          (decodedText: string) => {
+            const code = decodedText.trim();
+            setQrEscaneado(code);
+            
+            // Verificar si la lavadora ya está alquilada
+            const lavadoraData = lavadoras.find(l => l.codigoQR === code);
+            console.log('🔍 QR escaneado:', code);
+            console.log('🔍 Lavadora encontrada:', lavadoraData);
+            console.log('🔍 Estado de lavadora:', lavadoraData?.estado);
+            
+            if (lavadoraData && lavadoraData.estado === 'alquilada') {
+              console.log('❌ Lavadora ya está alquilada - BLOQUEANDO proceso');
+              setErrorLavadora('Esta lavadora ya está alquilada. Por favor, escanee otra lavadora.');
+            } else {
+              console.log('✅ Lavadora disponible - PERMITIENDO proceso');
+              setErrorLavadora('');
+            }
+            
+            stopScanner();
+          },
+          () => {}
+        );
+        console.log('✅ Escáner iniciado con configuración alternativa');
+      } catch (e2) {
+        console.error('Error con configuración alternativa:', e2);
+        alert('No se pudo acceder a la cámara. Asegúrate de que:\n\n1. La aplicación esté en HTTPS\n2. Permitas el acceso a la cámara\n3. No haya otras aplicaciones usando la cámara\n\nIntenta recargar la página.');
+        setIsScanning(false);
+      }
     }
   };
 
@@ -264,26 +315,26 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
   }, []);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
-          <div className="flex items-center space-x-3">
-            <QrCodeIcon className="h-6 w-6 text-blue-600" />
-            <h2 className="text-xl font-semibold text-gray-900">
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b">
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            <QrCodeIcon className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
               Validación de Lavadora
             </h2>
           </div>
           <button
             onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-400 hover:text-gray-600 p-1"
           >
             <XMarkIcon className="h-6 w-6" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
           {/* Información del pedido */}
           <div className="bg-blue-50 p-4 rounded-lg">
             <h3 className="font-medium text-blue-900 mb-2">Pedido #{pedido.id.slice(-6)}</h3>
@@ -656,17 +707,17 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end space-x-4 p-6 border-t bg-gray-50">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end space-y-2 sm:space-y-0 sm:space-x-4 p-4 sm:p-6 border-t bg-gray-50">
           <button
             onClick={handleClose}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+            className="w-full sm:w-auto px-6 py-3 text-gray-600 hover:text-gray-800 transition-colors border border-gray-300 rounded-lg"
           >
             Cancelar
           </button>
           <button
             onClick={handleConfirmar}
             disabled={!qrEscaneado || !fotoFile || subiendoFoto || !!errorLavadora}
-            className={`px-6 py-2 rounded-lg transition-colors ${
+            className={`w-full sm:w-auto px-6 py-3 rounded-lg transition-colors font-medium ${
               !qrEscaneado || !fotoFile || subiendoFoto || !!errorLavadora
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-blue-600 text-white hover:bg-blue-700'

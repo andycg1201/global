@@ -21,12 +21,13 @@ import ModalValidacionQR from '../components/ModalValidacionQR';
 import ModalFotoInstalacion from '../components/ModalFotoInstalacion';
 import ModalWhatsApp from '../components/ModalWhatsApp';
 import CalendarioHorarios from '../components/CalendarioHorarios';
+import EstadoLavadorasModal from '../components/EstadoLavadorasModal';
 
 interface FiltrosPedidos {
   fechaInicio: Date;
   fechaFin: Date;
   estado: string;
-  tipoFiltro: 'hoy' | 'ayer' | 'personalizado';
+  tipoFiltro: 'hoy' | 'ayer' | 'semana' | 'personalizado';
 }
 
 const Pedidos: React.FC = () => {
@@ -66,13 +67,14 @@ const Pedidos: React.FC = () => {
   // Estados para WhatsApp
   const [mostrarModalWhatsApp, setMostrarModalWhatsApp] = useState(false);
   const [pedidoParaWhatsApp, setPedidoParaWhatsApp] = useState<Pedido | null>(null);
+  const [fotoEvidenciaWhatsApp, setFotoEvidenciaWhatsApp] = useState<string | null>(null);
   
   
   const [filtros, setFiltros] = useState<FiltrosPedidos>({
     fechaInicio: getCurrentDateColombia(),
     fechaFin: getCurrentDateColombia(),
     estado: 'todos',
-    tipoFiltro: 'hoy'
+    tipoFiltro: 'semana' // Cambiar de 'hoy' a 'semana' para incluir más días
   });
 
   useEffect(() => {
@@ -86,6 +88,7 @@ const Pedidos: React.FC = () => {
     try {
       // Obtener todos los pedidos de una vez (más eficiente que múltiples consultas)
       const todosLosPedidos = await pedidoService.getAllPedidos();
+      console.log('🔍 Total pedidos cargados desde Firebase:', todosLosPedidos.length);
       
       // Filtrar por rango de fechas localmente
       const fechaInicio = new Date(filtros.fechaInicio);
@@ -93,11 +96,26 @@ const Pedidos: React.FC = () => {
       const fechaFin = new Date(filtros.fechaFin);
       fechaFin.setHours(23, 59, 59, 999);
       
+      console.log('📅 Rango de fechas:', fechaInicio.toISOString(), 'a', fechaFin.toISOString());
+      
       const pedidosFiltradosPorFecha = todosLosPedidos.filter(pedido => {
         const fechaPedido = new Date(pedido.fechaAsignacion);
-        return fechaPedido >= fechaInicio && fechaPedido <= fechaFin;
+        const dentroDelRango = fechaPedido >= fechaInicio && fechaPedido <= fechaFin;
+        
+        // Log para pedidos con lavadora asignada
+        if (pedido.lavadoraAsignada) {
+          console.log(`🔍 Pedido ${pedido.id} con lavadora ${pedido.lavadoraAsignada.codigoQR}:`, {
+            fechaAsignacion: pedido.fechaAsignacion,
+            fechaPedido: fechaPedido.toISOString(),
+            dentroDelRango,
+            estado: pedido.status
+          });
+        }
+        
+        return dentroDelRango;
       });
       
+      console.log('📊 Pedidos después del filtro de fecha:', pedidosFiltradosPorFecha.length);
       setPedidos(pedidosFiltradosPorFecha);
     } catch (error) {
       console.error('Error al cargar pedidos:', error);
@@ -121,8 +139,76 @@ const Pedidos: React.FC = () => {
     try {
       const lavadorasData = await lavadoraService.getAllLavadoras();
       setLavadoras(lavadorasData);
+      
+      // Sincronizar lavadoras huérfanas (marcadas como alquiladas pero sin pedido asociado)
+      await sincronizarLavadorasHuerfanas(lavadorasData);
     } catch (error) {
       console.error('Error al cargar lavadoras:', error);
+    }
+  };
+
+  // Función para cargar TODOS los pedidos (sin filtro de fecha) para el modal de estado
+  const cargarTodosLosPedidos = async () => {
+    try {
+      const todosLosPedidos = await pedidoService.getAllPedidos();
+      return todosLosPedidos;
+    } catch (error) {
+      console.error('Error al cargar todos los pedidos:', error);
+      return [];
+    }
+  };
+
+  const sincronizarLavadorasHuerfanas = async (lavadorasData: any[]) => {
+    try {
+      console.log('🔄 Sincronizando lavadoras huérfanas...');
+      
+      // Cargar TODOS los pedidos para la verificación
+      const todosLosPedidos = await pedidoService.getAllPedidos();
+      console.log('🔍 Total pedidos para sincronización:', todosLosPedidos.length);
+      
+      for (const lavadora of lavadorasData) {
+        if (lavadora.estado === 'alquilada') {
+          // Buscar si realmente hay un pedido asociado en TODOS los pedidos
+          const pedidoAsociado = todosLosPedidos.find(p => {
+            return p.lavadoraAsignada?.lavadoraId === lavadora.id || 
+                   p.lavadoraAsignada?.codigoQR === lavadora.codigoQR ||
+                   (p as any).lavadoraAsignada_lavadoraId === lavadora.id ||
+                   (p as any).lavadoraAsignada_codigoQR === lavadora.codigoQR;
+          });
+          
+          if (!pedidoAsociado) {
+            console.log(`🔧 Liberando lavadora huérfana: ${lavadora.codigoQR}`);
+            console.log(`🔍 Lavadora ${lavadora.codigoQR} no tiene pedido asociado - liberando`);
+            
+            // Crear objeto de actualización solo con los campos que queremos cambiar
+            const updates: any = {
+              estado: 'disponible'
+            };
+            
+            // Solo agregar campos si existen en la lavadora
+            if (lavadora.pedidoId !== undefined) {
+              updates.pedidoId = null;
+            }
+            if (lavadora.fechaInstalacion !== undefined) {
+              updates.fechaInstalacion = null;
+            }
+            if (lavadora.fotoInstalacion !== undefined) {
+              updates.fotoInstalacion = null;
+            }
+            if (lavadora.observacionesInstalacion !== undefined) {
+              updates.observacionesInstalacion = null;
+            }
+            
+            await lavadoraService.updateLavadora(lavadora.id, updates);
+          } else {
+            console.log(`✅ Lavadora ${lavadora.codigoQR} tiene pedido asociado: ${pedidoAsociado.id} - manteniendo alquilada`);
+          }
+        }
+      }
+      
+      console.log('✅ Sincronización de lavadoras huérfanas completada');
+    } catch (error) {
+      console.error('❌ Error al sincronizar lavadoras huérfanas:', error);
     }
   };
 
@@ -138,10 +224,12 @@ const Pedidos: React.FC = () => {
     });
   }, [pedidos, filtros, busqueda]);
 
-  const aplicarFiltroRapido = (tipo: 'hoy' | 'ayer') => {
+  const aplicarFiltroRapido = (tipo: 'hoy' | 'ayer' | 'semana') => {
     const hoy = getCurrentDateColombia();
     const ayer = new Date(hoy);
     ayer.setDate(ayer.getDate() - 1);
+    const semanaAtras = new Date(hoy);
+    semanaAtras.setDate(semanaAtras.getDate() - 7);
 
     switch (tipo) {
       case 'hoy':
@@ -149,6 +237,9 @@ const Pedidos: React.FC = () => {
         break;
       case 'ayer':
         setFiltros(prev => ({ ...prev, fechaInicio: ayer, fechaFin: ayer, tipoFiltro: 'ayer' }));
+        break;
+      case 'semana':
+        setFiltros(prev => ({ ...prev, fechaInicio: semanaAtras, fechaFin: hoy, tipoFiltro: 'semana' }));
         break;
     }
   };
@@ -422,9 +513,13 @@ const Pedidos: React.FC = () => {
     if (pedido.status === 'pendiente') {
       return (
         <button
-          onClick={(e) => {
+          onClick={async (e) => {
             e.stopPropagation();
             console.log('Botón Entregar clickeado para pedido:', pedido.id);
+            
+            // Recargar lavadoras antes de abrir el modal para tener datos actualizados
+            await cargarLavadoras();
+            
             setPedidoAValidar(pedido);
             setMostrarModalValidacionQR(true);
           }}
@@ -753,8 +848,15 @@ const Pedidos: React.FC = () => {
       
       console.log('Pedido actualizado y facturado exitosamente');
       
-      // Cerrar modal
+      // Cerrar modal de validación QR
       setMostrarModalValidacionQR(false);
+      
+      // Abrir modal de WhatsApp directamente con la foto de evidencia
+      setPedidoParaWhatsApp(pedidoAValidar);
+      setFotoEvidenciaWhatsApp(validacionData.fotoInstalacion || null);
+      setMostrarModalWhatsApp(true);
+      
+      // Limpiar estado
       setPedidoAValidar(null);
       
       // Recargar datos
@@ -854,6 +956,12 @@ const Pedidos: React.FC = () => {
             className={`btn ${filtros.tipoFiltro === 'ayer' ? 'btn-primary' : 'btn-secondary'} text-sm`}
           >
             Ayer
+          </button>
+          <button
+            onClick={() => aplicarFiltroRapido('semana')}
+            className={`btn ${filtros.tipoFiltro === 'semana' ? 'btn-primary' : 'btn-secondary'} text-sm`}
+          >
+            Última Semana
           </button>
         </div>
 
@@ -976,16 +1084,16 @@ const Pedidos: React.FC = () => {
                 <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                 <tr>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Total
+                      Acciones
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Cliente
                   </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Plan
                   </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Acciones
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Cliente
+                    Total
                   </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Pedido
@@ -997,44 +1105,13 @@ const Pedidos: React.FC = () => {
                     Recogida
                   </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Evidencia
-                    </th>
+                    Evidencia
+                  </th>
                 </tr>
               </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
                   {pedidosFiltrados.map((pedido, index) => (
                     <tr key={pedido.id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-200 group">
-                      {/* Total */}
-                      <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
-                        <div className="text-lg font-bold text-gray-900">
-                          {formatCurrency(pedido.total)}
-                        </div>
-                      </td>
-                      {/* Plan */}
-                      <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
-                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg px-3 py-2">
-                          <div className="flex items-center justify-between">
-                            <div className="text-sm font-semibold text-green-800">
-                              {pedido.plan.name}
-                            </div>
-                            {pedido.recogidaPrioritaria && (
-                              <div className="flex items-center space-x-1">
-                                <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full font-medium">
-                                  ⏰ Recogida Prioritaria
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          <div className="text-xs text-green-600">
-                            {formatCurrency(pedido.plan.price)}
-                          </div>
-                          {pedido.recogidaPrioritaria && pedido.horaRecogida && (
-                            <div className="text-xs text-orange-600 font-medium mt-1">
-                              Hora: {pedido.horaRecogida}
-                            </div>
-                          )}
-                        </div>
-                      </td>
                       {/* Acciones */}
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center space-x-2">
@@ -1093,6 +1170,37 @@ const Pedidos: React.FC = () => {
                                 {pedido.cliente.phone}
                               </div>
                             </div>
+                          </div>
+                        </td>
+                        {/* Plan */}
+                        <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
+                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg px-3 py-2">
+                            <div className="flex items-center justify-between">
+                              <div className="text-sm font-semibold text-green-800">
+                                {pedido.plan.name}
+                              </div>
+                              {pedido.recogidaPrioritaria && (
+                                <div className="flex items-center space-x-1">
+                                  <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full font-medium">
+                                    ⏰ Recogida Prioritaria
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-xs text-green-600">
+                              {formatCurrency(pedido.plan.price)}
+                            </div>
+                            {pedido.recogidaPrioritaria && pedido.horaRecogida && (
+                              <div className="text-xs text-orange-600 font-medium mt-1">
+                                Hora: {pedido.horaRecogida}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        {/* Total */}
+                        <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
+                          <div className="text-lg font-bold text-gray-900">
+                            {formatCurrency(pedido.total)}
                           </div>
                         </td>
                         {/* Pedido */}
@@ -1191,19 +1299,29 @@ const Pedidos: React.FC = () => {
             <div className="flex justify-between">
                 <span>Total ingresos:</span>
               <span className="font-medium text-success-600">
-                {formatCurrency(pedidosFiltrados.reduce((sum, p) => sum + p.total, 0))}
+                {formatCurrency(pedidosFiltrados.reduce((sum, p) => {
+                  const totalPagado = p.pagosRealizados?.reduce((sumPago, pago) => sumPago + pago.monto, 0) || 0;
+                  return sum + totalPagado;
+                }, 0))}
               </span>
               </div>
               <div className="flex justify-between">
                 <span>Promedio por pedido:</span>
                 <span className="font-medium text-gray-600">
-                  {pedidosFiltrados.length > 0 ? formatCurrency(pedidosFiltrados.reduce((sum, p) => sum + p.total, 0) / pedidosFiltrados.length) : '$0'}
+                  {pedidosFiltrados.length > 0 ? formatCurrency(pedidosFiltrados.reduce((sum, p) => {
+                    const totalPagado = p.pagosRealizados?.reduce((sumPago, pago) => sumPago + pago.monto, 0) || 0;
+                    return sum + totalPagado;
+                  }, 0) / pedidosFiltrados.length) : '$0'}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span>Ingresos pendientes:</span>
+                <span>Total pendiente:</span>
                 <span className="font-medium text-warning-600">
-                  {formatCurrency(pedidosFiltrados.filter(p => p.status === 'pendiente').reduce((sum, p) => sum + p.total, 0))}
+                  {formatCurrency(pedidosFiltrados.reduce((sum, p) => {
+                    const totalPagado = p.pagosRealizados?.reduce((sumPago, pago) => sumPago + pago.monto, 0) || 0;
+                    const saldoPendiente = p.total - totalPagado;
+                    return sum + Math.max(0, saldoPendiente);
+                  }, 0))}
                 </span>
               </div>
             </div>
@@ -1214,13 +1332,13 @@ const Pedidos: React.FC = () => {
 
       {/* Modal de Nuevo Pedido */}
       {mostrarNuevoPedido && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 p-2 sm:p-4">
+          <div className="relative top-4 sm:top-20 mx-auto p-4 sm:p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white max-h-[95vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium text-gray-900">Nuevo Servicio</h3>
               <button
                 onClick={() => setMostrarNuevoPedido(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 p-1"
               >
                 <span className="sr-only">Cerrar</span>
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1640,8 +1758,10 @@ const Pedidos: React.FC = () => {
           onClose={() => {
             setMostrarModalWhatsApp(false);
             setPedidoParaWhatsApp(null);
+            setFotoEvidenciaWhatsApp(null);
           }}
           pedido={pedidoParaWhatsApp}
+          fotoEvidencia={fotoEvidenciaWhatsApp || undefined}
         />
       )}
 
@@ -1655,257 +1775,12 @@ const Pedidos: React.FC = () => {
 
       {/* Modal de Estado de Lavadoras */}
       {mostrarEstadoLavadoras && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-hidden">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-white bg-opacity-20 rounded-lg">
-                    <CalendarIcon className="h-6 w-6 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-semibold text-white">Estado de Lavadoras</h3>
-                    <p className="text-blue-100 text-sm">Visualización del estado actual de todas las lavadoras</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setMostrarEstadoLavadoras(false)}
-                  className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
-                >
-                  <XMarkIcon className="h-6 w-6" />
-                </button>
-              </div>
-            </div>
-
-            {/* Contenido */}
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-              {/* Resumen */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-                  <div className="text-2xl font-bold text-green-600">
-                    {lavadoras.filter(l => l.estado === 'disponible').length}
-                  </div>
-                  <div className="text-sm text-green-700">Libres</div>
-                </div>
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
-                  <div className="text-2xl font-bold text-red-600">
-                    {lavadoras.filter(l => l.estado === 'alquilada').length}
-                  </div>
-                  <div className="text-sm text-red-700">Alquiladas</div>
-                </div>
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
-                  <div className="text-2xl font-bold text-yellow-600">
-                    {lavadoras.filter(l => l.estado === 'mantenimiento').length}
-                  </div>
-                  <div className="text-sm text-yellow-700">Mantenimiento</div>
-                </div>
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
-                  <div className="text-2xl font-bold text-gray-600">
-                    {lavadoras.filter(l => l.estado === 'fuera_servicio').length}
-                  </div>
-                  <div className="text-sm text-gray-700">Fuera de Servicio</div>
-                </div>
-              </div>
-
-              {/* Lista de lavadoras */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {lavadoras
-                  .sort((a, b) => {
-                    // Extraer números del código QR para ordenar numéricamente
-                    const numA = parseInt(a.codigoQR.replace(/\D/g, '')) || 0;
-                    const numB = parseInt(b.codigoQR.replace(/\D/g, '')) || 0;
-                    return numA - numB;
-                  })
-                  .map((lavadora) => {
-                  // Buscar pedido asociado de diferentes maneras
-                  let pedidoAsociado = pedidos.find(p => {
-                    // Método 1: Buscar por lavadoraAsignada.lavadoraId
-                    if (p.lavadoraAsignada?.lavadoraId === lavadora.id) return true;
-                    
-                    // Método 2: Buscar por código QR
-                    if (p.lavadoraAsignada?.codigoQR === lavadora.codigoQR) return true;
-                    
-                    return false;
-                  });
-
-                  // Si no se encuentra pedido asociado, la lavadora debería estar libre
-                  // Solo mostrar como alquilada si realmente tiene un pedido asociado
-                  if (!pedidoAsociado && lavadora.estado === 'alquilada') {
-                    console.log('🔴 Lavadora marcada como alquilada pero sin pedido asociado:', lavadora.codigoQR);
-                    // No asociar ningún pedido, la lavadora debería estar libre
-                  }
-
-                  // Función para calcular fecha de recogida según el plan
-                  const calcularFechaRecogida = (fechaEntrega: Date, planName: string) => {
-                    const fecha = new Date(fechaEntrega);
-                    
-                    switch (planName) {
-                      case 'PLAN 1':
-                        // 5 horas después de la entrega
-                        fecha.setHours(fecha.getHours() + 5);
-                        return fecha;
-                        
-                      case 'PLAN 2':
-                        // Siguiente día a las 7 AM
-                        fecha.setDate(fecha.getDate() + 1);
-                        fecha.setHours(7, 0, 0, 0);
-                        return fecha;
-                        
-                      case 'PLAN 3':
-                        // 24 horas después (misma hora)
-                        fecha.setDate(fecha.getDate() + 1);
-                        return fecha;
-                        
-                      case 'PLAN 4':
-                        // Lunes a las 7 AM (si es sábado)
-                        const diasHastaLunes = fecha.getDay() === 6 ? 2 : (8 - fecha.getDay()) % 7;
-                        fecha.setDate(fecha.getDate() + diasHastaLunes);
-                        fecha.setHours(7, 0, 0, 0);
-                        return fecha;
-                        
-                      case 'PLAN 5':
-                        // Lunes a las 7 AM (si es sábado tarde)
-                        const diasHastaLunesPlan5 = fecha.getDay() === 6 ? 2 : (8 - fecha.getDay()) % 7;
-                        fecha.setDate(fecha.getDate() + diasHastaLunesPlan5);
-                        fecha.setHours(7, 0, 0, 0);
-                        return fecha;
-                        
-                      default:
-                        return null;
-                    }
-                  };
-                  
-                  const getEstadoColor = () => {
-                    // Si está marcada como alquilada pero no tiene pedido asociado, tratarla como libre
-                    if (lavadora.estado === 'alquilada' && !pedidoAsociado) {
-                      return 'bg-green-100 border-green-300 text-green-800';
-                    }
-                    
-                    switch (lavadora.estado) {
-                      case 'disponible':
-                        return 'bg-green-100 border-green-300 text-green-800';
-                      case 'alquilada':
-                        return 'bg-red-100 border-red-300 text-red-800';
-                      case 'mantenimiento':
-                        return 'bg-yellow-100 border-yellow-300 text-yellow-800';
-                      case 'fuera_servicio':
-                        return 'bg-gray-100 border-gray-300 text-gray-800';
-                      default:
-                        return 'bg-gray-100 border-gray-300 text-gray-800';
-                    }
-                  };
-
-                  const getEstadoIcon = () => {
-                    // Si está marcada como alquilada pero no tiene pedido asociado, tratarla como libre
-                    if (lavadora.estado === 'alquilada' && !pedidoAsociado) {
-                      return '🟢';
-                    }
-                    
-                    switch (lavadora.estado) {
-                      case 'disponible':
-                        return '🟢';
-                      case 'alquilada':
-                        return '🔴';
-                      case 'mantenimiento':
-                        return '🟡';
-                      case 'fuera_servicio':
-                        return '⚫';
-                      default:
-                        return '⚪';
-                    }
-                  };
-
-                  return (
-                    <div
-                      key={lavadora.id}
-                      className={`border-2 rounded-lg p-4 transition-all duration-200 hover:shadow-md ${getEstadoColor()}`}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-lg">{getEstadoIcon()}</span>
-                          <h4 className="font-semibold text-lg">{lavadora.codigoQR}</h4>
-                        </div>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getEstadoColor()}`}>
-                          {lavadora.estado === 'disponible' ? 'Libre' :
-                           (lavadora.estado === 'alquilada' && pedidoAsociado) ? 'Alquilada' :
-                           lavadora.estado === 'mantenimiento' ? 'Mantenimiento' :
-                           'Fuera de Servicio'}
-                        </span>
-                      </div>
-
-                      {lavadora.estado === 'alquilada' && pedidoAsociado && (
-                        <div className="mt-3 pt-3 border-t border-current border-opacity-20">
-                          {pedidoAsociado ? (
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="text-sm">
-                                <div className="font-medium mb-1">Cliente:</div>
-                                <div className="text-xs opacity-80">{pedidoAsociado.cliente.name}</div>
-                              </div>
-                              {pedidoAsociado.fechaEntrega && (
-                                <div className="text-sm">
-                                  <div className="font-medium mb-1">Entregado:</div>
-                                  <div className="text-xs opacity-80">
-                                    {formatDate(pedidoAsociado.fechaEntrega, 'dd/MM HH:mm')}
-                                  </div>
-                                </div>
-                              )}
-                              <div className="text-sm">
-                                <div className="font-medium mb-1">Estado:</div>
-                                <div className="text-xs opacity-80">{pedidoAsociado.status}</div>
-                              </div>
-                              {pedidoAsociado.fechaEntrega && pedidoAsociado.status === 'entregado' && (
-                                <div className="text-sm">
-                                  <div className="font-medium mb-1">Recogida programada:</div>
-                                  <div className="text-xs opacity-80">
-                                    {(() => {
-                                      const fechaRecogida = calcularFechaRecogida(pedidoAsociado.fechaEntrega, pedidoAsociado.plan.name);
-                                      return fechaRecogida ? formatDate(fechaRecogida, 'dd/MM HH:mm') : 'No calculable';
-                                    })()}
-                                  </div>
-                                </div>
-                              )}
-                              <div className="text-sm">
-                                <div className="font-medium mb-1">Plan:</div>
-                                <div className="text-xs opacity-80">{pedidoAsociado.plan.name}</div>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="text-sm">
-                              <div className="font-medium mb-1">Estado:</div>
-                              <div className="text-xs opacity-80">Alquilada (sin pedido asociado)</div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {lavadora.estado === 'mantenimiento' && lavadora.fechaMantenimiento && (
-                        <div className="mt-3 pt-3 border-t border-current border-opacity-20">
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="text-sm">
-                              <div className="font-medium mb-1">En mantenimiento desde:</div>
-                              <div className="text-xs opacity-80">
-                                {lavadora.fechaMantenimiento ? formatDate(lavadora.fechaMantenimiento, 'dd/MM HH:mm') : 'Sin fecha'}
-                              </div>
-                            </div>
-                            {lavadora.mantenimientoActual && (
-                              <div className="text-sm">
-                                <div className="font-medium mb-1">Tipo de falla:</div>
-                                <div className="text-xs opacity-80">
-                                  {lavadora.mantenimientoActual.tipoFalla}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
+        <EstadoLavadorasModal 
+          isOpen={mostrarEstadoLavadoras}
+          onClose={() => setMostrarEstadoLavadoras(false)}
+          lavadoras={lavadoras}
+          onCargarTodosLosPedidos={cargarTodosLosPedidos}
+        />
       )}
     </div>
   );

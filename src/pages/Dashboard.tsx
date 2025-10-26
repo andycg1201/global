@@ -13,6 +13,7 @@ import {
 import { formatCurrency, formatDate, getCurrentDateColombia } from '../utils/dateUtils';
 import { pedidoService, reporteService, gastoService, clienteService, lavadoraService, configService } from '../services/firebaseService';
 import { obtenerHistorialMantenimiento } from '../services/mantenimientoService';
+import { capitalService } from '../services/capitalService';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Pedido, ReporteDiario, Lavadora, Configuracion } from '../types';
@@ -229,6 +230,13 @@ const Dashboard: React.FC = () => {
       const todosLosGastos = await gastoService.getGastosDelRango(fechaInicio, fechaFin);
       const totalGastosGenerales = todosLosGastos.reduce((sum, gasto) => sum + gasto.amount, 0);
       
+      // Obtener movimientos de capital del rango de fechas
+      const todosLosMovimientosCapital = await capitalService.getMovimientosCapital();
+      const movimientosCapitalFiltrados = todosLosMovimientosCapital.filter(movimiento => {
+        const fechaMovimiento = movimiento.fecha;
+        return fechaMovimiento >= fechaInicio && fechaMovimiento <= fechaFin;
+      });
+      
       // Obtener gastos de mantenimiento de lavadoras del rango de fechas
       // Obtener todos los mantenimientos directamente de la colección
       const mantenimientosSnapshot = await getDocs(collection(db, 'mantenimientos'));
@@ -404,6 +412,7 @@ const Dashboard: React.FC = () => {
 
       console.log('📊 Debug saldos - Pedidos filtrados:', pedidosFiltrados.length);
       console.log('📊 Debug saldos - Gastos totales:', todosLosGastos.length);
+      console.log('📊 Debug saldos - Movimientos capital:', movimientosCapitalFiltrados.length);
 
       // Calcular ingresos por medio de pago (basado en pagos reales)
       let pagosProcesados = 0;
@@ -450,6 +459,26 @@ const Dashboard: React.FC = () => {
         }
       });
       console.log('📊 Gastos procesados para saldos:', gastosProcesados);
+
+      // Procesar movimientos de capital
+      let movimientosCapitalProcesados = 0;
+      movimientosCapitalFiltrados.forEach(movimiento => {
+        movimientosCapitalProcesados++;
+        console.log('💰 Procesando movimiento capital:', movimiento.tipo, movimiento.efectivo, movimiento.nequi, movimiento.daviplata);
+        
+        if (movimiento.tipo === 'inyeccion') {
+          // Las inyecciones aumentan los ingresos
+          saldosCalculados.efectivo.ingresos += movimiento.efectivo;
+          saldosCalculados.nequi.ingresos += movimiento.nequi;
+          saldosCalculados.daviplata.ingresos += movimiento.daviplata;
+        } else if (movimiento.tipo === 'retiro') {
+          // Los retiros aumentan los gastos
+          saldosCalculados.efectivo.gastos += movimiento.efectivo;
+          saldosCalculados.nequi.gastos += movimiento.nequi;
+          saldosCalculados.daviplata.gastos += movimiento.daviplata;
+        }
+      });
+      console.log('📊 Movimientos capital procesados:', movimientosCapitalProcesados);
 
       // Distribuir gastos de mantenimiento proporcionalmente entre los medios de pago
       // basado en los ingresos de cada medio

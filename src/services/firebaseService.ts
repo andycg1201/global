@@ -601,9 +601,9 @@ export const resetService = {
       await Promise.all(conceptosPromises);
 
       // Eliminar capital inicial
-      const capitalSnapshot = await getDocs(collection(db, 'capital'));
-      const capitalPromises = capitalSnapshot.docs.map(doc => deleteDoc(doc.ref));
-      await Promise.all(capitalPromises);
+      const capitalInicialSnapshot = await getDocs(collection(db, 'capitalInicial'));
+      const capitalInicialPromises = capitalInicialSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(capitalInicialPromises);
 
       // Eliminar movimientos de capital (inyecciones y retiros)
       const movimientosCapitalSnapshot = await getDocs(collection(db, 'movimientosCapital'));

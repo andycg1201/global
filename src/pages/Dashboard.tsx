@@ -290,8 +290,8 @@ const Dashboard: React.FC = () => {
       
       const totalGastos = totalGastosGenerales + totalGastosMantenimiento;
 
-      // Calcular ingresos reales (solo pagos recibidos)
-      const ingresosReales = pedidosFiltrados.reduce((sum, pedido) => {
+      // Calcular ingresos reales (pagos recibidos + capital inicial + inyecciones de capital)
+      let ingresosReales = pedidosFiltrados.reduce((sum, pedido) => {
         if (pedido.pagosRealizados && pedido.pagosRealizados.length > 0) {
           return sum + pedido.pagosRealizados.reduce((sumPagos, pago) => {
             // Verificar que el pago esté en el rango de fechas
@@ -312,6 +312,18 @@ const Dashboard: React.FC = () => {
         }
         return sum;
       }, 0);
+
+      // Agregar capital inicial a los ingresos reales
+      if (capitalInicialData) {
+        ingresosReales += capitalInicialData.efectivo + capitalInicialData.nequi + capitalInicialData.daviplata;
+      }
+
+      // Agregar inyecciones de capital a los ingresos reales
+      movimientosCapitalFiltrados.forEach(movimiento => {
+        if (movimiento.tipo === 'inyeccion') {
+          ingresosReales += movimiento.efectivo + movimiento.nequi + movimiento.daviplata;
+        }
+      });
 
       // Calcular cuentas por cobrar (saldos pendientes de todos los servicios)
       const cuentasPorCobrar = pedidosFiltrados.reduce((sum, pedido) => {

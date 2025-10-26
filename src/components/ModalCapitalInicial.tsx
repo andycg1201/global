@@ -190,3 +190,4 @@ const ModalCapitalInicial: React.FC<ModalCapitalInicialProps> = ({
 };
 
 export default ModalCapitalInicial;
+

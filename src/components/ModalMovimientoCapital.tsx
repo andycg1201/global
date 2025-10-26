@@ -244,3 +244,4 @@ const ModalMovimientoCapital: React.FC<ModalMovimientoCapitalProps> = ({
 };
 
 export default ModalMovimientoCapital;
+

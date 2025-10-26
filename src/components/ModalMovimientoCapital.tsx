@@ -49,7 +49,7 @@ const ModalMovimientoCapital: React.FC<ModalMovimientoCapitalProps> = ({
         efectivo: formData.efectivo,
         nequi: formData.nequi,
         daviplata: formData.daviplata,
-        observaciones: formData.observaciones || undefined,
+        observaciones: formData.observaciones || '',
         fecha: new Date(),
         createdBy: 'admin' // TODO: obtener del contexto de usuario
       });

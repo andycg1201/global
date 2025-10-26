@@ -230,8 +230,12 @@ const Dashboard: React.FC = () => {
       const todosLosGastos = await gastoService.getGastosDelRango(fechaInicio, fechaFin);
       const totalGastosGenerales = todosLosGastos.reduce((sum, gasto) => sum + gasto.amount, 0);
       
-      // Obtener movimientos de capital del rango de fechas
-      const todosLosMovimientosCapital = await capitalService.getMovimientosCapital();
+      // Obtener capital inicial y movimientos de capital
+      const [capitalInicialData, todosLosMovimientosCapital] = await Promise.all([
+        capitalService.getCapitalInicial(),
+        capitalService.getMovimientosCapital()
+      ]);
+      
       const movimientosCapitalFiltrados = todosLosMovimientosCapital.filter(movimiento => {
         const fechaMovimiento = movimiento.fecha;
         return fechaMovimiento >= fechaInicio && fechaMovimiento <= fechaFin;
@@ -413,6 +417,7 @@ const Dashboard: React.FC = () => {
       console.log('📊 Debug saldos - Pedidos filtrados:', pedidosFiltrados.length);
       console.log('📊 Debug saldos - Gastos totales:', todosLosGastos.length);
       console.log('📊 Debug saldos - Movimientos capital:', movimientosCapitalFiltrados.length);
+      console.log('📊 Debug saldos - Capital inicial:', capitalInicialData ? 'Existe' : 'No existe');
 
       // Calcular ingresos por medio de pago (basado en pagos reales)
       let pagosProcesados = 0;
@@ -479,6 +484,14 @@ const Dashboard: React.FC = () => {
         }
       });
       console.log('📊 Movimientos capital procesados:', movimientosCapitalProcesados);
+
+      // Procesar capital inicial (si existe)
+      if (capitalInicialData) {
+        console.log('💰 Procesando capital inicial:', capitalInicialData.efectivo, capitalInicialData.nequi, capitalInicialData.daviplata);
+        saldosCalculados.efectivo.ingresos += capitalInicialData.efectivo;
+        saldosCalculados.nequi.ingresos += capitalInicialData.nequi;
+        saldosCalculados.daviplata.ingresos += capitalInicialData.daviplata;
+      }
 
       // Distribuir gastos de mantenimiento proporcionalmente entre los medios de pago
       // basado en los ingresos de cada medio

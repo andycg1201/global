@@ -11,7 +11,7 @@ import {
 import { Pedido, PagoRealizado } from '../types';
 import { pedidoService, configService, planService, gastoService, lavadoraService } from '../services/firebaseService';
 import { capitalService } from '../services/capitalService';
-import { obtenerHistorialMantenimiento } from '../services/mantenimientoService';
+import { obtenerTodosLosMantenimientos } from '../services/mantenimientoService';
 import { formatCurrency } from '../utils/dateUtils';
 import { useAuth } from '../contexts/AuthContext';
 import ModalModificacionesServicio from '../components/ModalModificacionesServicio';
@@ -77,7 +77,7 @@ const Dashboard: React.FC = () => {
         capitalService.getCapitalInicial(),
         capitalService.getMovimientosCapital(),
         gastoService.getGastosDelRango(new Date(2024, 0, 1), new Date()),
-        obtenerHistorialMantenimiento('all'),
+        obtenerTodosLosMantenimientos(),
         lavadoraService.getAllLavadoras()
       ]);
       

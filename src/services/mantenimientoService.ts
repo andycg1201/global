@@ -210,6 +210,53 @@ export const obtenerHistorialMantenimiento = async (lavadoraId: string): Promise
   }
 };
 
+// Obtener todos los mantenimientos (para Dashboard)
+export const obtenerTodosLosMantenimientos = async (): Promise<Mantenimiento[]> => {
+  try {
+    const q = query(
+      collection(db, MANTENIMIENTOS_COLLECTION),
+      orderBy('createdAt', 'desc')
+    );
+
+    const querySnapshot = await getDocs(q);
+    const mantenimientos: Mantenimiento[] = [];
+
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      mantenimientos.push({
+        id: doc.id,
+        lavadoraId: data.lavadoraId,
+        tipoFalla: data.tipoFalla,
+        descripcion: data.descripcion,
+        costoReparacion: data.costoReparacion,
+        servicioTecnico: data.servicioTecnico,
+        fechaInicio: data.fechaInicio?.toDate() || new Date(),
+        fechaEstimadaFin: data.fechaEstimadaFin?.toDate() || new Date(),
+        fechaFin: data.fechaFin?.toDate(),
+        fotos: data.fotos || [],
+        observaciones: data.observaciones || '',
+        medioPago: data.medioPago || 'efectivo',
+        createdBy: data.createdBy,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date()
+      });
+    });
+
+    console.log('🔧 MantenimientoService - Todos los mantenimientos obtenidos:', mantenimientos.length);
+    console.log('🔧 MantenimientoService - Datos:', mantenimientos.map(m => ({
+      id: m.id,
+      costoReparacion: m.costoReparacion,
+      medioPago: m.medioPago,
+      createdAt: m.createdAt
+    })));
+    
+    return mantenimientos;
+  } catch (error) {
+    console.error('Error obteniendo todos los mantenimientos:', error);
+    return [];
+  }
+};
+
 // Obtener todos los mantenimientos activos
 export const obtenerMantenimientosActivos = async (): Promise<Mantenimiento[]> => {
   try {

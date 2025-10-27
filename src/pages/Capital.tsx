@@ -298,11 +298,16 @@ const Capital: React.FC = () => {
               saldoDaviplata -= movCapital.daviplata;
             }
           }
-        } else if (movimiento.id === 'capital-inicial' && capitalInicialData) {
-          console.log('💰 Procesando capital inicial:', capitalInicialData.efectivo, capitalInicialData.nequi, capitalInicialData.daviplata);
-          saldoEfectivo += capitalInicialData.efectivo;
-          saldoNequi += capitalInicialData.nequi;
-          saldoDaviplata += capitalInicialData.daviplata;
+        } else if (movimiento.id === 'capital-inicial') {
+          console.log('🔍 Verificando capital inicial - capitalInicialData:', capitalInicialData);
+          if (capitalInicialData) {
+            console.log('💰 Procesando capital inicial:', capitalInicialData.efectivo, capitalInicialData.nequi, capitalInicialData.daviplata);
+            saldoEfectivo += capitalInicialData.efectivo;
+            saldoNequi += capitalInicialData.nequi;
+            saldoDaviplata += capitalInicialData.daviplata;
+          } else {
+            console.log('❌ Error: capitalInicialData es null/undefined');
+          }
         } else {
           console.log('💰 Procesando movimiento normal:', movimiento.tipo, movimiento.monto, movimiento.medioPago);
           // Movimientos normales (ingresos/gastos)

@@ -177,7 +177,7 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
       <div className={`p-4 rounded-lg border ${tipo === 'recoger' ? getAlertColor(pedido.fechaEntrega!) : 'bg-gray-50 border-gray-200'} transition-all duration-200 hover:shadow-md`}>
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getPriorityBadgeColor(pedido.isPrioritario)}`}>
                 <PriorityIcon className="h-3 w-3 mr-1" />
                 {pedido.isPrioritario ? 'Prioritario' : 'Normal'}
@@ -198,7 +198,7 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
             
             <h4 className="font-medium text-gray-900 mb-1">{pedido.cliente.name}</h4>
             {tipo === 'recoger' ? (
-              <div className="flex items-center gap-4 mb-2">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2">
                 <a
                   href={generateWhatsAppLink(pedido.cliente.phone, pedido.cliente.name)}
                   target="_blank"
@@ -217,14 +217,14 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
                 )}
               </div>
             ) : (
-              <div className="flex items-center gap-4 mb-2">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2">
                 <p className="text-sm text-gray-600">{pedido.cliente.phone}</p>
                 <span className="text-sm font-medium text-blue-600">{pedido.plan.name}</span>
                 <span className="text-sm font-medium text-gray-900">{formatCurrency(pedido.total)}</span>
               </div>
             )}
             
-            <div className="flex items-center gap-4 text-xs text-gray-500">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs text-gray-500">
               {tipo === 'entregar' && (
                 <div className="flex items-center gap-1">
                   <TruckIcon className="h-3 w-3" />
@@ -265,7 +265,7 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
             )}
           </div>
           
-          <div className="ml-4 flex flex-col gap-2">
+          <div className="ml-2 sm:ml-4 flex flex-col gap-2">
             {tipo === 'entregar' && onMarcarEntregado && (
               <button
                 onClick={() => onMarcarEntregado(pedido.id)}
@@ -296,7 +296,7 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
             
             {/* Botones de modificaciones para servicios entregados */}
             {tipo === 'recoger' && onModificarServicio && pedido.status !== 'recogido' && (
-              <div className="flex flex-col gap-1 mt-2">
+              <div className="flex flex-col sm:flex-row gap-1 mt-2">
                 <button
                   onClick={() => onModificarServicio(pedido)}
                   disabled={!puedeModificar}
@@ -325,7 +325,7 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
             
             {/* Botones de pagos para servicios completados con saldo */}
             {tipo === 'recoger' && pedido.status === 'recogido' && onRegistrarPago && saldoPendiente > 0 && (
-              <div className="flex flex-col gap-1 mt-2">
+              <div className="flex flex-col sm:flex-row gap-1 mt-2">
                 <button
                   onClick={() => onRegistrarPago(pedido)}
                   className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-green-500 hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"

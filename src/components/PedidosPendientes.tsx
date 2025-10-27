@@ -196,7 +196,14 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
               )}
             </div>
             
-            <h4 className="font-medium text-gray-900 mb-1">{pedido.cliente.name}</h4>
+            <h4 className="font-medium text-gray-900 mb-1">
+              {pedido.cliente.name}
+              {pedido.lavadoraAsignada?.codigoQR && (
+                <span className="ml-2 text-sm font-normal text-gray-600">
+                  ({pedido.lavadoraAsignada.codigoQR})
+                </span>
+              )}
+            </h4>
             {tipo === 'recoger' ? (
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2">
                 <a

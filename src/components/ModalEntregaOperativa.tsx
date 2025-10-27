@@ -45,6 +45,9 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
     if (typeof window !== 'undefined') {
       import('html5-qrcode').then((module) => {
         Html5Qrcode = module.default;
+        console.log('Html5Qrcode cargado correctamente');
+      }).catch((error) => {
+        console.error('Error al cargar html5-qrcode:', error);
       });
     }
   }, []);
@@ -63,8 +66,11 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
   };
 
   const startScanning = async () => {
+    console.log('Iniciando escaneo...');
+    console.log('Html5Qrcode disponible:', !!Html5Qrcode);
+    
     if (!Html5Qrcode) {
-      setError('Scanner no disponible');
+      setError('Scanner no disponible - librería no cargada');
       return;
     }
 
@@ -74,6 +80,7 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
 
       const scanner = new Html5Qrcode("qr-reader");
       scannerRef.current = scanner;
+      console.log('Scanner creado:', scanner);
 
       await scanner.start(
         { facingMode: "environment" },
@@ -82,18 +89,20 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
           qrbox: { width: 250, height: 250 }
         },
         (decodedText: string) => {
-          console.log('QR escaneado:', decodedText);
+          console.log('QR escaneado exitosamente:', decodedText);
           setScanResult(decodedText);
           setLavadoraEscaneada(decodedText);
           stopScanning();
         },
         (error: string) => {
+          console.log('Error de escaneo (normal):', error);
           // No mostrar errores de escaneo continuo
         }
       );
+      console.log('Scanner iniciado correctamente');
     } catch (err) {
       console.error('Error al iniciar scanner:', err);
-      setError('Error al iniciar la cámara');
+      setError(`Error al iniciar la cámara: ${err}`);
       setIsScanning(false);
     }
   };

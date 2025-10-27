@@ -19,7 +19,7 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
   onModificacionAplicada
 }) => {
   const [modificacion, setModificacion] = useState<Partial<ModificacionServicio>>({
-    horasExtras: { cantidad: 0, precioUnitario: 0, total: 0 },
+    horasExtras: { cantidad: undefined, precioUnitario: 0, total: 0 },
     cobrosAdicionales: [],
     descuentos: [],
     observaciones: '',
@@ -136,15 +136,16 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
     }
   }, [cambioPlan.planAnterior, cambioPlan.planNuevo, planes]);
 
-  const handleHorasExtrasChange = (cantidad: number) => {
+  const handleHorasExtrasChange = (cantidad: number | undefined) => {
+    const cantidadFinal = cantidad || 0;
     setModificacion(prev => ({
       ...prev,
       horasExtras: {
         cantidad: cantidad,
         precioUnitario: precioHoraExtra, // Usar precio de configuración
-        total: cantidad * precioHoraExtra
+        total: cantidadFinal * precioHoraExtra
       },
-      totalHorasExtras: cantidad * precioHoraExtra
+      totalHorasExtras: cantidadFinal * precioHoraExtra
     }));
   };
 
@@ -458,9 +459,14 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
                   type="number"
                   min="0"
                   step="0.5"
-                  value={modificacion.horasExtras?.cantidad || 0}
-                  onChange={(e) => handleHorasExtrasChange(parseFloat(e.target.value) || 0)}
+                  value={modificacion.horasExtras?.cantidad || ''}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const cantidad = value === '' ? undefined : parseFloat(value) || 0;
+                    handleHorasExtrasChange(cantidad);
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
+                  placeholder="0"
                 />
               </div>
               <div>

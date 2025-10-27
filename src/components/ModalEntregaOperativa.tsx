@@ -140,6 +140,10 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
   };
 
   const handleConfirmar = () => {
+    console.log('🚨 DEBUG - handleConfirmar EJECUTÁNDOSE');
+    console.log('🚨 DEBUG - lavadoraEscaneada:', lavadoraEscaneada);
+    console.log('🚨 DEBUG - fotoFile:', fotoFile);
+    
     if (!lavadoraEscaneada.trim()) {
       setError('Debe escanear el QR de la lavadora');
       return;

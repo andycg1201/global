@@ -51,8 +51,8 @@ export class EntregaOperativaService {
       }
 
       // Verificar si la lavadora escaneada está disponible
-      if (lavadoraEscaneada.estado !== 'disponible' && lavadoraEscaneada.estado !== 'alquilada') {
-        const errorMsg = 'La lavadora escaneada no está disponible para alquiler';
+      if (lavadoraEscaneada.estado !== 'disponible') {
+        const errorMsg = `La lavadora ${lavadoraEscaneada.codigoQR} no está disponible para alquiler. Estado actual: ${lavadoraEscaneada.estado}`;
         callbacks?.onError?.(errorMsg);
         return { success: false, message: errorMsg };
       }

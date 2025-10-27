@@ -16,6 +16,7 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
   const [fotoPreview, setFotoPreview] = useState<string | null>(null);
   const [fotoUrl, setFotoUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [mensajePreview, setMensajePreview] = useState<string>('');
 
   React.useEffect(() => {
     if (pedido && isOpen) {
@@ -31,6 +32,13 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
       }
     }
   }, [pedido, isOpen, fotoEvidencia]);
+
+  // Actualizar mensaje cuando cambie la hora de recogida
+  React.useEffect(() => {
+    if (pedido) {
+      setMensajePreview(generarMensaje());
+    }
+  }, [horaRecogida, pedido]);
 
   // Función para calcular fecha y hora de recogida correctamente
   const calcularFechaHoraRecogida = (fechaEntrega: Date, planName: string): Date => {
@@ -173,10 +181,21 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
     const fechaEntrega = formatDate(fechaActual, 'dd/MM/yyyy');
     const horaEntrega = formatDate(fechaActual, 'HH:mm');
     
-    // Calcular fecha y hora de recogida correctamente
-    const fechaHoraRecogida = calcularFechaHoraRecogida(fechaActual, pedido.plan.name);
-    const fechaRecogida = formatDate(fechaHoraRecogida, 'dd/MM/yyyy');
-    const horaRecogida = formatDate(fechaHoraRecogida, 'HH:mm');
+    // Usar la hora personalizada del input si está disponible, sino calcular automáticamente
+    let fechaRecogida: string;
+    let horaRecogidaTexto: string;
+    
+    if (horaRecogida && horaRecogida.trim() !== '') {
+      // Usar la hora personalizada del usuario
+      const fechaHoraRecogida = calcularFechaHoraRecogida(fechaActual, pedido.plan.name);
+      fechaRecogida = formatDate(fechaHoraRecogida, 'dd/MM/yyyy');
+      horaRecogidaTexto = horaRecogida; // Usar la hora del input
+    } else {
+      // Calcular fecha y hora de recogida automáticamente
+      const fechaHoraRecogida = calcularFechaHoraRecogida(fechaActual, pedido.plan.name);
+      fechaRecogida = formatDate(fechaHoraRecogida, 'dd/MM/yyyy');
+      horaRecogidaTexto = formatDate(fechaHoraRecogida, 'HH:mm');
+    }
     
     // Obtener descripción del plan
     const descripcionPlan = obtenerDescripcionPlan(pedido.plan.name);
@@ -189,7 +208,7 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
     mensaje += `• Dirección: ${pedido.cliente.address}\n\n`;
     mensaje += `⏰ *Recogida programada:*\n`;
     mensaje += `📅 Fecha: ${fechaRecogida}\n`;
-    mensaje += `🕐 Hora: ${horaRecogida}\n\n`;
+    mensaje += `🕐 Hora: ${horaRecogidaTexto}\n\n`;
     mensaje += `💰 *¿Necesitas más tiempo?*\n`;
     mensaje += `• Hora adicional: $2,000\n`;
     mensaje += `• Confirma con anticipación\n`;
@@ -203,8 +222,8 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
   const abrirWhatsApp = async () => {
     if (!pedido) return;
     
-    // Generar mensaje
-    const mensaje = generarMensaje();
+    // Usar el mensaje del preview
+    const mensaje = mensajePreview;
     
     // Abrir WhatsApp
     const numero = pedido.cliente.phone.replace(/\D/g, ''); // Solo números
@@ -259,7 +278,7 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
               Mensaje que se enviará:
             </label>
             <div className="bg-gray-50 p-3 rounded-md text-sm text-gray-700 max-h-32 overflow-y-auto">
-              {generarMensaje()}
+              {mensajePreview}
             </div>
           </div>
         </div>

@@ -206,15 +206,12 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
         (modificacion.totalDescuentos || 0);
       const totalFinalServicio = precioPlanFinal + totalModificaciones;
 
-      const modificacionCompleta: Omit<ModificacionServicio, 'id'> = {
+      // Preparar datos para Firebase (sin campos undefined)
+      const modificacionCompleta: any = {
         pedidoId: pedido.id,
         horasExtras: modificacion.horasExtras!,
         cobrosAdicionales: modificacion.cobrosAdicionales || [],
         descuentos: modificacion.descuentos || [],
-        cambioPlan: cambioPlan.planAnterior !== cambioPlan.planNuevo ? {
-          ...cambioPlan,
-          diferencia: diferenciaReal
-        } : undefined,
         observaciones: modificacion.observaciones || '',
         totalHorasExtras: modificacion.totalHorasExtras || 0,
         totalCobrosAdicionales: modificacion.totalCobrosAdicionales || 0,
@@ -225,6 +222,14 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
         createdAt: new Date(),
         updatedAt: new Date()
       };
+
+      // Solo agregar cambioPlan si hay un cambio real
+      if (cambioPlan.planAnterior !== cambioPlan.planNuevo) {
+        modificacionCompleta.cambioPlan = {
+          ...cambioPlan,
+          diferencia: diferenciaReal
+        };
+      }
 
       await ModificacionesService.guardarModificacion(modificacionCompleta);
       

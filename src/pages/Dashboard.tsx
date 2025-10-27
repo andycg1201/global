@@ -9,7 +9,7 @@ import {
   BanknotesIcon
 } from '@heroicons/react/24/outline';
 import { Pedido, PagoRealizado } from '../types';
-import { pedidoService, configService, planService, gastoService } from '../services/firebaseService';
+import { pedidoService, configService, planService, gastoService, lavadoraService } from '../services/firebaseService';
 import { capitalService } from '../services/capitalService';
 import { obtenerHistorialMantenimiento } from '../services/mantenimientoService';
 import { formatCurrency } from '../utils/dateUtils';
@@ -17,7 +17,9 @@ import { useAuth } from '../contexts/AuthContext';
 import ModalModificacionesServicio from '../components/ModalModificacionesServicio';
 import ModalPagos from '../components/ModalPagos';
 import ModalRecogidaOperativa from '../components/ModalRecogidaOperativa';
+import ModalEntregaOperativa from '../components/ModalEntregaOperativa';
 import { recogidaOperativaService } from '../services/recogidaOperativaService';
+import { entregaOperativaService } from '../services/entregaOperativaService';
 import PedidosPendientes from '../components/PedidosPendientes';
 
 const Dashboard: React.FC = () => {
@@ -29,6 +31,12 @@ const Dashboard: React.FC = () => {
   const [totalPedidos, setTotalPedidos] = useState<number>(0);
   const [totalGastos, setTotalGastos] = useState<number>(0);
   const [cuentasPorCobrar, setCuentasPorCobrar] = useState<number>(0);
+  const [capitalInicial, setCapitalInicial] = useState<number>(0);
+  const [inyeccionesCapital, setInyeccionesCapital] = useState<number>(0);
+  const [ingresosServicios, setIngresosServicios] = useState<number>(0);
+  const [gastosGenerales, setGastosGenerales] = useState<number>(0);
+  const [gastosMantenimiento, setGastosMantenimiento] = useState<number>(0);
+  const [retirosCapital, setRetirosCapital] = useState<number>(0);
   const [saldosPorMedioDePago, setSaldosPorMedioDePago] = useState({
       efectivo: { ingresos: 0, gastos: 0, saldo: 0 },
       nequi: { ingresos: 0, gastos: 0, saldo: 0 },
@@ -47,11 +55,14 @@ const Dashboard: React.FC = () => {
   const [pedidoParaPago, setPedidoParaPago] = useState<Pedido | null>(null);
   const [mostrarModalRecogidaOperativa, setMostrarModalRecogidaOperativa] = useState<boolean>(false);
   const [pedidoParaRecogida, setPedidoParaRecogida] = useState<Pedido | null>(null);
+  const [mostrarModalEntregaOperativa, setMostrarModalEntregaOperativa] = useState<boolean>(false);
+  const [pedidoParaEntrega, setPedidoParaEntrega] = useState<Pedido | null>(null);
 
   // Estados de configuración
   const [configuracion, setConfiguracion] = useState<any>(null);
   const [planes, setPlanes] = useState<any[]>([]);
   const [pagos, setPagos] = useState<any[]>([]);
+  const [lavadoras, setLavadoras] = useState<any[]>([]);
 
   // Función para cargar datos simplificados
   const cargarDatosSimplificados = async () => {
@@ -59,7 +70,7 @@ const Dashboard: React.FC = () => {
       console.log('🔄 Cargando datos simplificados...');
       
       // Obtener datos básicos
-      const [pedidosData, configuracionData, planesData, capitalInicialData, movimientosCapitalData, gastosData, mantenimientosData] = await Promise.all([
+      const [pedidosData, configuracionData, planesData, capitalInicialData, movimientosCapitalData, gastosData, mantenimientosData, lavadorasData] = await Promise.all([
         pedidoService.getAllPedidos(),
         configService.getConfiguracion(),
         planService.getActivePlans(),
@@ -67,10 +78,12 @@ const Dashboard: React.FC = () => {
         capitalService.getMovimientosCapital(),
         gastoService.getGastosDelRango(new Date(2024, 0, 1), new Date()),
         obtenerHistorialMantenimiento('all'),
+        lavadoraService.getAllLavadoras()
       ]);
       
       setConfiguracion(configuracionData);
       setPlanes(planesData);
+      setLavadoras(lavadorasData);
       
       // Procesar pedidos básico
       const pedidosPendientes = pedidosData.filter(p => p.status === 'pendiente');
@@ -143,6 +156,12 @@ const Dashboard: React.FC = () => {
       setTotalPedidos(pedidosData.length);
       setTotalGastos(totalGastos);
       setCuentasPorCobrar(cuentasPorCobrar);
+      setCapitalInicial(capitalInicial);
+      setInyeccionesCapital(inyeccionesCapital);
+      setIngresosServicios(ingresosServicios);
+      setGastosGenerales(gastosGenerales);
+      setGastosMantenimiento(gastosMantenimiento);
+      setRetirosCapital(retirosCapital);
       
       // Calcular saldos por medio de pago (incluyendo gastos)
       const saldosCalculados = {
@@ -273,9 +292,33 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleMarcarEntregado = (pedido: Pedido) => {
+    setPedidoParaEntrega(pedido);
+    setMostrarModalEntregaOperativa(true);
+  };
+
   const handleMarcarRecogido = (pedido: Pedido) => {
     setPedidoParaRecogida(pedido);
     setMostrarModalRecogidaOperativa(true);
+  };
+
+  const handleEntregaOperativa = async (entregaData: any) => {
+    if (!pedidoParaEntrega) return;
+
+    try {
+      await entregaOperativaService.procesarEntregaOperativa(
+        pedidoParaEntrega,
+        entregaData,
+        lavadoras
+      );
+      alert('Servicio marcado como entregado exitosamente');
+      setMostrarModalEntregaOperativa(false);
+      setPedidoParaEntrega(null);
+      await cargarDatosSimplificados();
+    } catch (error: any) {
+      console.error('Error al procesar la entrega operativa:', error);
+      alert(error.message || 'Error al procesar la entrega');
+    }
   };
 
   const handleRecogidaOperativa = async (recogidaData: any) => {
@@ -323,48 +366,71 @@ const Dashboard: React.FC = () => {
         </button>
       </div>
 
-      {/* Tarjetas de Resumen Financiero */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow-md p-6 flex items-center space-x-4">
-          <div className="flex-shrink-0 bg-green-100 p-3 rounded-full">
-            <CurrencyDollarIcon className="h-6 w-6 text-green-600" />
-              </div>
-          <div>
-            <p className="text-gray-500 text-sm">Ingresos Reales</p>
-            <p className="text-2xl font-semibold text-gray-900">{formatCurrency(ingresosReales)}</p>
-              </div>
-      </div>
-
-        <div className="bg-white rounded-lg shadow-md p-6 flex items-center space-x-4">
-          <div className="flex-shrink-0 bg-blue-100 p-3 rounded-full">
-            <ClipboardDocumentListIcon className="h-6 w-6 text-blue-600" />
+      {/* Tarjetas de Resumen Financiero - Diseño Compacto */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
+        {/* Capital */}
+        <div className="bg-white rounded-lg shadow-md p-4 flex flex-col items-center text-center">
+          <div className="flex-shrink-0 bg-purple-100 p-2 rounded-full mb-2">
+            <WalletIcon className="h-5 w-5 text-purple-600" />
           </div>
-          <div>
-            <p className="text-gray-500 text-sm">Total Pedidos</p>
-            <p className="text-2xl font-semibold text-gray-900">{totalPedidos}</p>
+          <p className="text-gray-500 text-xs font-medium">Capital</p>
+          <p className="text-lg font-semibold text-gray-900">{formatCurrency(capitalInicial + inyeccionesCapital)}</p>
         </div>
-              </div>
 
-        <div className="bg-white rounded-lg shadow-md p-6 flex items-center space-x-4">
-          <div className="flex-shrink-0 bg-yellow-100 p-3 rounded-full">
-            <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600" />
-              </div>
-          <div>
-            <p className="text-gray-500 text-sm">Total Gastos</p>
-            <p className="text-2xl font-semibold text-gray-900">{formatCurrency(totalGastos)}</p>
-            </div>
+        {/* Servicios */}
+        <div className="bg-white rounded-lg shadow-md p-4 flex flex-col items-center text-center">
+          <div className="flex-shrink-0 bg-green-100 p-2 rounded-full mb-2">
+            <CurrencyDollarIcon className="h-5 w-5 text-green-600" />
           </div>
+          <p className="text-gray-500 text-xs font-medium">Servicios</p>
+          <p className="text-lg font-semibold text-gray-900">{formatCurrency(ingresosServicios)}</p>
+        </div>
 
-        <div className="bg-white rounded-lg shadow-md p-6 flex items-center space-x-4">
-          <div className="flex-shrink-0 bg-blue-100 p-3 rounded-full">
-            <ChartBarIcon className="h-6 w-6 text-blue-600" />
-              </div>
-          <div>
-            <p className="text-gray-500 text-sm">Cuentas por Cobrar</p>
-            <p className="text-2xl font-semibold text-gray-900">{formatCurrency(cuentasPorCobrar)}</p>
-              </div>
-            </div>
+        {/* Total Pedidos */}
+        <div className="bg-white rounded-lg shadow-md p-4 flex flex-col items-center text-center">
+          <div className="flex-shrink-0 bg-blue-100 p-2 rounded-full mb-2">
+            <ClipboardDocumentListIcon className="h-5 w-5 text-blue-600" />
           </div>
+          <p className="text-gray-500 text-xs font-medium">Total Pedidos</p>
+          <p className="text-lg font-semibold text-gray-900">{totalPedidos}</p>
+        </div>
+
+        {/* Gastos */}
+        <div className="bg-white rounded-lg shadow-md p-4 flex flex-col items-center text-center">
+          <div className="flex-shrink-0 bg-red-100 p-2 rounded-full mb-2">
+            <ExclamationTriangleIcon className="h-5 w-5 text-red-600" />
+          </div>
+          <p className="text-gray-500 text-xs font-medium">Gastos</p>
+          <p className="text-lg font-semibold text-gray-900">{formatCurrency(gastosGenerales)}</p>
+        </div>
+
+        {/* Mantenimientos */}
+        <div className="bg-white rounded-lg shadow-md p-4 flex flex-col items-center text-center">
+          <div className="flex-shrink-0 bg-orange-100 p-2 rounded-full mb-2">
+            <ExclamationTriangleIcon className="h-5 w-5 text-orange-600" />
+          </div>
+          <p className="text-gray-500 text-xs font-medium">Mantenimientos</p>
+          <p className="text-lg font-semibold text-gray-900">{formatCurrency(gastosMantenimiento)}</p>
+        </div>
+
+        {/* Retiros */}
+        <div className="bg-white rounded-lg shadow-md p-4 flex flex-col items-center text-center">
+          <div className="flex-shrink-0 bg-yellow-100 p-2 rounded-full mb-2">
+            <ExclamationTriangleIcon className="h-5 w-5 text-yellow-600" />
+          </div>
+          <p className="text-gray-500 text-xs font-medium">Retiros</p>
+          <p className="text-lg font-semibold text-gray-900">{formatCurrency(retirosCapital)}</p>
+        </div>
+
+        {/* Cuentas por Cobrar */}
+        <div className="bg-white rounded-lg shadow-md p-4 flex flex-col items-center text-center">
+          <div className="flex-shrink-0 bg-indigo-100 p-2 rounded-full mb-2">
+            <ChartBarIcon className="h-5 w-5 text-indigo-600" />
+          </div>
+          <p className="text-gray-500 text-xs font-medium">Cuentas por Cobrar</p>
+          <p className="text-lg font-semibold text-gray-900">{formatCurrency(cuentasPorCobrar)}</p>
+        </div>
+      </div>
 
       {/* Saldos por Medio de Pago */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">
@@ -441,7 +507,10 @@ const Dashboard: React.FC = () => {
         pedidosPendientesEntregar={pedidosPendientesEntregar}
         pedidosPendientesRecoger={pedidosPendientesRecoger}
         pedidosCompletadosConSaldo={pedidosCompletadosConSaldo}
-        onMarcarEntregado={() => {}}
+        onMarcarEntregado={(pedidoId: string) => {
+          const pedido = pedidosPendientesEntregar.find(p => p.id === pedidoId);
+          if (pedido) handleMarcarEntregado(pedido);
+        }}
         onMarcarRecogido={(pedidoId: string) => {
           const pedido = pedidosPendientesRecoger.find(p => p.id === pedidoId);
           if (pedido) handleMarcarRecogido(pedido);
@@ -476,6 +545,16 @@ const Dashboard: React.FC = () => {
           onClose={() => setMostrarModalRecogidaOperativa(false)}
           onConfirm={handleRecogidaOperativa}
           isOpen={mostrarModalRecogidaOperativa}
+        />
+      )}
+
+      {pedidoParaEntrega && (
+        <ModalEntregaOperativa
+          pedido={pedidoParaEntrega}
+          onClose={() => setMostrarModalEntregaOperativa(false)}
+          onConfirm={handleEntregaOperativa}
+          isOpen={mostrarModalEntregaOperativa}
+          lavadoras={lavadoras}
         />
       )}
     </div>

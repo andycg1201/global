@@ -14,6 +14,7 @@ import {
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { pedidoService, gastoService, planService, clienteService } from '../services/firebaseService';
+import { ModificacionesService } from '../services/modificacionesService';
 import { Pedido, Gasto, Plan, Cliente } from '../types';
 import { formatDate, formatCurrency, getCurrentDateColombia } from '../utils/dateUtils';
 
@@ -41,6 +42,13 @@ const Reportes: React.FC = () => {
   const [planes, setPlanes] = useState<Plan[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(false);
+  const [analisisPlanes, setAnalisisPlanes] = useState<any[]>([]);
+  const [totalModificaciones, setTotalModificaciones] = useState({
+    horasExtras: 0,
+    cobrosAdicionales: 0,
+    descuentos: 0,
+    total: 0
+  });
 
   useEffect(() => {
     cargarDatosIniciales();
@@ -65,34 +73,49 @@ const Reportes: React.FC = () => {
 
   const cargarReporte = async () => {
     setLoading(true);
+    console.log('🔄 Iniciando carga de reporte...');
     try {
       // Cargar pedidos del rango de fechas
       const pedidosPromises = [];
       const fechaActual = new Date(filtros.fechaInicio);
       const fechaFin = new Date(filtros.fechaFin);
       
+      console.log('📅 Rango de fechas:', fechaActual.toDateString(), 'a', fechaFin.toDateString());
+      
       while (fechaActual <= fechaFin) {
         pedidosPromises.push(pedidoService.getPedidosDelDia(new Date(fechaActual)));
         fechaActual.setDate(fechaActual.getDate() + 1);
       }
       
+      console.log('📋 Cargando pedidos de', pedidosPromises.length, 'días...');
       const pedidosArrays = await Promise.all(pedidosPromises);
       let todosLosPedidos = pedidosArrays.flat();
+      console.log('📊 Total de pedidos encontrados:', todosLosPedidos.length);
 
       // Aplicar filtros
       if (filtros.estado !== 'todos') {
         todosLosPedidos = todosLosPedidos.filter(p => p.status === filtros.estado);
+        console.log('🔍 Filtrado por estado:', filtros.estado, '- Pedidos restantes:', todosLosPedidos.length);
       }
       if (filtros.planId !== 'todos') {
         todosLosPedidos = todosLosPedidos.filter(p => p.planId === filtros.planId);
+        console.log('🔍 Filtrado por plan:', filtros.planId, '- Pedidos restantes:', todosLosPedidos.length);
       }
       if (filtros.clienteId !== 'todos') {
         todosLosPedidos = todosLosPedidos.filter(p => p.clienteId === filtros.clienteId);
+        console.log('🔍 Filtrado por cliente:', filtros.clienteId, '- Pedidos restantes:', todosLosPedidos.length);
       }
 
       setPedidos(todosLosPedidos);
+      console.log('✅ Pedidos establecidos en estado');
+
+      // Calcular análisis de planes y modificaciones
+      console.log('🔄 Iniciando cálculo de análisis de planes...');
+      await calcularAnalisisPlanes(todosLosPedidos);
+      console.log('✅ Análisis de planes completado');
 
       // Cargar gastos del rango de fechas
+      console.log('🔄 Cargando gastos...');
       const gastosPromises = [];
       const fechaActualGastos = new Date(filtros.fechaInicio);
       
@@ -104,11 +127,109 @@ const Reportes: React.FC = () => {
       const gastosArrays = await Promise.all(gastosPromises);
       const todosLosGastos = gastosArrays.flat();
       setGastos(todosLosGastos);
+      console.log('✅ Gastos cargados:', todosLosGastos.length);
 
     } catch (error) {
-      console.error('Error al cargar reporte:', error);
+      console.error('❌ Error al cargar reporte:', error);
     } finally {
       setLoading(false);
+      console.log('✅ Carga de reporte completada');
+    }
+  };
+
+  const calcularAnalisisPlanes = async (pedidosFiltrados: Pedido[]) => {
+    try {
+      console.log('🔄 Calculando análisis de planes para', pedidosFiltrados.length, 'pedidos');
+      
+      // Agrupar pedidos por plan
+      const planesMap = new Map();
+      
+      for (const pedido of pedidosFiltrados) {
+        const planId = pedido.plan.id;
+        const planName = pedido.plan.name;
+        const planPrice = pedido.plan.price;
+        
+        if (!planesMap.has(planId)) {
+          planesMap.set(planId, {
+            planId,
+            planName,
+            planPrice,
+            cantidad: 0,
+            valorTotal: 0
+          });
+        }
+        
+        const planData = planesMap.get(planId);
+        planData.cantidad += 1;
+        planData.valorTotal += planPrice;
+      }
+      
+      // Convertir a array y ordenar por cantidad
+      const analisisPlanesArray = Array.from(planesMap.values())
+        .sort((a, b) => b.cantidad - a.cantidad);
+      
+      console.log('📊 Análisis de planes calculado:', analisisPlanesArray);
+      setAnalisisPlanes(analisisPlanesArray);
+      
+      // Calcular totales de modificaciones de forma eficiente
+      let totalHorasExtras = 0;
+      let totalCobrosAdicionales = 0;
+      let totalDescuentos = 0;
+      
+      console.log('🔄 Calculando modificaciones...');
+      
+      // Obtener todas las modificaciones en paralelo (con límite para evitar sobrecarga)
+      const modificacionesPromises = pedidosFiltrados.slice(0, 50).map(async (pedido) => {
+        try {
+          return await ModificacionesService.obtenerModificacionPorPedido(pedido.id);
+        } catch (error) {
+          return null;
+        }
+      });
+      
+      const modificaciones = await Promise.all(modificacionesPromises);
+      console.log('📊 Modificaciones obtenidas:', modificaciones.filter(m => m !== null).length);
+      
+      // Procesar modificaciones
+      modificaciones.forEach((modificacion) => {
+        if (modificacion) {
+          // Horas extras (asumiendo $2,000 por hora)
+          totalHorasExtras += (modificacion.horasExtras?.total || 0);
+          
+          // Cobros adicionales
+          totalCobrosAdicionales += modificacion.cobrosAdicionales?.reduce((sum, cobro) => sum + cobro.monto, 0) || 0;
+          
+          // Descuentos
+          totalDescuentos += modificacion.descuentos?.reduce((sum, descuento) => sum + descuento.monto, 0) || 0;
+        }
+      });
+      
+      console.log('💰 Totales calculados:', {
+        horasExtras: totalHorasExtras,
+        cobrosAdicionales: totalCobrosAdicionales,
+        descuentos: totalDescuentos,
+        total: totalHorasExtras + totalCobrosAdicionales - totalDescuentos
+      });
+      
+      setTotalModificaciones({
+        horasExtras: totalHorasExtras,
+        cobrosAdicionales: totalCobrosAdicionales,
+        descuentos: totalDescuentos,
+        total: totalHorasExtras + totalCobrosAdicionales - totalDescuentos
+      });
+      
+      console.log('✅ Análisis de planes completado');
+      
+    } catch (error) {
+      console.error('❌ Error al calcular análisis de planes:', error);
+      // Establecer valores por defecto en caso de error
+      setAnalisisPlanes([]);
+      setTotalModificaciones({
+        horasExtras: 0,
+        cobrosAdicionales: 0,
+        descuentos: 0,
+        total: 0
+      });
     }
   };
 
@@ -630,19 +751,19 @@ const Reportes: React.FC = () => {
                     return (
                       <tr key={clienteName}>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
+              <div className="flex items-center">
                             <div className="flex-shrink-0 h-10 w-10">
                               <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
                                 <span className="text-sm font-medium text-primary-600">
                                   {clienteName.charAt(0).toUpperCase()}
-                                </span>
-                              </div>
-                            </div>
+              </span>
+            </div>
+          </div>
                             <div className="ml-4">
                               <div className="text-sm font-medium text-gray-900">{clienteName}</div>
                               <div className="text-sm text-gray-500">{telefonoCliente}</div>
-                            </div>
-                          </div>
+                  </div>
+                </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           ${serviciosTotales.toLocaleString()}
@@ -676,6 +797,105 @@ const Reportes: React.FC = () => {
         </div>
       </div>
 
+      {/* Análisis de Planes y Modificaciones */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Análisis de Planes */}
+        <div className="card">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Análisis de Planes</h3>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Plan
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Cantidad
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Valor Total
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {analisisPlanes.map((plan) => (
+                  <tr key={plan.planId}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-10 w-10">
+                          <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                            <span className="text-sm font-medium text-blue-600">
+                              {plan.planName.charAt(plan.planName.length - 1)}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">{plan.planName}</div>
+                          <div className="text-sm text-gray-500">${plan.planPrice.toLocaleString()}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {plan.cantidad} servicios
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      ${plan.valorTotal.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Totales de Modificaciones */}
+        <div className="card">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Totales de Modificaciones</h3>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center p-4 bg-green-50 rounded-lg">
+              <div className="flex items-center">
+                <ClockIcon className="h-5 w-5 text-green-600 mr-2" />
+                <span className="text-sm font-medium text-gray-900">Horas Extras</span>
+              </div>
+              <span className="text-lg font-semibold text-green-600">
+                ${totalModificaciones.horasExtras.toLocaleString()}
+              </span>
+            </div>
+            
+            <div className="flex justify-between items-center p-4 bg-blue-50 rounded-lg">
+              <div className="flex items-center">
+                <CurrencyDollarIcon className="h-5 w-5 text-blue-600 mr-2" />
+                <span className="text-sm font-medium text-gray-900">Cobros Adicionales</span>
+              </div>
+              <span className="text-lg font-semibold text-blue-600">
+                ${totalModificaciones.cobrosAdicionales.toLocaleString()}
+              </span>
+            </div>
+            
+            <div className="flex justify-between items-center p-4 bg-red-50 rounded-lg">
+              <div className="flex items-center">
+                <ExclamationTriangleIcon className="h-5 w-5 text-red-600 mr-2" />
+                <span className="text-sm font-medium text-gray-900">Descuentos</span>
+              </div>
+              <span className="text-lg font-semibold text-red-600">
+                -${totalModificaciones.descuentos.toLocaleString()}
+              </span>
+            </div>
+            
+            <div className="border-t pt-4">
+              <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center">
+                  <ChartBarIcon className="h-5 w-5 text-gray-600 mr-2" />
+                  <span className="text-sm font-medium text-gray-900">Total Modificaciones</span>
+                </div>
+                <span className="text-xl font-bold text-gray-900">
+                  ${totalModificaciones.total.toLocaleString()}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {pedidos.length === 0 && !loading && (
         <div className="card text-center py-12">

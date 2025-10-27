@@ -171,10 +171,10 @@ const ModalRecogidaOperativa: React.FC<ModalRecogidaOperativaProps> = ({
               </div>
               
               {/* Lavadora */}
-              {pedido.lavadora && (
+              {pedido.lavadoraId && (
                 <div className="flex items-center space-x-2 sm:col-span-2">
                   <span className="text-xs sm:text-sm text-blue-800">
-                    <strong>Lavadora:</strong> {pedido.lavadora.numero} - {pedido.lavadora.marca} {pedido.lavadora.modelo}
+                    <strong>Lavadora:</strong> {pedido.lavadoraId}
                   </span>
                 </div>
               )}

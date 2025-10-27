@@ -9,8 +9,9 @@ import {
   BanknotesIcon
 } from '@heroicons/react/24/outline';
 import { Pedido, PagoRealizado } from '../types';
-import { pedidoService, configService, planService } from '../services/firebaseService';
+import { pedidoService, configService, planService, gastoService } from '../services/firebaseService';
 import { capitalService } from '../services/capitalService';
+import { obtenerHistorialMantenimiento } from '../services/mantenimientoService';
 import { formatCurrency } from '../utils/dateUtils';
 import { useAuth } from '../contexts/AuthContext';
 import ModalModificacionesServicio from '../components/ModalModificacionesServicio';
@@ -58,12 +59,14 @@ const Dashboard: React.FC = () => {
       console.log('🔄 Cargando datos simplificados...');
       
       // Obtener datos básicos
-      const [pedidosData, configuracionData, planesData, capitalInicialData, movimientosCapitalData] = await Promise.all([
+      const [pedidosData, configuracionData, planesData, capitalInicialData, movimientosCapitalData, gastosData, mantenimientosData] = await Promise.all([
         pedidoService.getAllPedidos(),
         configService.getConfiguracion(),
         planService.getActivePlans(),
         capitalService.getCapitalInicial(),
-        capitalService.getMovimientosCapital()
+        capitalService.getMovimientosCapital(),
+        gastoService.getGastosDelRango(new Date(2024, 0, 1), new Date()),
+        obtenerHistorialMantenimiento('all'),
       ]);
       
       setConfiguracion(configuracionData);
@@ -99,6 +102,20 @@ const Dashboard: React.FC = () => {
         .filter(mov => mov.tipo === 'inyeccion')
         .reduce((sum, mov) => sum + (mov.efectivo + mov.nequi + mov.daviplata), 0);
       
+      // Calcular gastos totales
+      const gastosGenerales = gastosData.reduce((sum, gasto) => sum + gasto.amount, 0);
+      
+      // Calcular gastos de mantenimiento
+      const gastosMantenimiento = mantenimientosData.reduce((sum, mantenimiento) => sum + (mantenimiento.costoReparacion || 0), 0);
+      
+      // Retiros de capital
+      const retirosCapital = movimientosCapitalData
+        .filter(mov => mov.tipo === 'retiro')
+        .reduce((sum, mov) => sum + (mov.efectivo + mov.nequi + mov.daviplata), 0);
+      
+      // Total gastos = Gastos Generales + Mantenimientos + Retiros de Capital
+      const totalGastos = gastosGenerales + gastosMantenimiento + retirosCapital;
+      
       // Ingresos reales = Servicios + Capital Inicial + Inyecciones
       const ingresosReales = ingresosServicios + capitalInicial + inyeccionesCapital;
       
@@ -107,6 +124,13 @@ const Dashboard: React.FC = () => {
         capitalInicial: capitalInicial,
         inyeccionesCapital: inyeccionesCapital,
         ingresosReales: ingresosReales
+      });
+      
+      console.log('💸 Desglose de Gastos:', {
+        gastosGenerales: gastosGenerales,
+        gastosMantenimiento: gastosMantenimiento,
+        retirosCapital: retirosCapital,
+        totalGastos: totalGastos
       });
 
       const cuentasPorCobrar = pedidosData.reduce((sum, pedido) => {
@@ -117,13 +141,14 @@ const Dashboard: React.FC = () => {
       
       setIngresosReales(ingresosReales);
       setTotalPedidos(pedidosData.length);
+      setTotalGastos(totalGastos);
       setCuentasPorCobrar(cuentasPorCobrar);
       
-      // Calcular saldos por medio de pago (simplificado)
+      // Calcular saldos por medio de pago (incluyendo gastos)
       const saldosCalculados = {
-        efectivo: { ingresos: 500000, gastos: 0, saldo: 500000 },
-        nequi: { ingresos: 500000, gastos: 0, saldo: 500000 },
-        daviplata: { ingresos: 500000, gastos: 0, saldo: 500000 }
+        efectivo: { ingresos: capitalInicialData?.efectivo || 0, gastos: 0, saldo: capitalInicialData?.efectivo || 0 },
+        nequi: { ingresos: capitalInicialData?.nequi || 0, gastos: 0, saldo: capitalInicialData?.nequi || 0 },
+        daviplata: { ingresos: capitalInicialData?.daviplata || 0, gastos: 0, saldo: capitalInicialData?.daviplata || 0 }
       };
       
       // Procesar pagos reales
@@ -132,13 +157,51 @@ const Dashboard: React.FC = () => {
           pedido.pagosRealizados.forEach(pago => {
             const medioPago = pago.medioPago || 'efectivo';
             if (medioPago === 'efectivo') {
-                saldosCalculados.efectivo.ingresos += pago.monto;
+              saldosCalculados.efectivo.ingresos += pago.monto;
             } else if (medioPago === 'nequi') {
-                saldosCalculados.nequi.ingresos += pago.monto;
+              saldosCalculados.nequi.ingresos += pago.monto;
             } else if (medioPago === 'daviplata') {
-                saldosCalculados.daviplata.ingresos += pago.monto;
+              saldosCalculados.daviplata.ingresos += pago.monto;
             }
           });
+        }
+      });
+      
+      // Procesar gastos generales
+      gastosData.forEach(gasto => {
+        const medioPago = gasto.medioPago || 'efectivo';
+        if (medioPago === 'efectivo') {
+          saldosCalculados.efectivo.gastos += gasto.amount;
+        } else if (medioPago === 'nequi') {
+          saldosCalculados.nequi.gastos += gasto.amount;
+        } else if (medioPago === 'daviplata') {
+          saldosCalculados.daviplata.gastos += gasto.amount;
+        }
+      });
+      
+      // Procesar gastos de mantenimiento
+      mantenimientosData.forEach(mantenimiento => {
+        const medioPago = mantenimiento.medioPago || 'efectivo';
+        const costo = mantenimiento.costoReparacion || 0;
+        if (medioPago === 'efectivo') {
+          saldosCalculados.efectivo.gastos += costo;
+        } else if (medioPago === 'nequi') {
+          saldosCalculados.nequi.gastos += costo;
+        } else if (medioPago === 'daviplata') {
+          saldosCalculados.daviplata.gastos += costo;
+        }
+      });
+      
+      // Procesar movimientos de capital
+      movimientosCapitalData.forEach(mov => {
+        if (mov.tipo === 'inyeccion') {
+          saldosCalculados.efectivo.ingresos += mov.efectivo;
+          saldosCalculados.nequi.ingresos += mov.nequi;
+          saldosCalculados.daviplata.ingresos += mov.daviplata;
+        } else if (mov.tipo === 'retiro') {
+          saldosCalculados.efectivo.gastos += mov.efectivo;
+          saldosCalculados.nequi.gastos += mov.nequi;
+          saldosCalculados.daviplata.gastos += mov.daviplata;
         }
       });
       

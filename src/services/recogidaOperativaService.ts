@@ -34,7 +34,7 @@ class RecogidaOperativaService {
         status: 'recogido',
         fechaRecogida: data.fechaRecogida,
         horaRecogida: data.horaRecogida,
-        observacionesRecogida: data.observaciones,
+        observacionRecogida: data.observaciones,
         updatedAt: new Date()
       });
 
@@ -43,7 +43,7 @@ class RecogidaOperativaService {
       return {
         success: true,
         message: 'Recogida registrada exitosamente',
-        pedidoActualizado
+        pedidoActualizado: pedidoActualizado as Pedido
       };
 
     } catch (error) {

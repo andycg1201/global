@@ -18,6 +18,7 @@ import ModalModificacionesServicio from '../components/ModalModificacionesServic
 import ModalPagos from '../components/ModalPagos';
 import ModalRecogidaOperativa from '../components/ModalRecogidaOperativa';
 import ModalEntregaOperativa from '../components/ModalEntregaOperativa';
+import ModalWhatsApp from '../components/ModalWhatsApp';
 import { recogidaOperativaService } from '../services/recogidaOperativaService';
 import { entregaOperativaService } from '../services/entregaOperativaService';
 import PedidosPendientes from '../components/PedidosPendientes';
@@ -57,6 +58,9 @@ const Dashboard: React.FC = () => {
   const [pedidoParaRecogida, setPedidoParaRecogida] = useState<Pedido | null>(null);
   const [mostrarModalEntregaOperativa, setMostrarModalEntregaOperativa] = useState<boolean>(false);
   const [pedidoParaEntrega, setPedidoParaEntrega] = useState<Pedido | null>(null);
+  const [mostrarModalWhatsApp, setMostrarModalWhatsApp] = useState<boolean>(false);
+  const [pedidoParaWhatsApp, setPedidoParaWhatsApp] = useState<Pedido | null>(null);
+  const [fotoEvidenciaWhatsApp, setFotoEvidenciaWhatsApp] = useState<string | null>(null);
 
   // Estados de configuración
   const [configuracion, setConfiguracion] = useState<any>(null);
@@ -333,14 +337,26 @@ const Dashboard: React.FC = () => {
     if (!pedidoParaEntrega) return;
 
     try {
-      await entregaOperativaService.procesarEntregaOperativa(
+      const result = await entregaOperativaService.procesarEntregaOperativa(
         pedidoParaEntrega,
         entregaData,
         lavadoras
       );
-      alert('Servicio marcado como entregado exitosamente');
+      
+      console.log('Dashboard - Entrega operativa exitosa');
+      
+      // Cerrar modal de entrega operativa
       setMostrarModalEntregaOperativa(false);
+      
+      // Abrir modal de WhatsApp directamente con la foto de evidencia
+      setPedidoParaWhatsApp(pedidoParaEntrega);
+      setFotoEvidenciaWhatsApp(entregaData.fotoInstalacion || null);
+      setMostrarModalWhatsApp(true);
+      
+      // Limpiar estado
       setPedidoParaEntrega(null);
+      
+      // Recargar datos
       await cargarDatosSimplificados();
     } catch (error: any) {
       console.error('Error al procesar la entrega operativa:', error);
@@ -582,6 +598,20 @@ const Dashboard: React.FC = () => {
           onConfirm={handleEntregaOperativa}
           isOpen={mostrarModalEntregaOperativa}
           lavadoras={lavadoras}
+        />
+      )}
+
+      {/* Modal de WhatsApp */}
+      {mostrarModalWhatsApp && pedidoParaWhatsApp && (
+        <ModalWhatsApp
+          isOpen={mostrarModalWhatsApp}
+          onClose={() => {
+            setMostrarModalWhatsApp(false);
+            setPedidoParaWhatsApp(null);
+            setFotoEvidenciaWhatsApp(null);
+          }}
+          pedido={pedidoParaWhatsApp}
+          fotoEvidencia={fotoEvidenciaWhatsApp || undefined}
         />
       )}
     </div>

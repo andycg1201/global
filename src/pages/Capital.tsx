@@ -155,70 +155,10 @@ const Capital: React.FC = () => {
         mantenimientosFiltrados = [];
       }
 
-      // Procesar movimientos de ingresos (pagos de pedidos)
+      // Los pagos de servicios se procesan más abajo en pagosPedidosLibro
+      // para evitar duplicación
       const movimientosIngresos: MovimientoLibroDiario[] = [];
-      console.log('🔍 Debug Capital - Total pedidos:', todosLosPedidos.length);
-      
-      todosLosPedidos.forEach(pedido => {
-        if (pedido.pagosRealizados && pedido.pagosRealizados.length > 0) {
-          console.log('💰 Pedido con pagos:', pedido.id, 'Pagos:', pedido.pagosRealizados.length);
-          pedido.pagosRealizados.forEach(pago => {
-            console.log('🔍 Pago raw:', pago);
-            
-            // Manejar diferentes formatos de fecha
-            let fechaPago: Date;
-            if (pago.fecha instanceof Date) {
-              fechaPago = pago.fecha;
-            } else if (pago.fecha && typeof pago.fecha === 'object' && 'toDate' in pago.fecha) {
-              // Firebase Timestamp
-              fechaPago = (pago.fecha as any).toDate();
-            } else if (typeof pago.fecha === 'string') {
-              fechaPago = new Date(pago.fecha);
-            } else {
-              console.log('❌ Formato de fecha no reconocido:', typeof pago.fecha, pago.fecha);
-              return;
-            }
-            
-            console.log('📅 Fecha pago procesada:', fechaPago, 'Válida:', !isNaN(fechaPago.getTime()));
-            
-            if (!isNaN(fechaPago.getTime())) {
-              // Verificar si el pago está en el rango de fechas
-              const fechaInicio = new Date(filtros.fechaInicio);
-              const fechaFin = new Date(filtros.fechaFin);
-              fechaInicio.setHours(0, 0, 0, 0);
-              fechaFin.setHours(23, 59, 59, 999);
-              
-              console.log('📊 Rango fechas:', fechaInicio, 'a', fechaFin);
-              console.log('📊 Fecha pago en rango:', fechaPago >= fechaInicio && fechaPago <= fechaFin);
-              
-              if (fechaPago >= fechaInicio && fechaPago <= fechaFin) {
-                console.log('✅ Agregando ingreso:', pago.monto, pago.medioPago);
-                movimientosIngresos.push({
-                  id: `${pedido.id}-${pago.fecha}`,
-                  fecha: fechaPago,
-                  hora: fechaPago.toLocaleTimeString('es-CO', { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  }),
-                  tipo: 'ingreso',
-                  concepto: `Pago servicio - ${pedido.plan.name}`,
-                  monto: pago.monto,
-                  medioPago: pago.medioPago,
-                  cliente: pedido.cliente.name,
-                  plan: pedido.plan.name,
-                  referencia: pago.referencia,
-                  saldoEfectivo: 0,
-                  saldoNequi: 0,
-                  saldoDaviplata: 0,
-                  saldoTotal: 0
-                });
-              }
-            }
-          });
-        }
-      });
-      
-      console.log('📊 Total ingresos encontrados:', movimientosIngresos.length);
+      console.log('📊 Movimientos de ingresos (pagos procesados más abajo):', movimientosIngresos.length);
 
       // Procesar movimientos de gastos generales
       const movimientosGastos: MovimientoLibroDiario[] = [];
@@ -295,24 +235,40 @@ const Capital: React.FC = () => {
           return fechaA.getTime() - fechaB.getTime();
         });
 
-      // Incluir movimientos de capital en el libro diario
-      const movimientosCapitalLibro: MovimientoLibroDiario[] = movimientosCapitalData.map(mov => ({
-        id: `capital-${mov.id}`,
-        fecha: mov.fecha,
-        hora: mov.fecha.toLocaleTimeString('es-CO', { 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        }),
-        tipo: mov.tipo === 'inyeccion' ? 'ingreso' as const : 'gasto' as const,
-        concepto: `${mov.tipo === 'inyeccion' ? 'Inyección' : 'Retiro'} de Capital - ${mov.concepto}`,
-        monto: mov.efectivo + mov.nequi + mov.daviplata,
-        medioPago: 'efectivo' as const, // Se mostrará como efectivo pero se procesará por separado
-        referencia: mov.observaciones || '',
-        saldoEfectivo: 0,
-        saldoNequi: 0,
-        saldoDaviplata: 0,
-        saldoTotal: 0
-      }));
+      // Incluir movimientos de capital en el libro diario (excluyendo pagos de servicios)
+      const movimientosCapitalLibro: MovimientoLibroDiario[] = movimientosCapitalData
+        .filter(mov => {
+          // Excluir movimientos que son pagos de servicios
+          const esPagoServicio = mov.concepto.includes('Pago servicio') || 
+                                mov.concepto.includes('servicio') ||
+                                mov.observaciones?.includes('servicio') ||
+                                mov.observaciones?.includes('Pago');
+          console.log('🔍 Filtro movimiento capital:', {
+            id: mov.id,
+            concepto: mov.concepto,
+            observaciones: mov.observaciones,
+            esPagoServicio,
+            incluir: !esPagoServicio
+          });
+          return !esPagoServicio;
+        })
+        .map(mov => ({
+          id: `capital-${mov.id}`,
+          fecha: mov.fecha,
+          hora: mov.fecha.toLocaleTimeString('es-CO', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          }),
+          tipo: mov.tipo === 'inyeccion' ? 'ingreso' as const : 'gasto' as const,
+          concepto: `${mov.tipo === 'inyeccion' ? 'Inyección' : 'Retiro'} de Capital - ${mov.concepto}`,
+          monto: mov.efectivo + mov.nequi + mov.daviplata,
+          medioPago: 'efectivo' as const, // Se mostrará como efectivo pero se procesará por separado
+          referencia: mov.observaciones || '',
+          saldoEfectivo: 0,
+          saldoNequi: 0,
+          saldoDaviplata: 0,
+          saldoTotal: 0
+        }));
 
       // Incluir capital inicial si existe
       const capitalInicialLibro: MovimientoLibroDiario[] = capitalInicialData ? [{
@@ -332,11 +288,53 @@ const Capital: React.FC = () => {
         saldoDaviplata: 0,
         saldoTotal: 0
       }] : [];
+
+      // Incluir pagos de pedidos en el libro diario
+      const pagosPedidosLibro: MovimientoLibroDiario[] = [];
+      todosLosPedidos.forEach(pedido => {
+        if (pedido.pagosRealizados && pedido.pagosRealizados.length > 0) {
+          pedido.pagosRealizados.forEach((pago, index) => {
+            // Verificar que el pago esté en el rango de fechas
+            let fechaPago: Date;
+            if (pago.fecha instanceof Date) {
+              fechaPago = pago.fecha;
+            } else if (pago.fecha && typeof pago.fecha === 'object' && 'toDate' in pago.fecha) {
+              fechaPago = (pago.fecha as any).toDate();
+            } else {
+              fechaPago = new Date(pago.fecha);
+            }
+            
+            if (fechaPago >= filtros.fechaInicio && fechaPago <= filtros.fechaFin) {
+              pagosPedidosLibro.push({
+                id: `pago-${pedido.id}-${index}`,
+                fecha: fechaPago,
+                hora: fechaPago.toLocaleTimeString('es-CO', { 
+                  hour: '2-digit', 
+                  minute: '2-digit' 
+                }),
+                tipo: 'ingreso' as const,
+                concepto: `Pago servicio - ${pedido.plan.name}`,
+                monto: pago.monto,
+                medioPago: (pago.medioPago || 'efectivo') as 'efectivo' | 'nequi' | 'daviplata',
+                cliente: pedido.cliente.name,
+                plan: pedido.plan.name,
+                referencia: '',
+                saldoEfectivo: 0,
+                saldoNequi: 0,
+                saldoDaviplata: 0,
+                saldoTotal: 0
+              });
+            }
+          });
+        }
+      });
       
       console.log('🔍 Debug Capital - Capital inicial libro:', capitalInicialLibro);
+      console.log('🔍 Debug Capital - Movimientos capital libro:', movimientosCapitalLibro);
+      console.log('🔍 Debug Capital - Pagos de pedidos libro:', pagosPedidosLibro);
 
-      // Combinar todos los movimientos incluyendo capital
-      const todosLosMovimientosCompletos = [...movimientosIngresos, ...movimientosGastos, ...capitalInicialLibro, ...movimientosCapitalLibro]
+      // Combinar todos los movimientos incluyendo capital y pagos de pedidos
+      const todosLosMovimientosCompletos = [...movimientosIngresos, ...movimientosGastos, ...capitalInicialLibro, ...movimientosCapitalLibro, ...pagosPedidosLibro]
         .sort((a, b) => {
           const fechaA = new Date(a.fecha);
           const fechaB = new Date(b.fecha);
@@ -380,6 +378,17 @@ const Capital: React.FC = () => {
               saldoNequi -= movCapital.nequi;
               saldoDaviplata -= movCapital.daviplata;
             }
+          }
+        } else if (movimiento.id.startsWith('pago-')) {
+          console.log('💰 Procesando pago de pedido:', movimiento.tipo, movimiento.monto, movimiento.medioPago);
+          // Pagos de pedidos
+          const medioPagoReal = movimiento.medioPago || 'efectivo';
+          if (medioPagoReal === 'efectivo') {
+            saldoEfectivo += movimiento.monto;
+          } else if (medioPagoReal === 'nequi') {
+            saldoNequi += movimiento.monto;
+          } else if (medioPagoReal === 'daviplata') {
+            saldoDaviplata += movimiento.monto;
           }
         } else {
           console.log('💰 Procesando movimiento normal:', movimiento.tipo, movimiento.monto, movimiento.medioPago);
@@ -697,9 +706,6 @@ const Capital: React.FC = () => {
                     Monto
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Medio Pago
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Cliente/Plan
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -737,12 +743,6 @@ const Capital: React.FC = () => {
                       <span className={getTipoColor(mov.tipo)}>
                         {mov.tipo === 'ingreso' ? '+' : '-'}{formatCurrency(mov.monto)}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                      <div className="flex items-center space-x-2">
-                        {getMedioPagoIcon(mov.medioPago)}
-                        <span className="capitalize">{mov.medioPago}</span>
-                      </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500">
                       {mov.cliente && (

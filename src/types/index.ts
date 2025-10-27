@@ -67,14 +67,51 @@ export interface ModificacionPedido {
   updatedAt: Date;
 }
 
-// Tipos de resumen de modificaciones
-export interface ResumenModificaciones {
+// Sistema de modificaciones unificado
+export interface ModificacionServicio {
+  id: string;
+  pedidoId: string;
+  
+  // Horas extras
+  horasExtras: {
+    cantidad: number;
+    precioUnitario: number;
+    total: number;
+  };
+  
+  // Cobros adicionales
+  cobrosAdicionales: Array<{
+    concepto: string;
+    monto: number;
+  }>;
+  
+  // Descuentos
+  descuentos: Array<{
+    concepto: string;
+    monto: number;
+  }>;
+  
+  // Cambio de plan
+  cambioPlan?: {
+    planAnterior: string;
+    planNuevo: string;
+    diferencia: number; // positivo si aumenta, negativo si disminuye
+  };
+  
+  // Observaciones generales
+  observaciones: string;
+  
+  // Totales calculados
   totalHorasExtras: number;
   totalCobrosAdicionales: number;
   totalDescuentos: number;
-  totalReembolsos: number;
-  montoTotalModificaciones: number;
-  modificaciones: ModificacionPedido[];
+  totalModificaciones: number; // horas + cobros - descuentos + diferencia plan
+  
+  // Metadatos
+  aplicadoPor: string;
+  fecha: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // Tipos de descuento
@@ -162,7 +199,6 @@ export interface Pedido {
   
   // Sistema de modificaciones dinámicas
   modificaciones?: ModificacionPedido[]; // historial de modificaciones al pedido
-  resumenModificaciones?: ResumenModificaciones; // resumen calculado de modificaciones
   
   // Gestión de lavadoras
   lavadoraAsignada?: {

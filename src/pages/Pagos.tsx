@@ -503,8 +503,8 @@ const Pagos: React.FC = () => {
                         <p className="text-xs text-gray-500">Ref: {pago.referencia}</p>
                       )}
                       <div className="flex items-center space-x-2 mt-1">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getBadgeColor(pago.medioPago)}`}>
-                          {getIcon(pago.medioPago)} {pago.medioPago.charAt(0).toUpperCase() + pago.medioPago.slice(1)}
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getBadgeColor(pago.medioPago || 'efectivo')}`}>
+                          {getIcon(pago.medioPago || 'efectivo')} {(pago.medioPago || 'efectivo').charAt(0).toUpperCase() + (pago.medioPago || 'efectivo').slice(1)}
                         </span>
                         {pago.isPartial && (
                           <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full">

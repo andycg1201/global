@@ -15,6 +15,7 @@ import { pedidoService, configService, lavadoraService } from '../services/fireb
 import { entregaOperativaService } from '../services/entregaOperativaService';
 import { recogidaOperativaService } from '../services/recogidaOperativaService';
 import { modificacionesService } from '../services/modificacionesService';
+import { useAuth } from '../contexts/AuthContext';
 import { Pedido } from '../types';
 import { formatDate, formatCurrency, calculatePickupDate, getCurrentDateColombia } from '../utils/dateUtils';
 import NuevoPedido from './NuevoPedido';
@@ -25,9 +26,8 @@ import ModalLiquidacionUniversal from '../components/ModalLiquidacionUniversal';
 import ModalEntregaOperativa from '../components/ModalEntregaOperativa';
 import ModalFotoInstalacion from '../components/ModalFotoInstalacion';
 import ModalWhatsApp from '../components/ModalWhatsApp';
-import ModalHorasExtras from '../components/ModalHorasExtras';
-import ModalCobrosAdicionales from '../components/ModalCobrosAdicionales';
-import ModalDescuentos from '../components/ModalDescuentos';
+import ModalModificacionesServicio from '../components/ModalModificacionesServicio';
+import ModalPagos from '../components/ModalPagos';
 import ResumenFinalServicio from '../components/ResumenFinalServicio';
 import CalendarioHorarios from '../components/CalendarioHorarios';
 import EstadoLavadorasModal from '../components/EstadoLavadorasModal';
@@ -40,6 +40,7 @@ interface FiltrosPedidos {
 }
 
 const Pedidos: React.FC = () => {
+  const { firebaseUser } = useAuth();
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
@@ -79,24 +80,40 @@ const Pedidos: React.FC = () => {
   const [fotoEvidenciaWhatsApp, setFotoEvidenciaWhatsApp] = useState<string | null>(null);
   
   // Estados para modales de modificaciones dinámicas
-  const [mostrarModalHorasExtras, setMostrarModalHorasExtras] = useState(false);
-  const [mostrarModalCobrosAdicionales, setMostrarModalCobrosAdicionales] = useState(false);
-  const [mostrarModalDescuentos, setMostrarModalDescuentos] = useState(false);
+  const [mostrarModalModificaciones, setMostrarModalModificaciones] = useState(false);
   const [mostrarResumenFinal, setMostrarResumenFinal] = useState(false);
   const [pedidoParaModificar, setPedidoParaModificar] = useState<Pedido | null>(null);
   
+  // Estados para pagos
+  const [mostrarModalPagos, setMostrarModalPagos] = useState(false);
+  const [pedidoParaPago, setPedidoParaPago] = useState<Pedido | null>(null);
+  
+  // Estados para planes
+  const [planes, setPlanes] = useState<any[]>([]);
+  
   
   const [filtros, setFiltros] = useState<FiltrosPedidos>({
-    fechaInicio: getCurrentDateColombia(),
-    fechaFin: getCurrentDateColombia(),
+    fechaInicio: (() => {
+      const hoy = getCurrentDateColombia();
+      const inicioSemana = new Date(hoy);
+      inicioSemana.setDate(hoy.getDate() - hoy.getDay()); // Lunes de esta semana
+      return inicioSemana;
+    })(),
+    fechaFin: (() => {
+      const hoy = getCurrentDateColombia();
+      const finSemana = new Date(hoy);
+      finSemana.setDate(hoy.getDate() + (6 - hoy.getDay())); // Domingo de esta semana
+      return finSemana;
+    })(),
     estado: 'todos',
-    tipoFiltro: 'semana' // Cambiar de 'hoy' a 'semana' para incluir más días
+    tipoFiltro: 'semana'
   });
 
   useEffect(() => {
     cargarPedidos();
     cargarConfiguracion();
     cargarLavadoras();
+    cargarPlanes();
   }, [filtros]);
 
   const cargarPedidos = async () => {
@@ -160,6 +177,16 @@ const Pedidos: React.FC = () => {
       await sincronizarLavadorasHuerfanas(lavadorasData);
     } catch (error) {
       console.error('Error al cargar lavadoras:', error);
+    }
+  };
+
+  const cargarPlanes = async () => {
+    try {
+      const { planService } = await import('../services/firebaseService');
+      const planesData = await planService.getActivePlans();
+      setPlanes(planesData);
+    } catch (error) {
+      console.error('Error al cargar planes:', error);
     }
   };
 
@@ -684,54 +711,26 @@ const Pedidos: React.FC = () => {
               onClick={(e) => {
                 e.stopPropagation();
                 setPedidoParaModificar(pedido);
-                setMostrarModalHorasExtras(true);
-              }}
-              className="px-2 py-1 text-xs font-medium text-white bg-orange-500 hover:bg-orange-600 rounded transition-colors"
-              title="Agregar horas extras"
-            >
-              +Horas
-            </button>
-            
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setPedidoParaModificar(pedido);
-                setMostrarModalCobrosAdicionales(true);
+                setMostrarModalModificaciones(true);
               }}
               className="px-2 py-1 text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 rounded transition-colors"
-              title="Agregar cobro adicional"
+              title="Modificar servicio (horas extras, cobros, descuentos, cambio de plan)"
             >
-              +Cobro
+              Modificar
             </button>
             
+            {/* Botón de pagos */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                setPedidoParaModificar(pedido);
-                setMostrarModalDescuentos(true);
+                handleRegistrarPago(pedido);
               }}
-              className="px-2 py-1 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded transition-colors"
-              title="Aplicar descuento"
+              className="px-2 py-1 text-xs font-medium text-white bg-green-500 hover:bg-green-600 rounded transition-colors"
+              title="Registrar pago"
             >
-              -Desc
+              💰
             </button>
           </div>
-          {/* Badge de liquidación en esquina */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!isPagado) {
-                setPedidoALiquidar(pedido);
-                setMostrarModalLiquidacionUniversal(true);
-              }
-            }}
-            className={`absolute -top-1 -right-1 w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center transition-all hover:scale-110 ${
-              isPagado ? 'bg-green-500 text-white' : 'bg-yellow-500 text-white'
-            }`}
-            title={isPagado ? 'Pagado' : `Liquidar: ${formatCurrency(saldoPendiente)}`}
-          >
-            {isPagado ? '✓' : '💰'}
-          </button>
         </div>
       );
     } else if (pedido.status === 'recogido') {
@@ -1021,14 +1020,14 @@ const Pedidos: React.FC = () => {
           // Mostrar resumen final del servicio
           setPedidoParaModificar(pedidoActualizado);
           setMostrarResumenFinal(true);
-          
-          // Limpiar estado
-          setPedidoAValidar(null);
-          
-          // Recargar datos
-          cargarPedidos();
-          cargarLavadoras();
-          window.dispatchEvent(new CustomEvent('pagoRealizado')); // Notificar al dashboard
+      
+      // Limpiar estado
+      setPedidoAValidar(null);
+      
+      // Recargar datos
+      cargarPedidos();
+      cargarLavadoras();
+      window.dispatchEvent(new CustomEvent('pagoRealizado')); // Notificar al dashboard
         },
         onError: (error) => {
           alert(error);
@@ -1042,84 +1041,36 @@ const Pedidos: React.FC = () => {
   };
 
   // Funciones para manejar modificaciones dinámicas
-  const handleAgregarHorasExtras = async (data: any) => {
+  // Función para manejar modificaciones del servicio
+  const handleModificacionesServicio = async () => {
     if (!pedidoParaModificar) return;
-
+    
     try {
-      await modificacionesService.crearModificacion({
-        pedidoId: pedidoParaModificar.id,
-        tipo: 'horas_extras',
-        concepto: data.concepto,
-        descripcion: data.motivo,
-        monto: data.monto,
-        cantidad: data.cantidad,
-        precioUnitario: data.precioUnitario,
-        aplicadoPor: 'admin' // TODO: obtener del contexto de usuario
-      });
-
-      setMostrarModalHorasExtras(false);
-      setPedidoParaModificar(null);
-      
-      // Recargar datos
-      cargarPedidos();
-      alert('Horas extras agregadas exitosamente');
+      await cargarPedidos();
+      alert('Modificaciones aplicadas exitosamente');
     } catch (error) {
-      console.error('Error al agregar horas extras:', error);
-      alert('Error al agregar horas extras');
+      console.error('Pedidos - Error al aplicar modificaciones:', error);
+      alert('Error al aplicar modificaciones: ' + (error instanceof Error ? error.message : 'Error desconocido'));
     }
   };
 
-  const handleAgregarCobroAdicional = async (data: any) => {
-    if (!pedidoParaModificar) return;
+  // Funciones para manejar pagos
+  const handleRegistrarPago = (pedido: Pedido) => {
+    setPedidoParaPago(pedido);
+    setMostrarModalPagos(true);
+  };
 
+  const handlePagoRealizado = async () => {
     try {
-      await modificacionesService.crearModificacion({
-        pedidoId: pedidoParaModificar.id,
-        tipo: 'cobro_adicional',
-        concepto: data.concepto,
-        descripcion: data.descripcion,
-        monto: data.monto,
-        motivo: data.motivo,
-        aplicadoPor: 'admin' // TODO: obtener del contexto de usuario
-      });
-
-      setMostrarModalCobrosAdicionales(false);
-      setPedidoParaModificar(null);
-      
-      // Recargar datos
-      cargarPedidos();
-      alert('Cobro adicional agregado exitosamente');
+      await cargarPedidos();
+      alert('Pago registrado exitosamente');
     } catch (error) {
-      console.error('Error al agregar cobro adicional:', error);
-      alert('Error al agregar cobro adicional');
+      console.error('Pedidos - Error al registrar pago:', error);
+      alert('Error al registrar pago: ' + (error instanceof Error ? error.message : 'Error desconocido'));
     }
   };
 
-  const handleAplicarDescuento = async (data: any) => {
-    if (!pedidoParaModificar) return;
 
-    try {
-      await modificacionesService.crearModificacion({
-        pedidoId: pedidoParaModificar.id,
-        tipo: 'descuento',
-        concepto: data.concepto,
-        descripcion: data.descripcion,
-        monto: data.monto, // Ya viene negativo desde el modal
-        motivo: data.motivo,
-        aplicadoPor: 'admin' // TODO: obtener del contexto de usuario
-      });
-
-      setMostrarModalDescuentos(false);
-      setPedidoParaModificar(null);
-      
-      // Recargar datos
-      cargarPedidos();
-      alert('Descuento aplicado exitosamente');
-    } catch (error) {
-      console.error('Error al aplicar descuento:', error);
-      alert('Error al aplicar descuento');
-    }
-  };
 
   if (loading) {
     return (
@@ -2022,41 +1973,30 @@ const Pedidos: React.FC = () => {
         />
       )}
 
-      {/* Modales de modificaciones dinámicas */}
-      {mostrarModalHorasExtras && pedidoParaModificar && (
-        <ModalHorasExtras
-          isOpen={mostrarModalHorasExtras}
+      {/* Modal de modificaciones unificado */}
+      {mostrarModalModificaciones && pedidoParaModificar && (
+        <ModalModificacionesServicio
+          isOpen={mostrarModalModificaciones}
           onClose={() => {
-            setMostrarModalHorasExtras(false);
+            setMostrarModalModificaciones(false);
             setPedidoParaModificar(null);
           }}
-          onConfirm={handleAgregarHorasExtras}
           pedido={pedidoParaModificar}
-          precioHoraAdicional={configuracion?.horaAdicional || 2000}
+          planes={planes}
+          onModificacionAplicada={handleModificacionesServicio}
         />
       )}
 
-      {mostrarModalCobrosAdicionales && pedidoParaModificar && (
-        <ModalCobrosAdicionales
-          isOpen={mostrarModalCobrosAdicionales}
+      {/* Modal de Pagos */}
+      {pedidoParaPago && (
+        <ModalPagos
+          isOpen={mostrarModalPagos}
           onClose={() => {
-            setMostrarModalCobrosAdicionales(false);
-            setPedidoParaModificar(null);
+            setMostrarModalPagos(false);
+            setPedidoParaPago(null);
           }}
-          onConfirm={handleAgregarCobroAdicional}
-          pedido={pedidoParaModificar}
-        />
-      )}
-
-      {mostrarModalDescuentos && pedidoParaModificar && (
-        <ModalDescuentos
-          isOpen={mostrarModalDescuentos}
-          onClose={() => {
-            setMostrarModalDescuentos(false);
-            setPedidoParaModificar(null);
-          }}
-          onConfirm={handleAplicarDescuento}
-          pedido={pedidoParaModificar}
+          pedido={pedidoParaPago}
+          onPagoRealizado={handlePagoRealizado}
         />
       )}
 

@@ -4,6 +4,7 @@ import { Pedido, Lavadora } from '../types';
 import { storageService } from '../services/storageService';
 
 // Usaremos html5-qrcode para escanear con la cámara
+// Se importa de forma dinámica para evitar problemas en SSR/build si no existe window
 let Html5Qrcode: any;
 
 interface ModalEntregaOperativaProps {
@@ -30,6 +31,7 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
 }) => {
   const [lavadoraEscaneada, setLavadoraEscaneada] = useState<string>('');
   const [fotoInstalacion, setFotoInstalacion] = useState<string>('');
+  const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [observacionesInstalacion, setObservacionesInstalacion] = useState<string>('');
   const [recogidaPrioritaria, setRecogidaPrioritaria] = useState<boolean>(false);
   const [horaRecogida, setHoraRecogida] = useState<string>('');
@@ -37,25 +39,15 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<string>('');
   const [error, setError] = useState<string>('');
-  const scannerRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Cargar html5-qrcode dinámicamente
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      import('html5-qrcode').then((module) => {
-        Html5Qrcode = module.default;
-        console.log('Html5Qrcode cargado correctamente');
-      }).catch((error) => {
-        console.error('Error al cargar html5-qrcode:', error);
-      });
-    }
-  }, []);
+  const qrRegionId = 'qr-reader-region';
+  const html5QrCodeRef = useRef<any>(null);
 
   const handleClose = () => {
-    stopScanning();
+    stopScanner();
     setLavadoraEscaneada('');
     setFotoInstalacion('');
+    setFotoFile(null);
     setObservacionesInstalacion('');
     setRecogidaPrioritaria(false);
     setHoraRecogida('');
@@ -65,77 +57,96 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
     onClose();
   };
 
-  const startScanning = async () => {
-    console.log('Iniciando escaneo...');
-    console.log('Html5Qrcode disponible:', !!Html5Qrcode);
-    
-    if (!Html5Qrcode) {
-      setError('Scanner no disponible - librería no cargada');
-      return;
-    }
-
+  const stopScanner = async () => {
     try {
+      if (html5QrCodeRef.current) {
+        await html5QrCodeRef.current.stop();
+        await html5QrCodeRef.current.clear();
+      }
+    } catch {
+      // noop
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const startScanner = async () => {
+    try {
+      if (!Html5Qrcode) {
+        const mod = await import('html5-qrcode');
+        Html5Qrcode = mod.Html5Qrcode || (mod as any).default?.Html5Qrcode;
+      }
+      if (!Html5Qrcode) {
+        alert('No se pudo inicializar el escáner QR');
+        return;
+      }
+      
+      // Primero establecer el estado para que se renderice el elemento
       setIsScanning(true);
-      setError('');
-
-      const scanner = new Html5Qrcode("qr-reader");
-      scannerRef.current = scanner;
-      console.log('Scanner creado:', scanner);
-
-      await scanner.start(
+      
+      // Esperar un momento para que el DOM se actualice
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Verificar que el elemento existe
+      const element = document.getElementById(qrRegionId);
+      if (!element) {
+        alert('No se encontró el elemento para el escáner');
+        setIsScanning(false);
+        return;
+      }
+      
+      const html5QrCode = new Html5Qrcode(qrRegionId);
+      html5QrCodeRef.current = html5QrCode;
+      
+      await html5QrCode.start(
         { facingMode: "environment" },
         {
           fps: 10,
           qrbox: { width: 250, height: 250 }
         },
         (decodedText: string) => {
-          console.log('QR escaneado exitosamente:', decodedText);
+          console.log('QR escaneado:', decodedText);
           setScanResult(decodedText);
           setLavadoraEscaneada(decodedText);
-          stopScanning();
+          stopScanner();
         },
         (error: string) => {
-          console.log('Error de escaneo (normal):', error);
           // No mostrar errores de escaneo continuo
         }
       );
-      console.log('Scanner iniciado correctamente');
     } catch (err) {
       console.error('Error al iniciar scanner:', err);
-      setError(`Error al iniciar la cámara: ${err}`);
+      setError('Error al iniciar la cámara');
       setIsScanning(false);
     }
   };
 
-  const stopScanning = () => {
-    if (scannerRef.current) {
-      scannerRef.current.stop().then(() => {
-        scannerRef.current.clear();
-        scannerRef.current = null;
-        setIsScanning(false);
-      }).catch((err: any) => {
-        console.error('Error al detener scanner:', err);
-        setIsScanning(false);
-      });
-    }
-  };
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const url = await storageService.uploadFile(file, `instalaciones/${pedido.id}`);
-      setFotoInstalacion(url);
-    } catch (error) {
-      console.error('Error al subir foto:', error);
-      setError('Error al subir la foto');
+    if (file) {
+      setFotoFile(file);
+      
+      try {
+        // Subir la foto a Firebase Storage y obtener la URL
+        const url = await storageService.subirFotoInstalacion(file, pedido.id, lavadoraEscaneada);
+        setFotoInstalacion(url);
+      } catch (error) {
+        console.error('Error al subir la foto:', error);
+        alert('Error al subir la foto');
+        setFotoFile(null);
+        setFotoInstalacion('');
+      }
     }
   };
 
   const handleConfirmar = () => {
     if (!lavadoraEscaneada.trim()) {
       setError('Debe escanear el QR de la lavadora');
+      return;
+    }
+
+    if (!fotoFile) {
+      setError('Debe tomar una foto de la instalación como evidencia');
       return;
     }
 
@@ -206,7 +217,7 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
             {!isScanning ? (
               <div className="space-y-4">
                 <button
-                  onClick={startScanning}
+                  onClick={startScanner}
                   className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
                 >
                   <QrCodeIcon className="h-5 w-5" />
@@ -223,9 +234,9 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
               </div>
             ) : (
               <div className="space-y-4">
-                <div id="qr-reader" className="w-full"></div>
+                <div id="qr-reader-region" className="w-full"></div>
                 <button
-                  onClick={stopScanning}
+                  onClick={stopScanner}
                   className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                 >
                   Detener Escaneo
@@ -237,27 +248,39 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
           {/* Foto de instalación */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Foto de Instalación (Opcional)
+              Foto de Instalación (Obligatoria)
             </label>
             <div className="space-y-4">
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
-                onChange={handleFileUpload}
+                capture="environment"
+                onChange={handleFotoChange}
                 className="hidden"
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 transition-colors flex items-center justify-center space-x-2"
+                className={`w-full px-4 py-3 rounded-lg transition-colors flex items-center justify-center space-x-2 ${
+                  fotoFile 
+                    ? 'bg-green-600 text-white hover:bg-green-700' 
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
               >
-                <CameraIcon className="h-5 w-5 text-gray-400" />
-                <span className="text-gray-600">Subir Foto</span>
+                <CameraIcon className="h-5 w-5" />
+                <span>
+                  {fotoFile ? '✅ Foto Tomada' : '📸 Tomar Foto'}
+                </span>
               </button>
               
               {fotoInstalacion && (
-                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-sm text-green-800">Foto subida exitosamente</p>
+                <div className="space-y-2">
+                  <p className="text-sm text-green-600 font-medium">✓ Foto capturada</p>
+                  <img
+                    src={fotoInstalacion}
+                    alt="Foto de instalación"
+                    className="w-full max-w-md h-48 object-cover rounded-lg border"
+                  />
                 </div>
               )}
             </div>
@@ -340,9 +363,9 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
           </button>
           <button
             onClick={handleConfirmar}
-            disabled={!lavadoraEscaneada.trim()}
+            disabled={!lavadoraEscaneada.trim() || !fotoFile}
             className={`w-full sm:w-auto px-6 py-3 rounded-lg transition-colors font-medium ${
-              !lavadoraEscaneada.trim()
+              !lavadoraEscaneada.trim() || !fotoFile
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-blue-600 text-white hover:bg-blue-700'
             }`}

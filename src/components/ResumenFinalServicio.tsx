@@ -84,7 +84,7 @@ const ResumenFinalServicio: React.FC<ResumenFinalServicioProps> = ({
           tipo: 'pago',
           titulo: `Pago ${pago.medioPago}`,
           descripcion: pago.referencia ? `Ref: ${pago.referencia}` : 'Sin referencia',
-          fecha: pago.fechaPago,
+          fecha: pago.fecha,
           monto: pago.monto,
           icono: <CurrencyDollarIcon className="h-5 w-5" />,
           color: 'blue'

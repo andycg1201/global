@@ -63,8 +63,8 @@ export class EntregaOperativaService {
         validacionQR_lavadoraOriginal: pedido.lavadoraAsignada?.codigoQR || '',
         validacionQR_cambioRealizado: false,
         validacionQR_fechaValidacion: new Date(),
-        validacionQR_fotoInstalacion: entregaData.fotoInstalacion,
-        validacionQR_observacionesValidacion: entregaData.observacionesInstalacion,
+        validacionQR_fotoInstalacion: entregaData.fotoInstalacion || '',
+        validacionQR_observacionesValidacion: entregaData.observacionesInstalacion || '',
         
         // Datos de recogida prioritaria (operativa)
         recogidaPrioritaria: entregaData.recogidaPrioritaria || false,
@@ -95,8 +95,8 @@ export class EntregaOperativaService {
       updateData.lavadoraAsignada_codigoQR = lavadoraEscaneada.codigoQR;
       updateData.lavadoraAsignada_marca = lavadoraEscaneada.marca;
       updateData.lavadoraAsignada_modelo = lavadoraEscaneada.modelo;
-      updateData.lavadoraAsignada_fotoInstalacion = entregaData.fotoInstalacion;
-      updateData.lavadoraAsignada_observacionesInstalacion = entregaData.observacionesInstalacion;
+      updateData.lavadoraAsignada_fotoInstalacion = entregaData.fotoInstalacion || '';
+      updateData.lavadoraAsignada_observacionesInstalacion = entregaData.observacionesInstalacion || '';
 
       console.log('EntregaOperativaService - Lavadora marcada como alquilada:', entregaData.lavadoraEscaneada);
 
@@ -116,8 +116,8 @@ export class EntregaOperativaService {
           codigoQR: lavadoraEscaneada.codigoQR,
           marca: lavadoraEscaneada.marca,
           modelo: lavadoraEscaneada.modelo,
-          fotoInstalacion: entregaData.fotoInstalacion,
-          observacionesInstalacion: entregaData.observacionesInstalacion
+          fotoInstalacion: entregaData.fotoInstalacion || '',
+          observacionesInstalacion: entregaData.observacionesInstalacion || ''
         }
       };
 

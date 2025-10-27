@@ -11,26 +11,27 @@ import {
   ChartBarIcon
 } from '@heroicons/react/24/outline';
 import { formatCurrency, formatDate, getCurrentDateColombia } from '../utils/dateUtils';
-import { pedidoService, reporteService, gastoService, clienteService, lavadoraService, configService } from '../services/firebaseService';
+import { pedidoService, reporteService, gastoService, clienteService, lavadoraService, configService, planService } from '../services/firebaseService';
 import { obtenerHistorialMantenimiento } from '../services/mantenimientoService';
 import { capitalService } from '../services/capitalService';
 import { entregaOperativaService } from '../services/entregaOperativaService';
 import { recogidaOperativaService } from '../services/recogidaOperativaService';
 import { modificacionesService } from '../services/modificacionesService';
+import { useAuth } from '../contexts/AuthContext';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Pedido, ReporteDiario, Lavadora, Configuracion } from '../types';
+import { Pedido, ReporteDiario, Lavadora, Configuracion, Plan } from '../types';
 import PedidosPendientes from '../components/PedidosPendientes';
 import ModalEntregaOperativa from '../components/ModalEntregaOperativa';
 import ModalFacturacion from '../components/ModalFacturacion';
 import ModalLiquidacion from '../components/ModalLiquidacion';
 import ModalWhatsApp from '../components/ModalWhatsApp';
-import ModalHorasExtras from '../components/ModalHorasExtras';
-import ModalCobrosAdicionales from '../components/ModalCobrosAdicionales';
-import ModalDescuentos from '../components/ModalDescuentos';
+import ModalModificacionesServicio from '../components/ModalModificacionesServicio';
+import ModalPagos from '../components/ModalPagos';
 import ResumenFinalServicio from '../components/ResumenFinalServicio';
 
 const Dashboard: React.FC = () => {
+  const { firebaseUser } = useAuth();
   const [reporteDiario, setReporteDiario] = useState<ReporteDiario | null>(null);
   const [pedidosPendientes, setPedidosPendientes] = useState<Pedido[]>([]);
   const [pedidosPendientesEntregar, setPedidosPendientesEntregar] = useState<Pedido[]>([]);
@@ -50,14 +51,15 @@ const Dashboard: React.FC = () => {
   const [fotoEvidenciaWhatsApp, setFotoEvidenciaWhatsApp] = useState<string | null>(null);
   
   // Estados para modales de modificaciones dinámicas
-  const [mostrarModalHorasExtras, setMostrarModalHorasExtras] = useState(false);
-  const [mostrarModalCobrosAdicionales, setMostrarModalCobrosAdicionales] = useState(false);
-  const [mostrarModalDescuentos, setMostrarModalDescuentos] = useState(false);
+  const [mostrarModalModificaciones, setMostrarModalModificaciones] = useState(false);
+  const [mostrarModalPagos, setMostrarModalPagos] = useState(false);
+  const [pedidoSeleccionado, setPedidoSeleccionado] = useState<Pedido | null>(null);
   const [mostrarResumenFinal, setMostrarResumenFinal] = useState(false);
   const [pedidoParaModificar, setPedidoParaModificar] = useState<Pedido | null>(null);
   
   const [lavadoras, setLavadoras] = useState<Lavadora[]>([]);
   const [configuracion, setConfiguracion] = useState<Configuracion | null>(null);
+  const [planes, setPlanes] = useState<Plan[]>([]);
   
   // Estados para filtro de fechas del resumen financiero
   const [filtroFinanciero, setFiltroFinanciero] = useState({
@@ -506,6 +508,42 @@ const Dashboard: React.FC = () => {
         }
       });
 
+      // Procesar pagos de pedidos (pagosRealizados)
+      let pagosPedidosProcesados = 0;
+      todosLosPedidos.forEach(pedido => {
+        if (pedido.pagosRealizados && pedido.pagosRealizados.length > 0) {
+          console.log('🔍 Pedido con pagos:', pedido.id, pedido.cliente.name, pedido.pagosRealizados);
+          pedido.pagosRealizados.forEach((pago, index) => {
+            pagosPedidosProcesados++;
+            console.log('💰 Procesando pago de pedido:', {
+              index,
+              pedidoId: pedido.id,
+              cliente: pedido.cliente.name,
+              pagoCompleto: pago,
+              medioPago: pago.medioPago,
+              monto: pago.monto,
+              fecha: pago.fecha,
+              tipoMedioPago: typeof pago.medioPago,
+              esUndefined: pago.medioPago === undefined,
+              esNull: pago.medioPago === null
+            });
+            
+            // Usar fallback si medioPago es undefined
+            const medioPagoReal = pago.medioPago || 'efectivo';
+            console.log('🔧 Usando medio de pago:', medioPagoReal);
+            
+            if (medioPagoReal === 'efectivo') {
+              saldosCalculados.efectivo.ingresos += pago.monto;
+            } else if (medioPagoReal === 'nequi') {
+              saldosCalculados.nequi.ingresos += pago.monto;
+            } else if (medioPagoReal === 'daviplata') {
+              saldosCalculados.daviplata.ingresos += pago.monto;
+            }
+          });
+        }
+      });
+      console.log('📊 Pagos de pedidos procesados:', pagosPedidosProcesados);
+
       // Calcular saldos
       Object.keys(saldosCalculados).forEach(medio => {
         const medioKey = medio as keyof typeof saldosCalculados;
@@ -576,6 +614,15 @@ const Dashboard: React.FC = () => {
         
         // Obtener todos los pedidos históricos
         const todosLosPedidos = await pedidoService.getAllPedidos();
+        
+        // Obtener configuración y planes
+        const [configuracionData, planesData] = await Promise.all([
+          configService.getConfiguracion(),
+          planService.getActivePlans()
+        ]);
+        
+        setConfiguracion(configuracionData);
+        setPlanes(planesData);
         
         // Obtener todos los gastos históricos
         const fechaInicio = new Date(2024, 0, 1); // Desde enero 2024
@@ -888,12 +935,14 @@ const Dashboard: React.FC = () => {
     try {
       const hoy = getCurrentDateColombia();
       
-      const [pedidosData, configuracionData] = await Promise.all([
+      const [pedidosData, configuracionData, planesData] = await Promise.all([
         pedidoService.getAllPedidos(),
-        configService.getConfiguracion()
+        configService.getConfiguracion(),
+        planService.getActivePlans()
       ]);
       
       setConfiguracion(configuracionData);
+      setPlanes(planesData);
       
       // Procesar pedidos (lógica del useEffect principal)
       const pedidos = pedidosData || [];
@@ -912,84 +961,36 @@ const Dashboard: React.FC = () => {
   };
 
   // Funciones para manejar modificaciones dinámicas
-  const handleAgregarHorasExtras = async (data: any) => {
+  // Función para manejar modificaciones del servicio
+  const handleModificacionesServicio = async () => {
     if (!pedidoParaModificar) return;
-
+    
     try {
-      await modificacionesService.crearModificacion({
-        pedidoId: pedidoParaModificar.id,
-        tipo: 'horas_extras',
-        concepto: data.concepto,
-        descripcion: data.motivo,
-        monto: data.monto,
-        cantidad: data.cantidad,
-        precioUnitario: data.precioUnitario,
-        aplicadoPor: 'admin' // TODO: obtener del contexto de usuario
-      });
-
-      setMostrarModalHorasExtras(false);
-      setPedidoParaModificar(null);
-      
-      // Recargar datos
       await recargarDatosDashboard();
-      alert('Horas extras agregadas exitosamente');
+      alert('Modificaciones aplicadas exitosamente');
     } catch (error) {
-      console.error('Error al agregar horas extras:', error);
-      alert('Error al agregar horas extras');
+      console.error('Dashboard - Error al aplicar modificaciones:', error);
+      alert('Error al aplicar modificaciones: ' + (error instanceof Error ? error.message : 'Error desconocido'));
     }
   };
 
-  const handleAgregarCobroAdicional = async (data: any) => {
-    if (!pedidoParaModificar) return;
+  // Función para manejar pagos
+  const handleRegistrarPago = (pedido: Pedido) => {
+    setPedidoSeleccionado(pedido);
+    setMostrarModalPagos(true);
+  };
 
+  const handlePagoRealizado = async () => {
     try {
-      await modificacionesService.crearModificacion({
-        pedidoId: pedidoParaModificar.id,
-        tipo: 'cobro_adicional',
-        concepto: data.concepto,
-        descripcion: data.descripcion,
-        monto: data.monto,
-        motivo: data.motivo,
-        aplicadoPor: 'admin' // TODO: obtener del contexto de usuario
-      });
-
-      setMostrarModalCobrosAdicionales(false);
-      setPedidoParaModificar(null);
-      
-      // Recargar datos
       await recargarDatosDashboard();
-      alert('Cobro adicional agregado exitosamente');
+      alert('Pago registrado exitosamente');
     } catch (error) {
-      console.error('Error al agregar cobro adicional:', error);
-      alert('Error al agregar cobro adicional');
+      console.error('Dashboard - Error al registrar pago:', error);
+      alert('Error al registrar pago: ' + (error instanceof Error ? error.message : 'Error desconocido'));
     }
   };
 
-  const handleAplicarDescuento = async (data: any) => {
-    if (!pedidoParaModificar) return;
 
-    try {
-      await modificacionesService.crearModificacion({
-        pedidoId: pedidoParaModificar.id,
-        tipo: 'descuento',
-        concepto: data.concepto,
-        descripcion: data.descripcion,
-        monto: data.monto, // Ya viene negativo desde el modal
-        motivo: data.motivo,
-        aplicadoPor: 'admin' // TODO: obtener del contexto de usuario
-      });
-
-      setMostrarModalDescuentos(false);
-      setPedidoParaModificar(null);
-      
-      // Recargar datos
-      await recargarDatosDashboard();
-      alert('Descuento aplicado exitosamente');
-    } catch (error) {
-      console.error('Error al aplicar descuento:', error);
-      alert('Error al aplicar descuento');
-    }
-  };
 
   const handleFacturacion = async (facturacionData: any) => {
     if (!pedidoAFacturar) return;
@@ -1471,18 +1472,11 @@ const Dashboard: React.FC = () => {
         pedidosPendientesRecoger={pedidosPendientesRecoger}
         onMarcarEntregado={handleMarcarEntregado}
         onMarcarRecogido={handleMarcarRecogido}
-        onAgregarHorasExtras={(pedido) => {
+        onModificarServicio={(pedido) => {
           setPedidoParaModificar(pedido);
-          setMostrarModalHorasExtras(true);
+          setMostrarModalModificaciones(true);
         }}
-        onAgregarCobroAdicional={(pedido) => {
-          setPedidoParaModificar(pedido);
-          setMostrarModalCobrosAdicionales(true);
-        }}
-        onAplicarDescuento={(pedido) => {
-          setPedidoParaModificar(pedido);
-          setMostrarModalDescuentos(true);
-        }}
+        onRegistrarPago={handleRegistrarPago}
       />
 
       {/* Resumen financiero */}
@@ -1716,41 +1710,30 @@ const Dashboard: React.FC = () => {
         />
       )}
 
-      {/* Modales de modificaciones dinámicas */}
-      {mostrarModalHorasExtras && pedidoParaModificar && (
-        <ModalHorasExtras
-          isOpen={mostrarModalHorasExtras}
+      {/* Modal de modificaciones unificado */}
+      {mostrarModalModificaciones && pedidoParaModificar && (
+        <ModalModificacionesServicio
+          isOpen={mostrarModalModificaciones}
           onClose={() => {
-            setMostrarModalHorasExtras(false);
+            setMostrarModalModificaciones(false);
             setPedidoParaModificar(null);
           }}
-          onConfirm={handleAgregarHorasExtras}
           pedido={pedidoParaModificar}
-          precioHoraAdicional={configuracion?.horaAdicional || 2000}
+          planes={planes}
+          onModificacionAplicada={handleModificacionesServicio}
         />
       )}
 
-      {mostrarModalCobrosAdicionales && pedidoParaModificar && (
-        <ModalCobrosAdicionales
-          isOpen={mostrarModalCobrosAdicionales}
+      {/* Modal de Pagos */}
+      {pedidoSeleccionado && (
+        <ModalPagos
+          isOpen={mostrarModalPagos}
           onClose={() => {
-            setMostrarModalCobrosAdicionales(false);
-            setPedidoParaModificar(null);
+            setMostrarModalPagos(false);
+            setPedidoSeleccionado(null);
           }}
-          onConfirm={handleAgregarCobroAdicional}
-          pedido={pedidoParaModificar}
-        />
-      )}
-
-      {mostrarModalDescuentos && pedidoParaModificar && (
-        <ModalDescuentos
-          isOpen={mostrarModalDescuentos}
-          onClose={() => {
-            setMostrarModalDescuentos(false);
-            setPedidoParaModificar(null);
-          }}
-          onConfirm={handleAplicarDescuento}
-          pedido={pedidoParaModificar}
+          pedido={pedidoSeleccionado}
+          onPagoRealizado={handlePagoRealizado}
         />
       )}
 

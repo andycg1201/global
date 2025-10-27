@@ -291,6 +291,8 @@ const InventarioLavadoras: React.FC = () => {
     if (mostrarModalHistorial) {
       setRefreshHistorialTrigger(prev => prev + 1);
     }
+    // Notificar al Dashboard que debe recargar datos financieros
+    window.dispatchEvent(new CustomEvent('mantenimientoRealizado'));
   };
 
   const handleMarcarFueraServicio = async (lavadora: Lavadora) => {

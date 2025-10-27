@@ -263,6 +263,20 @@ const Dashboard: React.FC = () => {
     cargarDatosSimplificados();
   }, []);
 
+  // Escuchar eventos de mantenimiento para recargar datos
+  useEffect(() => {
+    const handleMantenimientoRealizado = () => {
+      console.log('🔄 Dashboard - Mantenimiento realizado, recargando datos...');
+      cargarDatosSimplificados();
+    };
+
+    window.addEventListener('mantenimientoRealizado', handleMantenimientoRealizado);
+    
+    return () => {
+      window.removeEventListener('mantenimientoRealizado', handleMantenimientoRealizado);
+    };
+  }, []);
+
   // Funciones de manejo de eventos
   const handleModificacionesServicio = (pedido: Pedido) => {
     setPedidoSeleccionado(pedido);

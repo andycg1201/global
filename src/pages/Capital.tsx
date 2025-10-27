@@ -259,6 +259,8 @@ const Capital: React.FC = () => {
         saldoDaviplata: 0,
         saldoTotal: 0
       }] : [];
+      
+      console.log('🔍 Debug Capital - Capital inicial libro:', capitalInicialLibro);
 
       // Combinar todos los movimientos incluyendo capital
       const todosLosMovimientosCompletos = [...movimientosIngresos, ...movimientosGastos, ...capitalInicialLibro, ...movimientosCapitalLibro]
@@ -270,6 +272,8 @@ const Capital: React.FC = () => {
           }
           return fechaA.getTime() - fechaB.getTime();
         });
+      
+      console.log('🔍 Debug Capital - Todos los movimientos completos:', todosLosMovimientosCompletos);
 
       // Calcular saldos acumulados para cada movimiento
       let saldoEfectivo = 0;

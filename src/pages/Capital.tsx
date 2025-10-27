@@ -281,6 +281,8 @@ const Capital: React.FC = () => {
       let saldoDaviplata = 0;
       
       const movimientosConSaldos = todosLosMovimientosCompletos.map(movimiento => {
+        console.log('🔍 Procesando movimiento:', movimiento.id, movimiento.concepto);
+        
         // Procesar movimientos de capital por separado
         if (movimiento.id.startsWith('capital-')) {
           const movCapital = movimientosCapitalData.find(m => `capital-${m.id}` === movimiento.id);
@@ -302,6 +304,7 @@ const Capital: React.FC = () => {
           saldoNequi += capitalInicialData.nequi;
           saldoDaviplata += capitalInicialData.daviplata;
         } else {
+          console.log('💰 Procesando movimiento normal:', movimiento.tipo, movimiento.monto, movimiento.medioPago);
           // Movimientos normales (ingresos/gastos)
           if (movimiento.medioPago === 'efectivo') {
             saldoEfectivo += movimiento.tipo === 'ingreso' ? movimiento.monto : -movimiento.monto;

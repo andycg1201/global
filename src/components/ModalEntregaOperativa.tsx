@@ -105,11 +105,8 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
           qrbox: { width: 250, height: 250 }
         },
         (decodedText: string) => {
-          console.log('QR escaneado:', decodedText);
-          
           // VALIDAR INMEDIATAMENTE cuando se escanea el QR
           const lavadoraExiste = lavadoras.find(l => l.codigoQR === decodedText);
-          console.log('🔍 Debug ModalEntregaOperativa - Lavadora escaneada encontrada:', lavadoraExiste);
           
           if (!lavadoraExiste) {
             setError('La lavadora escaneada no existe en el sistema');
@@ -142,7 +139,6 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
   const handleFotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      console.log('📸 DEBUG - Foto tomada:', file.name);
       setFotoFile(file);
       
       try {
@@ -159,10 +155,6 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
   };
 
   const handleConfirmar = () => {
-    console.log('🚨 DEBUG - handleConfirmar EJECUTÁNDOSE');
-    console.log('🚨 DEBUG - lavadoraEscaneada:', lavadoraEscaneada);
-    console.log('🚨 DEBUG - fotoFile:', fotoFile);
-    
     if (!lavadoraEscaneada.trim()) {
       setError('Debe escanear el QR de la lavadora');
       return;
@@ -241,6 +233,13 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
                   <QrCodeIcon className="h-5 w-5" />
                   <span>Iniciar Escaneo QR</span>
                 </button>
+                
+                {/* Mensaje de error específico para QR */}
+                {error && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-800">{error}</p>
+                  </div>
+                )}
                 
                 {scanResult && (
                   <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
@@ -362,13 +361,6 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
               </div>
             )}
           </div>
-
-          {/* Error message */}
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-800">{error}</p>
-            </div>
-          )}
         </div>
 
         {/* Footer */}

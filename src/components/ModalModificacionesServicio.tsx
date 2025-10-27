@@ -19,7 +19,7 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
   onModificacionAplicada
 }) => {
   const [modificacion, setModificacion] = useState<Partial<ModificacionServicio>>({
-    horasExtras: { cantidad: undefined, precioUnitario: 0, total: 0 },
+    horasExtras: { cantidad: 0, precioUnitario: 0, total: 0 },
     cobrosAdicionales: [],
     descuentos: [],
     observaciones: '',
@@ -136,7 +136,7 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
     }
   }, [cambioPlan.planAnterior, cambioPlan.planNuevo, planes]);
 
-  const handleHorasExtrasChange = (cantidad: number | undefined) => {
+  const handleHorasExtrasChange = (cantidad: number) => {
     const cantidadFinal = cantidad || 0;
     setModificacion(prev => ({
       ...prev,

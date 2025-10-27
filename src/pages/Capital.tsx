@@ -278,6 +278,7 @@ const Capital: React.FC = () => {
         if (movimiento.id.startsWith('capital-')) {
           const movCapital = movimientosCapitalData.find(m => `capital-${m.id}` === movimiento.id);
           if (movCapital) {
+            console.log('💰 Procesando movimiento capital:', movCapital.tipo, movCapital.efectivo, movCapital.nequi, movCapital.daviplata);
             if (movCapital.tipo === 'inyeccion') {
               saldoEfectivo += movCapital.efectivo;
               saldoNequi += movCapital.nequi;
@@ -289,6 +290,7 @@ const Capital: React.FC = () => {
             }
           }
         } else if (movimiento.id === 'capital-inicial' && capitalInicialData) {
+          console.log('💰 Procesando capital inicial:', capitalInicialData.efectivo, capitalInicialData.nequi, capitalInicialData.daviplata);
           saldoEfectivo += capitalInicialData.efectivo;
           saldoNequi += capitalInicialData.nequi;
           saldoDaviplata += capitalInicialData.daviplata;

@@ -113,7 +113,7 @@ const ModalLiquidacionUniversal: React.FC<ModalLiquidacionUniversalProps> = ({
                 <h4 className="text-lg font-medium text-red-800">Saldo Pendiente</h4>
                 <p className="text-sm text-red-600">Monto total a liquidar</p>
                 <p className="text-xs text-red-500 mt-1">
-                  Plan: {formatCurrency(pedido.subtotal || 0)} + Modificaciones: {formatCurrency(pedido.resumenModificaciones?.montoTotalModificaciones || 0)} - Pagado: {formatCurrency(pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0)} = {formatCurrency(saldoPendiente)}
+                  Plan: {formatCurrency(pedido.subtotal || 0)} + Modificaciones: {formatCurrency(0)} - Pagado: {formatCurrency(pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0)} = {formatCurrency(saldoPendiente)}
                 </p>
               </div>
               <div className="text-right">
@@ -124,8 +124,8 @@ const ModalLiquidacionUniversal: React.FC<ModalLiquidacionUniversalProps> = ({
             </div>
           </div>
 
-          {/* Modificaciones dinámicas */}
-          {pedido.resumenModificaciones && pedido.resumenModificaciones.modificaciones.length > 0 && (
+          {/* Modificaciones dinámicas - Comentado temporalmente */}
+          {/* {pedido.resumenModificaciones && pedido.resumenModificaciones.modificaciones.length > 0 && (
             <div className="bg-gray-50 border border-gray-200 p-4 rounded-lg">
               <h3 className="font-medium text-gray-900 mb-3 flex items-center">
                 <DocumentTextIcon className="h-5 w-5 text-gray-600 mr-2" />
@@ -160,7 +160,7 @@ const ModalLiquidacionUniversal: React.FC<ModalLiquidacionUniversalProps> = ({
                 </div>
               </div>
             </div>
-          )}
+          )} */}
 
           {/* Historial de pagos (si existe) */}
           {pedido.pagosRealizados && pedido.pagosRealizados.length > 0 && (

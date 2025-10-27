@@ -43,7 +43,7 @@ class RecogidaOperativaService {
       return {
         success: true,
         message: 'Recogida registrada exitosamente',
-        pedidoActualizado: pedidoActualizado as Pedido
+        pedidoActualizado: pedidoActualizado as unknown as Pedido
       };
 
     } catch (error) {

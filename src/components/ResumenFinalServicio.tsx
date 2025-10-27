@@ -58,23 +58,23 @@ const ResumenFinalServicio: React.FC<ResumenFinalServicioProps> = ({
       });
     }
 
-    // Eventos de modificaciones
-    if (pedido.resumenModificaciones?.modificaciones) {
-      pedido.resumenModificaciones.modificaciones.forEach((modificacion) => {
-        eventos.push({
-          id: modificacion.id,
-          tipo: 'modificacion',
-          titulo: modificacion.concepto,
-          descripcion: modificacion.descripcion || modificacion.motivo || '',
-          fecha: modificacion.fecha,
-          monto: modificacion.monto,
-          icono: modificacion.monto > 0 ? 
-            <CurrencyDollarIcon className="h-5 w-5" /> : 
-            <ExclamationTriangleIcon className="h-5 w-5" />,
-          color: modificacion.monto > 0 ? 'green' : 'red'
-        });
-      });
-    }
+    // Eventos de modificaciones - Comentado temporalmente
+    // if (pedido.resumenModificaciones?.modificaciones) {
+    //   pedido.resumenModificaciones.modificaciones.forEach((modificacion) => {
+    //     eventos.push({
+    //       id: modificacion.id,
+    //       tipo: 'modificacion',
+    //       titulo: modificacion.concepto,
+    //       descripcion: modificacion.descripcion || modificacion.motivo || '',
+    //       fecha: modificacion.fecha,
+    //       monto: modificacion.monto,
+    //       icono: modificacion.monto > 0 ? 
+    //         <CurrencyDollarIcon className="h-5 w-5" /> : 
+    //         <ExclamationTriangleIcon className="h-5 w-5" />,
+    //       color: modificacion.monto > 0 ? 'green' : 'red'
+    //     });
+    //   });
+    // }
 
     // Eventos de pagos
     if (pedido.pagosRealizados) {
@@ -110,7 +110,7 @@ const ResumenFinalServicio: React.FC<ResumenFinalServicioProps> = ({
   };
 
   const timeline = crearTimeline();
-  const saldoFinal = pedido.resumenModificaciones?.montoTotalModificaciones || 0;
+  const saldoFinal = 0; // Comentado temporalmente: pedido.resumenModificaciones?.montoTotalModificaciones || 0;
   const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
   const saldoPendiente = (pedido.subtotal + saldoFinal) - totalPagado;
 

@@ -1,5 +1,6 @@
 import { pedidoService, gastoService } from '../services/firebaseService';
 import { obtenerMantenimientosActivos } from '../services/mantenimientoService';
+import { capitalService } from '../services/capitalService';
 
 export interface SaldoPorMedio {
   efectivo: number;
@@ -20,6 +21,12 @@ export const calcularSaldosActuales = async (): Promise<SaldoPorMedio> => {
     // Obtener todos los mantenimientos
     const mantenimientos = await obtenerMantenimientosActivos();
     
+    // Obtener capital inicial y movimientos de capital
+    const [capitalInicialData, todosLosMovimientosCapital] = await Promise.all([
+      capitalService.getCapitalInicial(),
+      capitalService.getMovimientosCapital()
+    ]);
+    
     // Inicializar saldos
     const saldos: SaldoPorMedio = {
       efectivo: 0,
@@ -27,7 +34,32 @@ export const calcularSaldosActuales = async (): Promise<SaldoPorMedio> => {
       daviplata: 0
     };
     
-    // Calcular ingresos por medio de pago
+    // Procesar capital inicial (si existe)
+    if (capitalInicialData) {
+      console.log('💰 Procesando capital inicial en saldoUtils:', capitalInicialData.efectivo, capitalInicialData.nequi, capitalInicialData.daviplata);
+      saldos.efectivo += capitalInicialData.efectivo;
+      saldos.nequi += capitalInicialData.nequi;
+      saldos.daviplata += capitalInicialData.daviplata;
+    }
+    
+    // Procesar movimientos de capital
+    todosLosMovimientosCapital.forEach(movimiento => {
+      console.log('💰 Procesando movimiento capital en saldoUtils:', movimiento.tipo, movimiento.efectivo, movimiento.nequi, movimiento.daviplata);
+      
+      if (movimiento.tipo === 'inyeccion') {
+        // Las inyecciones aumentan los saldos
+        saldos.efectivo += movimiento.efectivo;
+        saldos.nequi += movimiento.nequi;
+        saldos.daviplata += movimiento.daviplata;
+      } else if (movimiento.tipo === 'retiro') {
+        // Los retiros disminuyen los saldos
+        saldos.efectivo -= movimiento.efectivo;
+        saldos.nequi -= movimiento.nequi;
+        saldos.daviplata -= movimiento.daviplata;
+      }
+    });
+    
+    // Calcular ingresos por medio de pago (pagos de servicios)
     pedidos.forEach(pedido => {
       if (pedido.pagosRealizados) {
         pedido.pagosRealizados.forEach(pago => {
@@ -64,6 +96,7 @@ export const calcularSaldosActuales = async (): Promise<SaldoPorMedio> => {
       }
     });
     
+    console.log('💰 Saldos finales calculados en saldoUtils:', saldos);
     return saldos;
   } catch (error) {
     console.error('Error al calcular saldos actuales:', error);

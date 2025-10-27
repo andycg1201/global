@@ -108,7 +108,7 @@ const ModalCapitalInicial: React.FC<ModalCapitalInicialProps> = ({
                 <input
                   type="number"
                   min="0"
-                  step="100"
+                  step="1"
                   value={formData.efectivo || ''}
                   onChange={(e) => handleInputChange('efectivo', e.target.value)}
                   className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
@@ -128,7 +128,7 @@ const ModalCapitalInicial: React.FC<ModalCapitalInicialProps> = ({
                 <input
                   type="number"
                   min="0"
-                  step="100"
+                  step="1"
                   value={formData.nequi || ''}
                   onChange={(e) => handleInputChange('nequi', e.target.value)}
                   className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
@@ -148,7 +148,7 @@ const ModalCapitalInicial: React.FC<ModalCapitalInicialProps> = ({
                 <input
                   type="number"
                   min="0"
-                  step="100"
+                  step="1"
                   value={formData.daviplata || ''}
                   onChange={(e) => handleInputChange('daviplata', e.target.value)}
                   className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"

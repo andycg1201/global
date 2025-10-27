@@ -94,12 +94,22 @@ const Dashboard: React.FC = () => {
       let fechaFin: Date;
 
       if (filtro.tipo === 'hoy') {
-        fechaInicio = getCurrentDateColombia();
-        fechaFin = getCurrentDateColombia();
+        fechaInicio = (() => {
+          const hoy = getCurrentDateColombia();
+          hoy.setHours(0, 0, 0, 0);
+          return hoy;
+        })();
+        fechaFin = (() => {
+          const hoy = getCurrentDateColombia();
+          hoy.setHours(23, 59, 59, 999);
+          return hoy;
+        })();
       } else if (filtro.tipo === 'ayer') {
         const ayer = new Date(getCurrentDateColombia());
         ayer.setDate(ayer.getDate() - 1);
+        ayer.setHours(0, 0, 0, 0);
         fechaInicio = ayer;
+        ayer.setHours(23, 59, 59, 999);
         fechaFin = ayer;
       } else {
         fechaInicio = filtro.fechaInicio;
@@ -114,7 +124,9 @@ const Dashboard: React.FC = () => {
       console.log('🔍 Dashboard - Filtros de pagos:', {
         tipo: filtro.tipo,
         fechaInicio: fechaInicio.toISOString(),
-        fechaFin: fechaFin.toISOString()
+        fechaFin: fechaFin.toISOString(),
+        fechaInicioLocal: fechaInicio.toLocaleString('es-CO'),
+        fechaFinLocal: fechaFin.toLocaleString('es-CO')
       });
       console.log('📊 Dashboard - Total pedidos:', pedidos.length);
       
@@ -205,26 +217,11 @@ const Dashboard: React.FC = () => {
       const todosLosPedidos = await pedidoService.getAllPedidos();
       console.log('Total pedidos:', todosLosPedidos.length);
       
-      const pedidosFiltrados = todosLosPedidos.filter(pedido => {
-        if (!pedido.fechaEntrega) return false;
-        const fechaPedido = new Date(pedido.fechaEntrega);
-        const cumpleFiltro = fechaPedido >= fechaInicio && fechaPedido <= fechaFin;
-        
-        // Debug: Mostrar algunos pedidos para verificar
-        if (todosLosPedidos.indexOf(pedido) < 3) {
-          console.log('Pedido ejemplo:', {
-            id: pedido.id,
-            fechaEntrega: pedido.fechaEntrega,
-            fechaPedido: fechaPedido.toISOString(),
-            status: pedido.status,
-            cumpleFiltro
-          });
-        }
-        
-        return cumpleFiltro;
-      });
+      // Usar TODOS los pedidos para procesar pagos (no filtrar por fecha de entrega)
+      // Los pagos se filtrarán por fecha de pago, no por fecha de entrega
+      const pedidosFiltrados = todosLosPedidos;
       
-      console.log('Pedidos filtrados:', pedidosFiltrados.length);
+      console.log('Total pedidos para procesar:', pedidosFiltrados.length);
 
       // Obtener gastos del rango de fechas
       const todosLosGastos = await gastoService.getGastosDelRango(fechaInicio, fechaFin);
@@ -290,40 +287,9 @@ const Dashboard: React.FC = () => {
       
       const totalGastos = totalGastosGenerales + totalGastosMantenimiento;
 
-      // Calcular ingresos reales (pagos recibidos + capital inicial + inyecciones de capital)
-      let ingresosReales = pedidosFiltrados.reduce((sum, pedido) => {
-        if (pedido.pagosRealizados && pedido.pagosRealizados.length > 0) {
-          return sum + pedido.pagosRealizados.reduce((sumPagos, pago) => {
-            // Verificar que el pago esté en el rango de fechas
-            let fechaPago: Date;
-            if (pago.fecha instanceof Date) {
-              fechaPago = pago.fecha;
-            } else if (pago.fecha && typeof pago.fecha === 'object' && 'toDate' in pago.fecha) {
-              fechaPago = (pago.fecha as any).toDate();
-            } else {
-              fechaPago = new Date(pago.fecha);
-            }
-            
-            if (fechaPago >= fechaInicio && fechaPago <= fechaFin) {
-              return sumPagos + pago.monto;
-            }
-            return sumPagos;
-          }, 0);
-        }
-        return sum;
-      }, 0);
-
-      // Agregar capital inicial a los ingresos reales
-      if (capitalInicialData) {
-        ingresosReales += capitalInicialData.efectivo + capitalInicialData.nequi + capitalInicialData.daviplata;
-      }
-
-      // Agregar inyecciones de capital a los ingresos reales
-      movimientosCapitalFiltrados.forEach(movimiento => {
-        if (movimiento.tipo === 'inyeccion') {
-          ingresosReales += movimiento.efectivo + movimiento.nequi + movimiento.daviplata;
-        }
-      });
+      // Calcular ingresos reales como saldo final neto (no suma bruta)
+      // Los ingresos reales serán el saldo total final calculado después de procesar todos los movimientos
+      let ingresosReales = 0; // Se calculará después de procesar todos los movimientos
 
       // Calcular cuentas por cobrar (saldos pendientes de todos los servicios)
       const cuentasPorCobrar = pedidosFiltrados.reduce((sum, pedido) => {
@@ -505,19 +471,21 @@ const Dashboard: React.FC = () => {
         saldosCalculados.daviplata.ingresos += capitalInicialData.daviplata;
       }
 
-      // Distribuir gastos de mantenimiento proporcionalmente entre los medios de pago
-      // basado en los ingresos de cada medio
-      const totalIngresos = saldosCalculados.efectivo.ingresos + saldosCalculados.nequi.ingresos + saldosCalculados.daviplata.ingresos;
-      
-      if (totalIngresos > 0 && totalGastosMantenimiento > 0) {
-        // Distribuir proporcionalmente
-        saldosCalculados.efectivo.gastos += (saldosCalculados.efectivo.ingresos / totalIngresos) * totalGastosMantenimiento;
-        saldosCalculados.nequi.gastos += (saldosCalculados.nequi.ingresos / totalIngresos) * totalGastosMantenimiento;
-        saldosCalculados.daviplata.gastos += (saldosCalculados.daviplata.ingresos / totalIngresos) * totalGastosMantenimiento;
-      } else if (totalGastosMantenimiento > 0) {
-        // Si no hay ingresos, asignar todo a efectivo por defecto
-        saldosCalculados.efectivo.gastos += totalGastosMantenimiento;
-      }
+      // Procesar gastos de mantenimiento usando el medio de pago real de cada mantenimiento
+      mantenimientosFiltrados.forEach(mantenimiento => {
+        const medioPago = mantenimiento.medioPago || 'efectivo';
+        const costo = mantenimiento.costoReparacion || 0;
+        
+        console.log('🔧 Procesando gasto mantenimiento:', medioPago, costo);
+        
+        if (medioPago === 'efectivo') {
+          saldosCalculados.efectivo.gastos += costo;
+        } else if (medioPago === 'nequi') {
+          saldosCalculados.nequi.gastos += costo;
+        } else if (medioPago === 'daviplata') {
+          saldosCalculados.daviplata.gastos += costo;
+        }
+      });
 
       // Calcular saldos
       Object.keys(saldosCalculados).forEach(medio => {
@@ -525,7 +493,11 @@ const Dashboard: React.FC = () => {
         saldosCalculados[medioKey].saldo = saldosCalculados[medioKey].ingresos - saldosCalculados[medioKey].gastos;
       });
 
+      // Calcular ingresos reales como saldo total final
+      ingresosReales = saldosCalculados.efectivo.saldo + saldosCalculados.nequi.saldo + saldosCalculados.daviplata.saldo;
+
       console.log('🔍 Saldos calculados:', saldosCalculados);
+      console.log('💰 Ingresos reales (saldo final):', ingresosReales);
       setSaldosPorMedio(saldosCalculados);
 
       const resultado = {

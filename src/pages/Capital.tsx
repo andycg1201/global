@@ -15,6 +15,8 @@ import {
 import { pedidoService, gastoService } from '../services/firebaseService';
 import { obtenerMantenimientosActivos } from '../services/mantenimientoService';
 import { capitalService } from '../services/capitalService';
+import { db } from '../lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 import { Pedido, Gasto, Mantenimiento, CapitalInicial, MovimientoCapital } from '../types';
 import { formatDate, formatCurrency, getCurrentDateColombia } from '../utils/dateUtils';
 import ModalCapitalInicial from '../components/ModalCapitalInicial';
@@ -58,8 +60,16 @@ const Capital: React.FC = () => {
   });
   const [loading, setLoading] = useState(true);
   const [filtros, setFiltros] = useState<FiltrosCapital>({
-    fechaInicio: getCurrentDateColombia(),
-    fechaFin: getCurrentDateColombia(),
+    fechaInicio: (() => {
+      const hoy = getCurrentDateColombia();
+      hoy.setHours(0, 0, 0, 0); // Inicio del día
+      return hoy;
+    })(),
+    fechaFin: (() => {
+      const hoy = getCurrentDateColombia();
+      hoy.setHours(23, 59, 59, 999); // Fin del día
+      return hoy;
+    })(),
     tipo: 'hoy'
   });
   
@@ -92,9 +102,58 @@ const Capital: React.FC = () => {
       // Obtener gastos del rango de fechas
       const gastos = await gastoService.getGastosDelRango(filtros.fechaInicio, filtros.fechaFin);
       
-      // Obtener mantenimientos del rango de fechas (temporalmente deshabilitado por índice de Firebase)
-      const mantenimientosFiltrados: Mantenimiento[] = [];
-      console.log('⚠️ Mantenimientos temporalmente deshabilitados - requiere índice de Firebase');
+      // Obtener mantenimientos del rango de fechas
+      let mantenimientosFiltrados: Mantenimiento[] = [];
+      
+      try {
+        // Obtener todos los mantenimientos directamente de la colección (como en Dashboard)
+        const mantenimientosSnapshot = await getDocs(collection(db, 'mantenimientos'));
+        const todosLosMantenimientos = mantenimientosSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            lavadoraId: data.lavadoraId,
+            tipoFalla: data.tipoFalla,
+            descripcion: data.descripcion,
+            costoReparacion: data.costoReparacion,
+            servicioTecnico: data.servicioTecnico,
+            fechaInicio: data.fechaInicio?.toDate() || new Date(),
+            fechaEstimadaFin: data.fechaEstimadaFin?.toDate() || new Date(),
+            fechaFin: data.fechaFin?.toDate(),
+            fotos: data.fotos || [],
+            observaciones: data.observaciones || '',
+            medioPago: data.medioPago || 'efectivo',
+            createdBy: data.createdBy,
+            createdAt: data.createdAt?.toDate() || new Date(),
+            updatedAt: data.updatedAt?.toDate() || new Date()
+          };
+        });
+        
+        // Filtrar mantenimientos por rango de fechas
+        console.log('🔧 Debug Capital - Rango de fechas:', filtros.fechaInicio, 'a', filtros.fechaFin);
+        console.log('🔧 Debug Capital - Todos los mantenimientos (sin filtrar):', todosLosMantenimientos.map(m => ({
+          id: m.id,
+          lavadoraId: m.lavadoraId,
+          fechaInicio: m.fechaInicio,
+          createdAt: m.createdAt,
+          costo: m.costoReparacion
+        })));
+        console.log('🔧 Debug Capital - Total mantenimientos encontrados:', todosLosMantenimientos.length);
+        
+        mantenimientosFiltrados = todosLosMantenimientos.filter(mantenimiento => {
+          // El gasto se hace efectivo cuando se CREA el mantenimiento, no cuando se estima que termine
+          const fechaMantenimiento = mantenimiento.createdAt;
+          const estaEnRango = fechaMantenimiento >= filtros.fechaInicio && fechaMantenimiento <= filtros.fechaFin;
+          console.log('🔧 Verificando mantenimiento:', mantenimiento.id, 'fecha creación:', fechaMantenimiento, 'en rango:', estaEnRango);
+          return estaEnRango;
+        });
+        
+        console.log('🔧 Mantenimientos cargados correctamente:', mantenimientosFiltrados.length);
+      } catch (error) {
+        console.error('Error cargando mantenimientos:', error);
+        console.log('⚠️ Usando array vacío para mantenimientos');
+        mantenimientosFiltrados = [];
+      }
 
       // Procesar movimientos de ingresos (pagos de pedidos)
       const movimientosIngresos: MovimientoLibroDiario[] = [];
@@ -187,8 +246,19 @@ const Capital: React.FC = () => {
       });
 
       // Procesar movimientos de mantenimiento
+      console.log('🔧 Debug Capital - Mantenimientos encontrados:', mantenimientosFiltrados.length);
+      console.log('🔧 Debug Capital - Todos los mantenimientos:', mantenimientosFiltrados.map(m => ({
+        id: m.id,
+        costo: m.costoReparacion,
+        fechaInicio: m.fechaInicio,
+        medioPago: m.medioPago,
+        lavadoraId: m.lavadoraId
+      })));
+      
       mantenimientosFiltrados.forEach(mant => {
-        const fechaMant = new Date(mant.fechaInicio);
+        // El gasto se hace efectivo cuando se CREA el mantenimiento, no cuando se estima que termine
+        const fechaMant = new Date(mant.createdAt);
+        console.log('🔧 Procesando mantenimiento:', mant.id, 'fecha creación:', fechaMant, 'costo:', mant.costoReparacion);
         if (!isNaN(fechaMant.getTime())) {
             movimientosGastos.push({
               id: `mant-${mant.id}`,
@@ -198,7 +268,7 @@ const Capital: React.FC = () => {
                 minute: '2-digit' 
               }),
               tipo: 'gasto',
-              concepto: `Mantenimiento - ${mant.lavadoraId}`,
+              concepto: `Mantenimiento - ${mant.tipoFalla}`,
               monto: mant.costoReparacion,
               medioPago: mant.medioPago || 'efectivo',
               referencia: mant.observaciones,
@@ -207,6 +277,9 @@ const Capital: React.FC = () => {
               saldoDaviplata: 0,
               saldoTotal: 0
             });
+            console.log('✅ Mantenimiento agregado al libro diario:', mant.id);
+        } else {
+          console.log('❌ Fecha inválida para mantenimiento:', mant.id, mant.createdAt);
         }
       });
 

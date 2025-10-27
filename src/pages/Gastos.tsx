@@ -37,11 +37,6 @@ const Gastos: React.FC = () => {
     medioPago: 'efectivo' as 'efectivo' | 'nequi' | 'daviplata'
   });
 
-  // Debug: Verificar fecha inicial
-  useEffect(() => {
-    console.log('🔍 Fecha inicial del nuevo gasto:', nuevoGasto.date);
-    console.log('🔍 Fecha actual Colombia:', getCurrentDateColombia());
-  }, []);
   
   const [filtros, setFiltros] = useState<FiltrosGastos>({
     fechaInicio: new Date(), // Fecha actual real
@@ -65,17 +60,35 @@ const Gastos: React.FC = () => {
     daviplata: 0
   });
   const [mediosDisponibles, setMediosDisponibles] = useState<Array<'efectivo' | 'nequi' | 'daviplata'>>(['efectivo', 'nequi', 'daviplata']);
+  const [formularioListo, setFormularioListo] = useState(false);
 
   useEffect(() => {
     cargarDatos();
     cargarSaldos();
   }, [filtros]);
 
+  // Actualizar medios disponibles cuando se abra el formulario
+  useEffect(() => {
+    if (mostrarFormulario) {
+      // Cuando se abre el formulario, mostrar todos los medios disponibles (sin restricción de monto)
+      setMediosDisponibles(['efectivo', 'nequi', 'daviplata']);
+      
+      // También llamar validarMontoYMedios para asegurar que se ejecute
+      validarMontoYMedios('');
+      
+      // Marcar formulario como listo después de un pequeño delay
+      setTimeout(() => {
+        setFormularioListo(true);
+      }, 100);
+    } else {
+      setFormularioListo(false);
+    }
+  }, [mostrarFormulario, saldosActuales]);
+
   const cargarSaldos = async () => {
     try {
       const saldos = await calcularSaldosActuales();
       setSaldosActuales(saldos);
-      console.log('💰 Saldos actuales cargados:', saldos);
     } catch (error) {
       console.error('Error al cargar saldos:', error);
     }
@@ -116,6 +129,7 @@ const Gastos: React.FC = () => {
 
   const validarMontoYMedios = (monto: string) => {
     const montoNumerico = parseFloat(monto) || 0;
+    
     if (montoNumerico > 0) {
       const mediosDisponibles = obtenerMediosDisponibles(saldosActuales, montoNumerico);
       setMediosDisponibles(mediosDisponibles);
@@ -132,7 +146,6 @@ const Gastos: React.FC = () => {
   const cargarDatos = async () => {
     setLoading(true);
     try {
-      console.log('Cargando gastos para rango:', filtros.fechaInicio, 'a', filtros.fechaFin);
       // Obtener gastos del rango de fechas
       const gastosData = await gastoService.getGastosDelRango(filtros.fechaInicio, filtros.fechaFin);
       const conceptosData = await gastoService.getConceptosActivos();
@@ -159,9 +172,6 @@ const Gastos: React.FC = () => {
         };
       });
       
-      console.log('Gastos cargados:', gastosData);
-      console.log('Gastos de mantenimiento cargados:', mantenimientosData);
-      console.log('Conceptos cargados:', conceptosData);
       
       setGastos(gastosData);
       setGastosMantenimiento(mantenimientosData);
@@ -362,16 +372,6 @@ const Gastos: React.FC = () => {
     return fechaMantenimiento >= filtros.fechaInicio && fechaMantenimiento <= filtros.fechaFin;
   });
 
-  console.log('🔧 Gastos - Debug Mantenimiento:');
-  console.log('📊 Total mantenimientos cargados:', gastosMantenimiento.length);
-  console.log('📅 Mantenimientos filtrados:', gastosMantenimientoFiltrados.length);
-  console.log('📋 Todos los mantenimientos:', gastosMantenimiento.map(m => ({
-    id: m.id,
-    costo: m.costoReparacion,
-    fechaFin: m.fechaFin,
-    descripcion: m.descripcion,
-    tieneFechaFin: !!m.fechaFin
-  })));
 
   const totalGastosGenerales = gastosFiltrados.reduce((sum, gasto) => sum + gasto.amount, 0);
   const totalGastosMantenimiento = gastosMantenimientoFiltrados.reduce((sum, mantenimiento) => sum + (mantenimiento.costoReparacion || 0), 0);
@@ -576,45 +576,42 @@ const Gastos: React.FC = () => {
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
-                    onClick={() => setNuevoGasto(prev => ({ ...prev, medioPago: 'efectivo' }))}
-                    disabled={!mediosDisponibles.includes('efectivo')}
-                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                    onClick={() => mediosDisponibles.includes('efectivo') && setNuevoGasto(prev => ({ ...prev, medioPago: 'efectivo' }))}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border-2 transition-colors ${
                       nuevoGasto.medioPago === 'efectivo'
-                        ? 'bg-green-50 border-green-500 text-green-700'
+                        ? 'bg-green-500 border-green-600 text-white'
                         : mediosDisponibles.includes('efectivo')
-                        ? 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                        : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                        ? 'bg-white border-blue-500 text-blue-600 hover:bg-blue-50'
+                        : 'bg-gray-300 border-gray-400 text-gray-500 cursor-not-allowed'
                     }`}
                   >
-                    💵 Efectivo {!mediosDisponibles.includes('efectivo') && '(Sin saldo)'}
+                    💵 Efectivo
                   </button>
                   <button
                     type="button"
-                    onClick={() => setNuevoGasto(prev => ({ ...prev, medioPago: 'nequi' }))}
-                    disabled={!mediosDisponibles.includes('nequi')}
-                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                    onClick={() => mediosDisponibles.includes('nequi') && setNuevoGasto(prev => ({ ...prev, medioPago: 'nequi' }))}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border-2 transition-colors ${
                       nuevoGasto.medioPago === 'nequi'
-                        ? 'bg-blue-50 border-blue-500 text-blue-700'
+                        ? 'bg-blue-500 border-blue-600 text-white'
                         : mediosDisponibles.includes('nequi')
-                        ? 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                        : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                        ? 'bg-white border-blue-500 text-blue-600 hover:bg-blue-50'
+                        : 'bg-gray-300 border-gray-400 text-gray-500 cursor-not-allowed'
                     }`}
                   >
-                    📱 Nequi {!mediosDisponibles.includes('nequi') && '(Sin saldo)'}
+                    📱 Nequi
                   </button>
                   <button
                     type="button"
-                    onClick={() => setNuevoGasto(prev => ({ ...prev, medioPago: 'daviplata' }))}
-                    disabled={!mediosDisponibles.includes('daviplata')}
-                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                    onClick={() => mediosDisponibles.includes('daviplata') && setNuevoGasto(prev => ({ ...prev, medioPago: 'daviplata' }))}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border-2 transition-colors ${
                       nuevoGasto.medioPago === 'daviplata'
-                        ? 'bg-purple-50 border-purple-500 text-purple-700'
+                        ? 'bg-purple-500 border-purple-600 text-white'
                         : mediosDisponibles.includes('daviplata')
-                        ? 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                        : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                        ? 'bg-white border-blue-500 text-blue-600 hover:bg-blue-50'
+                        : 'bg-gray-300 border-gray-400 text-gray-500 cursor-not-allowed'
                     }`}
                   >
-                    📱 Daviplata {!mediosDisponibles.includes('daviplata') && '(Sin saldo)'}
+                    📱 Daviplata
                   </button>
                 </div>
               </div>

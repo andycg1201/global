@@ -141,7 +141,7 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
     setModificacion(prev => ({
       ...prev,
       horasExtras: {
-        cantidad: cantidad,
+        cantidad: cantidadFinal, // Usar cantidadFinal en lugar de cantidad
         precioUnitario: precioHoraExtra, // Usar precio de configuración
         total: cantidadFinal * precioHoraExtra
       },

@@ -198,7 +198,7 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
             
             <h4 className="font-medium text-gray-900 mb-1">
               {pedido.cliente.name}
-              {pedido.lavadoraAsignada?.codigoQR && (
+              {tipo === 'recoger' && pedido.lavadoraAsignada?.codigoQR && (
                 <span className="ml-2 text-sm font-normal text-gray-600">
                   ({pedido.lavadoraAsignada.codigoQR})
                 </span>

@@ -89,37 +89,56 @@ export const calculatePickupDate = (
   plan: { name: string; duration: number },
   horasAdicionales: number = 0
 ): Date => {
+  console.log('🔍 calculatePickupDate - Input:', {
+    deliveryDate: deliveryDate.toISOString(),
+    planName: plan.name,
+    planDuration: plan.duration,
+    horasAdicionales
+  });
+  
   let pickupDate = new Date(deliveryDate);
   
   if (plan.name === 'PLAN 1') {
     // PLAN 1: Recogida 5 horas después de la entrega
+    console.log('📅 PLAN 1: Agregando 5 horas');
     pickupDate.setHours(pickupDate.getHours() + 5);
   } else if (plan.name === 'PLAN 2') {
     // PLAN 2: Recogida día siguiente a las 7 AM
+    console.log('📅 PLAN 2: Día siguiente a las 7 AM');
     pickupDate.setDate(pickupDate.getDate() + 1);
     pickupDate.setHours(7, 0, 0, 0);
   } else if (plan.name === 'PLAN 3') {
     // PLAN 3: Recogida 24 horas después
+    console.log('📅 PLAN 3: Agregando 24 horas');
     pickupDate.setHours(pickupDate.getHours() + 24);
   } else if (plan.name === 'PLAN 4') {
     // PLAN 4: Recogida lunes a las 7 AM
+    console.log('📅 PLAN 4: Lunes a las 7 AM');
     const diasHastaLunes = (1 + 7 - pickupDate.getDay()) % 7 || 7;
     pickupDate.setDate(pickupDate.getDate() + diasHastaLunes);
     pickupDate.setHours(7, 0, 0, 0);
   } else if (plan.name === 'PLAN 5') {
     // PLAN 5: Recogida lunes a las 7 AM
+    console.log('📅 PLAN 5: Lunes a las 7 AM');
     const diasHastaLunes = (1 + 7 - pickupDate.getDay()) % 7 || 7;
     pickupDate.setDate(pickupDate.getDate() + diasHastaLunes);
     pickupDate.setHours(7, 0, 0, 0);
   } else {
     // Fallback: usar duración del plan
+    console.log('📅 Fallback: Usando duración del plan:', plan.duration);
     pickupDate = addHours(deliveryDate, plan.duration);
   }
 
   // Agregar horas adicionales si las hay
   if (horasAdicionales > 0) {
+    console.log('⏰ Agregando horas adicionales:', horasAdicionales);
     pickupDate = addHours(pickupDate, horasAdicionales);
   }
+
+  console.log('✅ calculatePickupDate - Result:', {
+    pickupDate: pickupDate.toISOString(),
+    diferenciaHoras: (pickupDate.getTime() - deliveryDate.getTime()) / (1000 * 60 * 60)
+  });
 
   return pickupDate;
 };

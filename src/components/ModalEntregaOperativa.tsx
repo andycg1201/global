@@ -106,6 +106,24 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
         },
         (decodedText: string) => {
           console.log('QR escaneado:', decodedText);
+          
+          // VALIDAR INMEDIATAMENTE cuando se escanea el QR
+          const lavadoraExiste = lavadoras.find(l => l.codigoQR === decodedText);
+          console.log('🔍 Debug ModalEntregaOperativa - Lavadora escaneada encontrada:', lavadoraExiste);
+          
+          if (!lavadoraExiste) {
+            setError('La lavadora escaneada no existe en el sistema');
+            stopScanner();
+            return;
+          }
+
+          if (lavadoraExiste.estado !== 'disponible') {
+            setError(`La lavadora ${decodedText} no está disponible para alquiler. Estado actual: ${lavadoraExiste.estado}. Por favor, escanea otra lavadora.`);
+            stopScanner();
+            return;
+          }
+          
+          // Solo si está disponible, proceder
           setScanResult(decodedText);
           setLavadoraEscaneada(decodedText);
           stopScanner();
@@ -124,6 +142,7 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
   const handleFotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      console.log('📸 DEBUG - Foto tomada:', file.name);
       setFotoFile(file);
       
       try {
@@ -154,22 +173,7 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
       return;
     }
 
-    // Verificar que la lavadora escaneada existe
-    const lavadoraExiste = lavadoras.find(l => l.codigoQR === lavadoraEscaneada);
-    console.log('🔍 Debug ModalEntregaOperativa - Lavadora encontrada:', lavadoraExiste);
-    
-    if (!lavadoraExiste) {
-      setError('La lavadora escaneada no existe en el sistema');
-      return;
-    }
-
-    // Verificar que la lavadora esté disponible
-    console.log('🔍 Debug ModalEntregaOperativa - Estado de lavadora:', lavadoraExiste.estado);
-    
-    if (lavadoraExiste.estado !== 'disponible') {
-      setError(`La lavadora ${lavadoraEscaneada} no está disponible para alquiler. Estado actual: ${lavadoraExiste.estado}`);
-      return;
-    }
+    // La validación principal ya se hizo al escanear el QR
 
     onConfirm({
       lavadoraEscaneada,

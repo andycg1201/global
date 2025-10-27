@@ -153,7 +153,7 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
     }
   };
 
-  const PedidoCard = ({ pedido, tipo }: { pedido: Pedido; tipo: 'entregar' | 'recoger' }) => {
+  const PedidoCard = ({ pedido, tipo }: { pedido: Pedido; tipo: 'entregar' | 'recoger' | 'completado' }) => {
     const PriorityIcon = getPriorityIcon(pedido.isPrioritario);
     const urgenciaRecogida = tipo === 'recoger' ? getUrgenciaRecogida(pedido) : null;
     const UrgenciaIcon = urgenciaRecogida?.icon || ClockIcon;
@@ -161,17 +161,6 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
     // Calcular saldo pendiente para determinar si se puede modificar
     const saldoPendiente = (pedido.total || 0) - (pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0);
     const puedeModificar = saldoPendiente > 0;
-    
-    // Debug: verificar cálculo del saldo
-    console.log('🔍 Debug PedidosPendientes - Saldo:', {
-      pedidoId: pedido.id,
-      cliente: pedido.cliente.name,
-      total: pedido.total,
-      pagosRealizados: pedido.pagosRealizados,
-      totalPagado: pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0,
-      saldoPendiente,
-      puedeModificar
-    });
     
     return (
       <div className={`p-4 rounded-lg border ${tipo === 'recoger' ? getAlertColor(pedido.fechaEntrega!) : 'bg-gray-50 border-gray-200'} transition-all duration-200 hover:shadow-md`}>
@@ -204,7 +193,7 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
                 </span>
               )}
             </h4>
-            {tipo === 'recoger' ? (
+            {tipo === 'recoger' || tipo === 'completado' ? (
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2">
                 <a
                   href={generateWhatsAppLink(pedido.cliente.phone, pedido.cliente.name)}
@@ -257,6 +246,20 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
                   </div>
                 </>
               )}
+              {tipo === 'completado' && (
+                <>
+                  <div className="flex items-center gap-1">
+                    <TruckIcon className="h-3 w-3" />
+                    <span className="font-medium">Entregado:</span>
+                    {formatDate(pedido.fechaEntrega!, 'dd/MM HH:mm')}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <HomeIcon className="h-3 w-3" />
+                    <span className="font-medium">Recogido:</span>
+                    {formatDate(pedido.fechaRecogida!, 'dd/MM HH:mm')}
+                  </div>
+                </>
+              )}
             </div>
             
             {pedido.isPrioritario && pedido.motivoPrioridad && (
@@ -302,7 +305,7 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
             )}
             
             {/* Botones de modificaciones para servicios entregados */}
-            {tipo === 'recoger' && onModificarServicio && pedido.status !== 'recogido' && (
+            {(tipo === 'recoger' || tipo === 'completado') && onModificarServicio && (pedido.status !== 'recogido' || tipo === 'completado') && (
               <div className="flex flex-col sm:flex-row gap-1 mt-2">
                 <button
                   onClick={() => onModificarServicio(pedido)}
@@ -451,7 +454,7 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
           ) : (
             <div className="space-y-3">
               {pedidosCompletadosConSaldo.map((pedido) => (
-                <PedidoCard key={pedido.id} pedido={pedido} tipo="recoger" />
+                <PedidoCard key={pedido.id} pedido={pedido} tipo="completado" />
               ))}
             </div>
           )}

@@ -341,9 +341,24 @@ export const pedidoService = {
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => {
       const data = doc.data();
+      
+      // Construir objeto lavadoraAsignada si existe
+      let lavadoraAsignada = undefined;
+      if (data.lavadoraAsignada_lavadoraId) {
+        lavadoraAsignada = {
+          lavadoraId: data.lavadoraAsignada_lavadoraId,
+          codigoQR: data.lavadoraAsignada_codigoQR || '',
+          marca: data.lavadoraAsignada_marca || '',
+          modelo: data.lavadoraAsignada_modelo || '',
+          fotoInstalacion: data.lavadoraAsignada_fotoInstalacion || '',
+          observacionesInstalacion: data.lavadoraAsignada_observacionesInstalacion || ''
+        };
+      }
+      
       return {
         id: doc.id,
         ...data,
+        lavadoraAsignada,
         fechaAsignacion: data.fechaAsignacion?.toDate() || new Date(),
         fechaEntrega: data.fechaEntrega?.toDate() || undefined,
         fechaRecogida: data.fechaRecogida?.toDate() || undefined,
@@ -366,9 +381,24 @@ export const pedidoService = {
     const snapshot = await getDocs(q);
     const pedidos = snapshot.docs.map(doc => {
       const data = doc.data();
+      
+      // Construir objeto lavadoraAsignada si existe
+      let lavadoraAsignada = undefined;
+      if (data.lavadoraAsignada_lavadoraId) {
+        lavadoraAsignada = {
+          lavadoraId: data.lavadoraAsignada_lavadoraId,
+          codigoQR: data.lavadoraAsignada_codigoQR || '',
+          marca: data.lavadoraAsignada_marca || '',
+          modelo: data.lavadoraAsignada_modelo || '',
+          fotoInstalacion: data.lavadoraAsignada_fotoInstalacion || '',
+          observacionesInstalacion: data.lavadoraAsignada_observacionesInstalacion || ''
+        };
+      }
+      
       return {
         id: doc.id,
         ...data,
+        lavadoraAsignada,
         fechaAsignacion: data.fechaAsignacion?.toDate() || new Date(),
         fechaEntrega: data.fechaEntrega?.toDate() || undefined,
         fechaRecogida: data.fechaRecogida?.toDate() || undefined,

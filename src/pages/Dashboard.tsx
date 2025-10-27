@@ -89,6 +89,12 @@ const Dashboard: React.FC = () => {
       setPlanes(planesData);
       setLavadoras(lavadorasData);
       
+      // Debug: verificar estado de lavadoras
+      console.log('🔍 Debug Dashboard - Estados de lavadoras:', lavadorasData.map(l => ({
+        codigoQR: l.codigoQR,
+        estado: l.estado
+      })));
+      
       // Procesar pedidos básico
       const pedidosPendientes = pedidosData.filter(p => p.status === 'pendiente');
       const pedidosEntregados = pedidosData.filter(p => p.status === 'entregado');

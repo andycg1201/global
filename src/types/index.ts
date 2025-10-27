@@ -74,7 +74,7 @@ export interface ModificacionServicio {
   
   // Horas extras
   horasExtras: {
-    cantidad: number;
+    cantidad: number | undefined;
     precioUnitario: number;
     total: number;
   };

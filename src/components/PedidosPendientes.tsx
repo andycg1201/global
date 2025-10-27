@@ -5,7 +5,10 @@ import {
   CheckCircleIcon,
   TruckIcon,
   HomeIcon,
-  ChatBubbleLeftRightIcon
+  ChatBubbleLeftRightIcon,
+  PlusCircleIcon,
+  MinusCircleIcon,
+  CurrencyDollarIcon
 } from '@heroicons/react/24/outline';
 import { formatDate, formatCurrency, calculatePickupDate, generateWhatsAppLink } from '../utils/dateUtils';
 import { Pedido } from '../types';
@@ -15,13 +18,19 @@ interface PedidosPendientesProps {
   pedidosPendientesRecoger: Pedido[];
   onMarcarEntregado?: (pedidoId: string) => void;
   onMarcarRecogido?: (pedidoId: string) => void;
+  onAgregarHorasExtras?: (pedido: Pedido) => void;
+  onAgregarCobroAdicional?: (pedido: Pedido) => void;
+  onAplicarDescuento?: (pedido: Pedido) => void;
 }
 
 const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
   pedidosPendientesEntregar,
   pedidosPendientesRecoger,
   onMarcarEntregado,
-  onMarcarRecogido
+  onMarcarRecogido,
+  onAgregarHorasExtras,
+  onAgregarCobroAdicional,
+  onAplicarDescuento
 }) => {
   // Separar pedidos por prioridad
   const pedidosPrioritarios = pedidosPendientesEntregar.filter(p => p.isPrioritario);
@@ -250,6 +259,44 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
                 <HomeIcon className="h-3 w-3 mr-1" />
                 Recoger
               </button>
+            )}
+            
+            {/* Botones de modificaciones para servicios entregados */}
+            {tipo === 'recoger' && (
+              <div className="flex flex-col gap-1 mt-2">
+                {onAgregarHorasExtras && (
+                  <button
+                    onClick={() => onAgregarHorasExtras(pedido)}
+                    className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-orange-500 hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-colors"
+                    title="Agregar horas extras"
+                  >
+                    <ClockIcon className="h-3 w-3 mr-1" />
+                    +Horas
+                  </button>
+                )}
+                
+                {onAgregarCobroAdicional && (
+                  <button
+                    onClick={() => onAgregarCobroAdicional(pedido)}
+                    className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-green-500 hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                    title="Agregar cobro adicional"
+                  >
+                    <PlusCircleIcon className="h-3 w-3 mr-1" />
+                    +Cobro
+                  </button>
+                )}
+                
+                {onAplicarDescuento && (
+                  <button
+                    onClick={() => onAplicarDescuento(pedido)}
+                    className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-red-500 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+                    title="Aplicar descuento"
+                  >
+                    <MinusCircleIcon className="h-3 w-3 mr-1" />
+                    -Descuento
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>

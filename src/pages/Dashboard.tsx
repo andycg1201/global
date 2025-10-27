@@ -14,7 +14,9 @@ import { formatCurrency, formatDate, getCurrentDateColombia } from '../utils/dat
 import { pedidoService, reporteService, gastoService, clienteService, lavadoraService, configService } from '../services/firebaseService';
 import { obtenerHistorialMantenimiento } from '../services/mantenimientoService';
 import { capitalService } from '../services/capitalService';
-import { validacionQRService } from '../services/validacionQRService';
+import { entregaOperativaService } from '../services/entregaOperativaService';
+import { recogidaOperativaService } from '../services/recogidaOperativaService';
+import { modificacionesService } from '../services/modificacionesService';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Pedido, ReporteDiario, Lavadora, Configuracion } from '../types';
@@ -23,6 +25,10 @@ import ModalValidacionQR from '../components/ModalValidacionQR';
 import ModalFacturacion from '../components/ModalFacturacion';
 import ModalLiquidacion from '../components/ModalLiquidacion';
 import ModalWhatsApp from '../components/ModalWhatsApp';
+import ModalHorasExtras from '../components/ModalHorasExtras';
+import ModalCobrosAdicionales from '../components/ModalCobrosAdicionales';
+import ModalDescuentos from '../components/ModalDescuentos';
+import ResumenFinalServicio from '../components/ResumenFinalServicio';
 
 const Dashboard: React.FC = () => {
   const [reporteDiario, setReporteDiario] = useState<ReporteDiario | null>(null);
@@ -42,6 +48,14 @@ const Dashboard: React.FC = () => {
   const [pedidoAFacturar, setPedidoAFacturar] = useState<Pedido | null>(null);
   const [pedidoParaWhatsApp, setPedidoParaWhatsApp] = useState<Pedido | null>(null);
   const [fotoEvidenciaWhatsApp, setFotoEvidenciaWhatsApp] = useState<string | null>(null);
+  
+  // Estados para modales de modificaciones dinámicas
+  const [mostrarModalHorasExtras, setMostrarModalHorasExtras] = useState(false);
+  const [mostrarModalCobrosAdicionales, setMostrarModalCobrosAdicionales] = useState(false);
+  const [mostrarModalDescuentos, setMostrarModalDescuentos] = useState(false);
+  const [mostrarResumenFinal, setMostrarResumenFinal] = useState(false);
+  const [pedidoParaModificar, setPedidoParaModificar] = useState<Pedido | null>(null);
+  
   const [lavadoras, setLavadoras] = useState<Lavadora[]>([]);
   const [configuracion, setConfiguracion] = useState<Configuracion | null>(null);
   
@@ -767,24 +781,24 @@ const Dashboard: React.FC = () => {
   };
 
   // Funciones para manejar validación QR y facturación
-  const handleValidacionQR = async (validacionData: any) => {
+  // Función para procesar entrega operativa (solo QR + foto + cambio estado)
+  const handleEntregaOperativa = async (entregaData: any) => {
     if (!pedidoAValidar) return;
 
-    const result = await validacionQRService.procesarValidacionQR(
+    const result = await entregaOperativaService.procesarEntregaOperativa(
       pedidoAValidar,
-      validacionData,
+      entregaData,
       lavadoras,
-      configuracion,
       {
         onSuccess: (pedidoActualizado) => {
-          console.log('Dashboard - Validación QR exitosa');
+          console.log('Dashboard - Entrega operativa exitosa');
           
           // Cerrar modal de validación QR
           setMostrarModalValidacionQR(false);
           
           // Abrir modal de WhatsApp directamente con la foto de evidencia
           setPedidoParaWhatsApp(pedidoActualizado);
-          setFotoEvidenciaWhatsApp(validacionData.fotoInstalacion || null);
+          setFotoEvidenciaWhatsApp(entregaData.fotoInstalacion || null);
           setMostrarModalWhatsApp(true);
           
           setPedidoAValidar(null);
@@ -816,6 +830,164 @@ const Dashboard: React.FC = () => {
 
     if (!result.success) {
       alert(result.message);
+    }
+  };
+
+  // Función para procesar recogida operativa (solo liberar lavadora + cambio estado)
+  const handleRecogidaOperativa = async (recogidaData: any) => {
+    if (!pedidoAValidar) return;
+
+    const result = await recogidaOperativaService.procesarRecogidaOperativa(
+      pedidoAValidar,
+      recogidaData,
+      {
+        onSuccess: (pedidoActualizado) => {
+          console.log('Dashboard - Recogida operativa exitosa');
+          
+          // Cerrar modal de validación QR
+          setMostrarModalValidacionQR(false);
+          
+          // Mostrar resumen final del servicio
+          setPedidoParaModificar(pedidoActualizado);
+          setMostrarResumenFinal(true);
+          
+          setPedidoAValidar(null);
+          
+          // Recargar datos
+          const cargarDatos = async () => {
+            try {
+              const hoy = getCurrentDateColombia();
+              
+              const [pedidosData, configuracionData] = await Promise.all([
+                pedidoService.getAllPedidos(),
+                configService.getConfiguracion()
+              ]);
+              
+              // Los pedidos se procesan en el useEffect principal
+              setConfiguracion(configuracionData);
+            } catch (error) {
+              console.error('Error al cargar datos:', error);
+            }
+          };
+          cargarDatos();
+          cargarLavadoras();
+        },
+        onError: (error) => {
+          alert(error);
+        }
+      }
+    );
+
+    if (!result.success) {
+      alert(result.message);
+    }
+  };
+
+  // Función para recargar datos del dashboard
+  const recargarDatosDashboard = async () => {
+    try {
+      const hoy = getCurrentDateColombia();
+      
+      const [pedidosData, configuracionData] = await Promise.all([
+        pedidoService.getAllPedidos(),
+        configService.getConfiguracion()
+      ]);
+      
+      setConfiguracion(configuracionData);
+      
+      // Procesar pedidos (lógica del useEffect principal)
+      const pedidos = pedidosData || [];
+      const pedidosPendientes = pedidos.filter(p => p.status === 'pendiente');
+      const pedidosEntregados = pedidos.filter(p => p.status === 'entregado');
+      const pedidosRecogidos = pedidos.filter(p => p.status === 'recogido');
+      
+      setPedidosPendientesEntregar(pedidosPendientes);
+      setPedidosPendientesRecoger(pedidosEntregados);
+      
+      // Calcular datos financieros
+      await calcularDatosFinancieros(filtroFinanciero);
+    } catch (error) {
+      console.error('Error al recargar datos del dashboard:', error);
+    }
+  };
+
+  // Funciones para manejar modificaciones dinámicas
+  const handleAgregarHorasExtras = async (data: any) => {
+    if (!pedidoParaModificar) return;
+
+    try {
+      await modificacionesService.crearModificacion({
+        pedidoId: pedidoParaModificar.id,
+        tipo: 'horas_extras',
+        concepto: data.concepto,
+        descripcion: data.motivo,
+        monto: data.monto,
+        cantidad: data.cantidad,
+        precioUnitario: data.precioUnitario,
+        aplicadoPor: 'admin' // TODO: obtener del contexto de usuario
+      });
+
+      setMostrarModalHorasExtras(false);
+      setPedidoParaModificar(null);
+      
+      // Recargar datos
+      await recargarDatosDashboard();
+      alert('Horas extras agregadas exitosamente');
+    } catch (error) {
+      console.error('Error al agregar horas extras:', error);
+      alert('Error al agregar horas extras');
+    }
+  };
+
+  const handleAgregarCobroAdicional = async (data: any) => {
+    if (!pedidoParaModificar) return;
+
+    try {
+      await modificacionesService.crearModificacion({
+        pedidoId: pedidoParaModificar.id,
+        tipo: 'cobro_adicional',
+        concepto: data.concepto,
+        descripcion: data.descripcion,
+        monto: data.monto,
+        motivo: data.motivo,
+        aplicadoPor: 'admin' // TODO: obtener del contexto de usuario
+      });
+
+      setMostrarModalCobrosAdicionales(false);
+      setPedidoParaModificar(null);
+      
+      // Recargar datos
+      await recargarDatosDashboard();
+      alert('Cobro adicional agregado exitosamente');
+    } catch (error) {
+      console.error('Error al agregar cobro adicional:', error);
+      alert('Error al agregar cobro adicional');
+    }
+  };
+
+  const handleAplicarDescuento = async (data: any) => {
+    if (!pedidoParaModificar) return;
+
+    try {
+      await modificacionesService.crearModificacion({
+        pedidoId: pedidoParaModificar.id,
+        tipo: 'descuento',
+        concepto: data.concepto,
+        descripcion: data.descripcion,
+        monto: data.monto, // Ya viene negativo desde el modal
+        motivo: data.motivo,
+        aplicadoPor: 'admin' // TODO: obtener del contexto de usuario
+      });
+
+      setMostrarModalDescuentos(false);
+      setPedidoParaModificar(null);
+      
+      // Recargar datos
+      await recargarDatosDashboard();
+      alert('Descuento aplicado exitosamente');
+    } catch (error) {
+      console.error('Error al aplicar descuento:', error);
+      alert('Error al aplicar descuento');
     }
   };
 
@@ -1299,6 +1471,18 @@ const Dashboard: React.FC = () => {
         pedidosPendientesRecoger={pedidosPendientesRecoger}
         onMarcarEntregado={handleMarcarEntregado}
         onMarcarRecogido={handleMarcarRecogido}
+        onAgregarHorasExtras={(pedido) => {
+          setPedidoParaModificar(pedido);
+          setMostrarModalHorasExtras(true);
+        }}
+        onAgregarCobroAdicional={(pedido) => {
+          setPedidoParaModificar(pedido);
+          setMostrarModalCobrosAdicionales(true);
+        }}
+        onAplicarDescuento={(pedido) => {
+          setPedidoParaModificar(pedido);
+          setMostrarModalDescuentos(true);
+        }}
       />
 
       {/* Resumen financiero */}
@@ -1486,7 +1670,7 @@ const Dashboard: React.FC = () => {
             setMostrarModalValidacionQR(false);
             setPedidoAValidar(null);
           }}
-          onConfirm={handleValidacionQR}
+          onConfirm={handleEntregaOperativa}
           pedido={pedidoAValidar}
           lavadoras={lavadoras}
           precioHoraAdicional={configuracion?.horaAdicional || 2000}
@@ -1530,6 +1714,55 @@ const Dashboard: React.FC = () => {
           }}
           pedido={pedidoParaWhatsApp}
           fotoEvidencia={fotoEvidenciaWhatsApp || undefined}
+        />
+      )}
+
+      {/* Modales de modificaciones dinámicas */}
+      {mostrarModalHorasExtras && pedidoParaModificar && (
+        <ModalHorasExtras
+          isOpen={mostrarModalHorasExtras}
+          onClose={() => {
+            setMostrarModalHorasExtras(false);
+            setPedidoParaModificar(null);
+          }}
+          onConfirm={handleAgregarHorasExtras}
+          pedido={pedidoParaModificar}
+          precioHoraAdicional={configuracion?.horaAdicional || 2000}
+        />
+      )}
+
+      {mostrarModalCobrosAdicionales && pedidoParaModificar && (
+        <ModalCobrosAdicionales
+          isOpen={mostrarModalCobrosAdicionales}
+          onClose={() => {
+            setMostrarModalCobrosAdicionales(false);
+            setPedidoParaModificar(null);
+          }}
+          onConfirm={handleAgregarCobroAdicional}
+          pedido={pedidoParaModificar}
+        />
+      )}
+
+      {mostrarModalDescuentos && pedidoParaModificar && (
+        <ModalDescuentos
+          isOpen={mostrarModalDescuentos}
+          onClose={() => {
+            setMostrarModalDescuentos(false);
+            setPedidoParaModificar(null);
+          }}
+          onConfirm={handleAplicarDescuento}
+          pedido={pedidoParaModificar}
+        />
+      )}
+
+      {/* Resumen final del servicio */}
+      {mostrarResumenFinal && pedidoParaModificar && (
+        <ResumenFinalServicio
+          pedido={pedidoParaModificar}
+          onClose={() => {
+            setMostrarResumenFinal(false);
+            setPedidoParaModificar(null);
+          }}
         />
       )}
 

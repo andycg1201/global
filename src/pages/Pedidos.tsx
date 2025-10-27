@@ -12,7 +12,9 @@ import {
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { pedidoService, configService, lavadoraService } from '../services/firebaseService';
-import { validacionQRService } from '../services/validacionQRService';
+import { entregaOperativaService } from '../services/entregaOperativaService';
+import { recogidaOperativaService } from '../services/recogidaOperativaService';
+import { modificacionesService } from '../services/modificacionesService';
 import { Pedido } from '../types';
 import { formatDate, formatCurrency, calculatePickupDate, getCurrentDateColombia } from '../utils/dateUtils';
 import NuevoPedido from './NuevoPedido';
@@ -23,6 +25,10 @@ import ModalLiquidacionUniversal from '../components/ModalLiquidacionUniversal';
 import ModalValidacionQR from '../components/ModalValidacionQR';
 import ModalFotoInstalacion from '../components/ModalFotoInstalacion';
 import ModalWhatsApp from '../components/ModalWhatsApp';
+import ModalHorasExtras from '../components/ModalHorasExtras';
+import ModalCobrosAdicionales from '../components/ModalCobrosAdicionales';
+import ModalDescuentos from '../components/ModalDescuentos';
+import ResumenFinalServicio from '../components/ResumenFinalServicio';
 import CalendarioHorarios from '../components/CalendarioHorarios';
 import EstadoLavadorasModal from '../components/EstadoLavadorasModal';
 
@@ -71,6 +77,13 @@ const Pedidos: React.FC = () => {
   const [mostrarModalWhatsApp, setMostrarModalWhatsApp] = useState(false);
   const [pedidoParaWhatsApp, setPedidoParaWhatsApp] = useState<Pedido | null>(null);
   const [fotoEvidenciaWhatsApp, setFotoEvidenciaWhatsApp] = useState<string | null>(null);
+  
+  // Estados para modales de modificaciones dinámicas
+  const [mostrarModalHorasExtras, setMostrarModalHorasExtras] = useState(false);
+  const [mostrarModalCobrosAdicionales, setMostrarModalCobrosAdicionales] = useState(false);
+  const [mostrarModalDescuentos, setMostrarModalDescuentos] = useState(false);
+  const [mostrarResumenFinal, setMostrarResumenFinal] = useState(false);
+  const [pedidoParaModificar, setPedidoParaModificar] = useState<Pedido | null>(null);
   
   
   const [filtros, setFiltros] = useState<FiltrosPedidos>({
@@ -652,7 +665,7 @@ const Pedidos: React.FC = () => {
       );
     } else if (pedido.status === 'entregado') {
       return (
-        <div className="relative">
+        <div className="relative flex flex-col gap-2">
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -664,6 +677,45 @@ const Pedidos: React.FC = () => {
           >
             Recoger
           </button>
+          
+          {/* Botones de modificaciones */}
+          <div className="flex gap-1">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setPedidoParaModificar(pedido);
+                setMostrarModalHorasExtras(true);
+              }}
+              className="px-2 py-1 text-xs font-medium text-white bg-orange-500 hover:bg-orange-600 rounded transition-colors"
+              title="Agregar horas extras"
+            >
+              +Horas
+            </button>
+            
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setPedidoParaModificar(pedido);
+                setMostrarModalCobrosAdicionales(true);
+              }}
+              className="px-2 py-1 text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 rounded transition-colors"
+              title="Agregar cobro adicional"
+            >
+              +Cobro
+            </button>
+            
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setPedidoParaModificar(pedido);
+                setMostrarModalDescuentos(true);
+              }}
+              className="px-2 py-1 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded transition-colors"
+              title="Aplicar descuento"
+            >
+              -Desc
+            </button>
+          </div>
           {/* Badge de liquidación en esquina */}
           <button
             onClick={(e) => {
@@ -913,24 +965,24 @@ const Pedidos: React.FC = () => {
     }
   };
 
-  const handleValidacionQR = async (validacionData: any) => {
+  // Función para procesar entrega operativa (solo QR + foto + cambio estado)
+  const handleEntregaOperativa = async (entregaData: any) => {
     if (!pedidoAValidar) return;
 
-    const result = await validacionQRService.procesarValidacionQR(
+    const result = await entregaOperativaService.procesarEntregaOperativa(
       pedidoAValidar,
-      validacionData,
+      entregaData,
       lavadoras,
-      configuracion,
       {
         onSuccess: (pedidoActualizado) => {
-          console.log('Pedidos - Validación QR exitosa');
+          console.log('Pedidos - Entrega operativa exitosa');
           
           // Cerrar modal de validación QR
           setMostrarModalValidacionQR(false);
           
           // Abrir modal de WhatsApp directamente con la foto de evidencia
           setPedidoParaWhatsApp(pedidoActualizado);
-          setFotoEvidenciaWhatsApp(validacionData.fotoInstalacion || null);
+          setFotoEvidenciaWhatsApp(entregaData.fotoInstalacion || null);
           setMostrarModalWhatsApp(true);
           
           // Limpiar estado
@@ -949,6 +1001,123 @@ const Pedidos: React.FC = () => {
 
     if (!result.success) {
       alert(result.message);
+    }
+  };
+
+  // Función para procesar recogida operativa (solo liberar lavadora + cambio estado)
+  const handleRecogidaOperativa = async (recogidaData: any) => {
+    if (!pedidoAValidar) return;
+
+    const result = await recogidaOperativaService.procesarRecogidaOperativa(
+      pedidoAValidar,
+      recogidaData,
+      {
+        onSuccess: (pedidoActualizado) => {
+          console.log('Pedidos - Recogida operativa exitosa');
+          
+          // Cerrar modal de validación QR
+          setMostrarModalValidacionQR(false);
+          
+          // Mostrar resumen final del servicio
+          setPedidoParaModificar(pedidoActualizado);
+          setMostrarResumenFinal(true);
+          
+          // Limpiar estado
+          setPedidoAValidar(null);
+          
+          // Recargar datos
+          cargarPedidos();
+          cargarLavadoras();
+          window.dispatchEvent(new CustomEvent('pagoRealizado')); // Notificar al dashboard
+        },
+        onError: (error) => {
+          alert(error);
+        }
+      }
+    );
+
+    if (!result.success) {
+      alert(result.message);
+    }
+  };
+
+  // Funciones para manejar modificaciones dinámicas
+  const handleAgregarHorasExtras = async (data: any) => {
+    if (!pedidoParaModificar) return;
+
+    try {
+      await modificacionesService.crearModificacion({
+        pedidoId: pedidoParaModificar.id,
+        tipo: 'horas_extras',
+        concepto: data.concepto,
+        descripcion: data.motivo,
+        monto: data.monto,
+        cantidad: data.cantidad,
+        precioUnitario: data.precioUnitario,
+        aplicadoPor: 'admin' // TODO: obtener del contexto de usuario
+      });
+
+      setMostrarModalHorasExtras(false);
+      setPedidoParaModificar(null);
+      
+      // Recargar datos
+      cargarPedidos();
+      alert('Horas extras agregadas exitosamente');
+    } catch (error) {
+      console.error('Error al agregar horas extras:', error);
+      alert('Error al agregar horas extras');
+    }
+  };
+
+  const handleAgregarCobroAdicional = async (data: any) => {
+    if (!pedidoParaModificar) return;
+
+    try {
+      await modificacionesService.crearModificacion({
+        pedidoId: pedidoParaModificar.id,
+        tipo: 'cobro_adicional',
+        concepto: data.concepto,
+        descripcion: data.descripcion,
+        monto: data.monto,
+        motivo: data.motivo,
+        aplicadoPor: 'admin' // TODO: obtener del contexto de usuario
+      });
+
+      setMostrarModalCobrosAdicionales(false);
+      setPedidoParaModificar(null);
+      
+      // Recargar datos
+      cargarPedidos();
+      alert('Cobro adicional agregado exitosamente');
+    } catch (error) {
+      console.error('Error al agregar cobro adicional:', error);
+      alert('Error al agregar cobro adicional');
+    }
+  };
+
+  const handleAplicarDescuento = async (data: any) => {
+    if (!pedidoParaModificar) return;
+
+    try {
+      await modificacionesService.crearModificacion({
+        pedidoId: pedidoParaModificar.id,
+        tipo: 'descuento',
+        concepto: data.concepto,
+        descripcion: data.descripcion,
+        monto: data.monto, // Ya viene negativo desde el modal
+        motivo: data.motivo,
+        aplicadoPor: 'admin' // TODO: obtener del contexto de usuario
+      });
+
+      setMostrarModalDescuentos(false);
+      setPedidoParaModificar(null);
+      
+      // Recargar datos
+      cargarPedidos();
+      alert('Descuento aplicado exitosamente');
+    } catch (error) {
+      console.error('Error al aplicar descuento:', error);
+      alert('Error al aplicar descuento');
     }
   };
 
@@ -1821,7 +1990,7 @@ const Pedidos: React.FC = () => {
             setMostrarModalValidacionQR(false);
             setPedidoAValidar(null);
           }}
-          onConfirm={handleValidacionQR}
+          onConfirm={handleEntregaOperativa}
           pedido={pedidoAValidar}
           lavadoras={lavadoras}
           precioHoraAdicional={configuracion?.horaAdicional || 2000}
@@ -1851,6 +2020,55 @@ const Pedidos: React.FC = () => {
           }}
           pedido={pedidoParaWhatsApp}
           fotoEvidencia={fotoEvidenciaWhatsApp || undefined}
+        />
+      )}
+
+      {/* Modales de modificaciones dinámicas */}
+      {mostrarModalHorasExtras && pedidoParaModificar && (
+        <ModalHorasExtras
+          isOpen={mostrarModalHorasExtras}
+          onClose={() => {
+            setMostrarModalHorasExtras(false);
+            setPedidoParaModificar(null);
+          }}
+          onConfirm={handleAgregarHorasExtras}
+          pedido={pedidoParaModificar}
+          precioHoraAdicional={configuracion?.horaAdicional || 2000}
+        />
+      )}
+
+      {mostrarModalCobrosAdicionales && pedidoParaModificar && (
+        <ModalCobrosAdicionales
+          isOpen={mostrarModalCobrosAdicionales}
+          onClose={() => {
+            setMostrarModalCobrosAdicionales(false);
+            setPedidoParaModificar(null);
+          }}
+          onConfirm={handleAgregarCobroAdicional}
+          pedido={pedidoParaModificar}
+        />
+      )}
+
+      {mostrarModalDescuentos && pedidoParaModificar && (
+        <ModalDescuentos
+          isOpen={mostrarModalDescuentos}
+          onClose={() => {
+            setMostrarModalDescuentos(false);
+            setPedidoParaModificar(null);
+          }}
+          onConfirm={handleAplicarDescuento}
+          pedido={pedidoParaModificar}
+        />
+      )}
+
+      {/* Resumen final del servicio */}
+      {mostrarResumenFinal && pedidoParaModificar && (
+        <ResumenFinalServicio
+          pedido={pedidoParaModificar}
+          onClose={() => {
+            setMostrarResumenFinal(false);
+            setPedidoParaModificar(null);
+          }}
         />
       )}
 

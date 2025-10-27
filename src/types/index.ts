@@ -49,6 +49,34 @@ export interface PaymentMethod {
   amount: number;
 }
 
+// Tipos de modificaciones dinámicas
+export interface ModificacionPedido {
+  id: string;
+  pedidoId: string;
+  tipo: 'horas_extras' | 'cobro_adicional' | 'descuento' | 'cambio_plan' | 'reembolso';
+  concepto: string;
+  descripcion?: string;
+  monto: number; // positivo para cobros, negativo para descuentos/reembolsos
+  cantidad?: number; // para horas extras
+  precioUnitario?: number; // para horas extras
+  fecha: Date;
+  estado: 'pendiente' | 'aplicada' | 'cancelada';
+  motivo?: string;
+  aplicadoPor: string; // ID del usuario que aplicó la modificación
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Tipos de resumen de modificaciones
+export interface ResumenModificaciones {
+  totalHorasExtras: number;
+  totalCobrosAdicionales: number;
+  totalDescuentos: number;
+  totalReembolsos: number;
+  montoTotalModificaciones: number;
+  modificaciones: ModificacionPedido[];
+}
+
 // Tipos de descuento
 export interface Descuento {
   type: string; // "corte_agua", "problema_tecnico", etc.
@@ -131,6 +159,10 @@ export interface Pedido {
   // Sistema de liquidación universal
   pagosRealizados?: PagoRealizado[]; // historial de pagos realizados
   saldoPendiente: number; // saldo pendiente de liquidación
+  
+  // Sistema de modificaciones dinámicas
+  modificaciones?: ModificacionPedido[]; // historial de modificaciones al pedido
+  resumenModificaciones?: ResumenModificaciones; // resumen calculado de modificaciones
   
   // Gestión de lavadoras
   lavadoraAsignada?: {

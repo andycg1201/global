@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { XMarkIcon, CurrencyDollarIcon, ClockIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 import { Pedido } from '../types';
 import { formatCurrency, formatDate } from '../utils/dateUtils';
+import { modificacionesService } from '../services/modificacionesService';
 
 interface ModalLiquidacionUniversalProps {
   isOpen: boolean;
@@ -28,9 +29,8 @@ const ModalLiquidacionUniversal: React.FC<ModalLiquidacionUniversalProps> = ({
 
   if (!isOpen) return null;
 
-  // Calcular saldo pendiente restando los pagos ya realizados
-  const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
-  const saldoPendiente = Math.max(0, (pedido.total || 0) - totalPagado);
+  // Calcular saldo pendiente usando el nuevo sistema de modificaciones dinámicas
+  const saldoPendiente = modificacionesService.calcularSaldoPendiente(pedido);
   const montoNumerico = parseFloat(montoAbono) || 0;
   const esAbonoParcial = montoNumerico < saldoPendiente;
   const saldoRestante = saldoPendiente - montoNumerico;
@@ -38,13 +38,11 @@ const ModalLiquidacionUniversal: React.FC<ModalLiquidacionUniversalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (montoNumerico <= 0) {
-      alert('El monto debe ser mayor a 0');
-      return;
-    }
-
-    if (montoNumerico > saldoPendiente) {
-      alert('El monto no puede ser mayor al saldo pendiente');
+    // Usar la validación del servicio de modificaciones
+    const validacion = modificacionesService.validarPago(montoNumerico, pedido);
+    
+    if (!validacion.valido) {
+      alert(validacion.mensaje);
       return;
     }
 
@@ -113,7 +111,7 @@ const ModalLiquidacionUniversal: React.FC<ModalLiquidacionUniversalProps> = ({
                 <h4 className="text-lg font-medium text-red-800">Saldo Pendiente</h4>
                 <p className="text-sm text-red-600">Monto total a liquidar</p>
                 <p className="text-xs text-red-500 mt-1">
-                  Total: {formatCurrency(pedido.total || 0)} - Pagado: {formatCurrency(totalPagado)} = {formatCurrency(saldoPendiente)}
+                  Plan: {formatCurrency(pedido.subtotal || 0)} + Modificaciones: {formatCurrency(pedido.resumenModificaciones?.montoTotalModificaciones || 0)} - Pagado: {formatCurrency(pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0)} = {formatCurrency(saldoPendiente)}
                 </p>
               </div>
               <div className="text-right">
@@ -123,6 +121,44 @@ const ModalLiquidacionUniversal: React.FC<ModalLiquidacionUniversalProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Modificaciones dinámicas */}
+          {pedido.resumenModificaciones && pedido.resumenModificaciones.modificaciones.length > 0 && (
+            <div className="bg-gray-50 border border-gray-200 p-4 rounded-lg">
+              <h3 className="font-medium text-gray-900 mb-3 flex items-center">
+                <DocumentTextIcon className="h-5 w-5 text-gray-600 mr-2" />
+                Modificaciones al Servicio
+              </h3>
+              <div className="space-y-2">
+                {pedido.resumenModificaciones.modificaciones.map((modificacion) => (
+                  <div key={modificacion.id} className="flex justify-between items-center text-sm">
+                    <div>
+                      <span className="font-medium text-gray-700">{modificacion.concepto}</span>
+                      {modificacion.descripcion && (
+                        <p className="text-gray-500 text-xs">{modificacion.descripcion}</p>
+                      )}
+                    </div>
+                    <span className={`font-medium ${
+                      modificacion.monto > 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {modificacion.monto > 0 ? '+' : ''}{formatCurrency(modificacion.monto)}
+                    </span>
+                  </div>
+                ))}
+                <div className="border-t border-gray-300 pt-2 mt-2">
+                  <div className="flex justify-between items-center font-medium">
+                    <span className="text-gray-700">Total modificaciones:</span>
+                    <span className={`${
+                      pedido.resumenModificaciones.montoTotalModificaciones > 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {pedido.resumenModificaciones.montoTotalModificaciones > 0 ? '+' : ''}
+                      {formatCurrency(pedido.resumenModificaciones.montoTotalModificaciones)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Historial de pagos (si existe) */}
           {pedido.pagosRealizados && pedido.pagosRealizados.length > 0 && (

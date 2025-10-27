@@ -283,8 +283,18 @@ const Capital: React.FC = () => {
       const movimientosConSaldos = todosLosMovimientosCompletos.map(movimiento => {
         console.log('🔍 Procesando movimiento:', movimiento.id, movimiento.concepto);
         
-        // Procesar movimientos de capital por separado
-        if (movimiento.id.startsWith('capital-')) {
+        // Procesar capital inicial primero (antes que movimientos de capital)
+        if (movimiento.id === 'capital-inicial') {
+          console.log('🔍 Verificando capital inicial - capitalInicialData:', capitalInicialData);
+          if (capitalInicialData) {
+            console.log('💰 Procesando capital inicial:', capitalInicialData.efectivo, capitalInicialData.nequi, capitalInicialData.daviplata);
+            saldoEfectivo += capitalInicialData.efectivo;
+            saldoNequi += capitalInicialData.nequi;
+            saldoDaviplata += capitalInicialData.daviplata;
+          } else {
+            console.log('❌ Error: capitalInicialData es null/undefined');
+          }
+        } else if (movimiento.id.startsWith('capital-')) {
           const movCapital = movimientosCapitalData.find(m => `capital-${m.id}` === movimiento.id);
           if (movCapital) {
             console.log('💰 Procesando movimiento capital:', movCapital.tipo, movCapital.efectivo, movCapital.nequi, movCapital.daviplata);
@@ -297,16 +307,6 @@ const Capital: React.FC = () => {
               saldoNequi -= movCapital.nequi;
               saldoDaviplata -= movCapital.daviplata;
             }
-          }
-        } else if (movimiento.id === 'capital-inicial') {
-          console.log('🔍 Verificando capital inicial - capitalInicialData:', capitalInicialData);
-          if (capitalInicialData) {
-            console.log('💰 Procesando capital inicial:', capitalInicialData.efectivo, capitalInicialData.nequi, capitalInicialData.daviplata);
-            saldoEfectivo += capitalInicialData.efectivo;
-            saldoNequi += capitalInicialData.nequi;
-            saldoDaviplata += capitalInicialData.daviplata;
-          } else {
-            console.log('❌ Error: capitalInicialData es null/undefined');
           }
         } else {
           console.log('💰 Procesando movimiento normal:', movimiento.tipo, movimiento.monto, movimiento.medioPago);

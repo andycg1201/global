@@ -94,6 +94,14 @@ const Dashboard: React.FC = () => {
         codigoQR: l.codigoQR,
         estado: l.estado
       })));
+
+      // Debug específico para G-02
+      const g02 = lavadorasData.find(l => l.codigoQR === 'G-02');
+      console.log('🔍 Debug Dashboard - G-02 específica:', g02 ? {
+        codigoQR: g02.codigoQR,
+        estado: g02.estado,
+        id: g02.id
+      } : 'NO ENCONTRADA');
       
       // Procesar pedidos básico
       const pedidosPendientes = pedidosData.filter(p => p.status === 'pendiente');
@@ -195,11 +203,11 @@ const Dashboard: React.FC = () => {
           pedido.pagosRealizados.forEach(pago => {
             const medioPago = pago.medioPago || 'efectivo';
             if (medioPago === 'efectivo') {
-              saldosCalculados.efectivo.ingresos += pago.monto;
+                saldosCalculados.efectivo.ingresos += pago.monto;
             } else if (medioPago === 'nequi') {
-              saldosCalculados.nequi.ingresos += pago.monto;
+                saldosCalculados.nequi.ingresos += pago.monto;
             } else if (medioPago === 'daviplata') {
-              saldosCalculados.daviplata.ingresos += pago.monto;
+                saldosCalculados.daviplata.ingresos += pago.monto;
             }
           });
         }
@@ -421,19 +429,19 @@ const Dashboard: React.FC = () => {
         <div className="bg-white rounded-lg shadow-md p-4 flex flex-col items-center text-center">
           <div className="flex-shrink-0 bg-purple-100 p-2 rounded-full mb-2">
             <WalletIcon className="h-5 w-5 text-purple-600" />
-          </div>
+              </div>
           <p className="text-gray-500 text-xs font-medium">Capital</p>
           <p className="text-lg font-semibold text-gray-900">{formatCurrency(capitalInicial + inyeccionesCapital)}</p>
-        </div>
+              </div>
 
         {/* Servicios */}
         <div className="bg-white rounded-lg shadow-md p-4 flex flex-col items-center text-center">
           <div className="flex-shrink-0 bg-green-100 p-2 rounded-full mb-2">
             <CurrencyDollarIcon className="h-5 w-5 text-green-600" />
-          </div>
+            </div>
           <p className="text-gray-500 text-xs font-medium">Servicios</p>
           <p className="text-lg font-semibold text-gray-900">{formatCurrency(ingresosServicios)}</p>
-        </div>
+      </div>
 
         {/* Total Pedidos */}
         <div className="bg-white rounded-lg shadow-md p-4 flex flex-col items-center text-center">
@@ -448,38 +456,38 @@ const Dashboard: React.FC = () => {
         <div className="bg-white rounded-lg shadow-md p-4 flex flex-col items-center text-center">
           <div className="flex-shrink-0 bg-red-100 p-2 rounded-full mb-2">
             <ExclamationTriangleIcon className="h-5 w-5 text-red-600" />
-          </div>
+              </div>
           <p className="text-gray-500 text-xs font-medium">Gastos</p>
           <p className="text-lg font-semibold text-gray-900">{formatCurrency(gastosGenerales)}</p>
-        </div>
+              </div>
 
         {/* Mantenimientos */}
         <div className="bg-white rounded-lg shadow-md p-4 flex flex-col items-center text-center">
           <div className="flex-shrink-0 bg-orange-100 p-2 rounded-full mb-2">
             <ExclamationTriangleIcon className="h-5 w-5 text-orange-600" />
-          </div>
+            </div>
           <p className="text-gray-500 text-xs font-medium">Mantenimientos</p>
           <p className="text-lg font-semibold text-gray-900">{formatCurrency(gastosMantenimiento)}</p>
-        </div>
+              </div>
 
         {/* Retiros */}
         <div className="bg-white rounded-lg shadow-md p-4 flex flex-col items-center text-center">
           <div className="flex-shrink-0 bg-yellow-100 p-2 rounded-full mb-2">
             <ExclamationTriangleIcon className="h-5 w-5 text-yellow-600" />
-          </div>
+            </div>
           <p className="text-gray-500 text-xs font-medium">Retiros</p>
           <p className="text-lg font-semibold text-gray-900">{formatCurrency(retirosCapital)}</p>
-        </div>
+          </div>
 
         {/* Cuentas por Cobrar */}
         <div className="bg-white rounded-lg shadow-md p-4 flex flex-col items-center text-center">
           <div className="flex-shrink-0 bg-indigo-100 p-2 rounded-full mb-2">
             <ChartBarIcon className="h-5 w-5 text-indigo-600" />
-          </div>
+              </div>
           <p className="text-gray-500 text-xs font-medium">Cuentas por Cobrar</p>
           <p className="text-lg font-semibold text-gray-900">{formatCurrency(cuentasPorCobrar)}</p>
-        </div>
-      </div>
+            </div>
+          </div>
 
       {/* Saldos por Medio de Pago */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">

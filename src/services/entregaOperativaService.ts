@@ -31,8 +31,10 @@ export class EntregaOperativaService {
       onError?: (error: string) => void;
     }
   ): Promise<EntregaOperativaResult> {
+    console.log('🚀 EntregaOperativaService - INICIANDO procesarEntregaOperativa');
     console.log('EntregaOperativaService - procesarEntregaOperativa llamado con:', entregaData);
     console.log('EntregaOperativaService - pedido:', pedido);
+    console.log('EntregaOperativaService - lavadoras disponibles:', lavadoras.length);
     
     if (!pedido) {
       console.log('EntregaOperativaService - No hay pedido para entregar');

@@ -152,8 +152,18 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
 
     // Verificar que la lavadora escaneada existe
     const lavadoraExiste = lavadoras.find(l => l.codigoQR === lavadoraEscaneada);
+    console.log('🔍 Debug ModalEntregaOperativa - Lavadora encontrada:', lavadoraExiste);
+    
     if (!lavadoraExiste) {
       setError('La lavadora escaneada no existe en el sistema');
+      return;
+    }
+
+    // Verificar que la lavadora esté disponible
+    console.log('🔍 Debug ModalEntregaOperativa - Estado de lavadora:', lavadoraExiste.estado);
+    
+    if (lavadoraExiste.estado !== 'disponible') {
+      setError(`La lavadora ${lavadoraEscaneada} no está disponible para alquiler. Estado actual: ${lavadoraExiste.estado}`);
       return;
     }
 

@@ -21,7 +21,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Pedido, ReporteDiario, Lavadora, Configuracion } from '../types';
 import PedidosPendientes from '../components/PedidosPendientes';
-import ModalValidacionQR from '../components/ModalValidacionQR';
+import ModalEntregaOperativa from '../components/ModalEntregaOperativa';
 import ModalFacturacion from '../components/ModalFacturacion';
 import ModalLiquidacion from '../components/ModalLiquidacion';
 import ModalWhatsApp from '../components/ModalWhatsApp';
@@ -40,7 +40,7 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   
   // Estados para modales de validación y facturación
-  const [mostrarModalValidacionQR, setMostrarModalValidacionQR] = useState(false);
+  const [mostrarModalEntregaOperativa, setMostrarModalEntregaOperativa] = useState(false);
   const [mostrarModalFacturacion, setMostrarModalFacturacion] = useState(false);
   const [mostrarModalLiquidacion, setMostrarModalLiquidacion] = useState(false);
   const [mostrarModalWhatsApp, setMostrarModalWhatsApp] = useState(false);
@@ -793,8 +793,8 @@ const Dashboard: React.FC = () => {
         onSuccess: (pedidoActualizado) => {
           console.log('Dashboard - Entrega operativa exitosa');
           
-          // Cerrar modal de validación QR
-          setMostrarModalValidacionQR(false);
+          // Cerrar modal de entrega operativa
+          setMostrarModalEntregaOperativa(false);
           
           // Abrir modal de WhatsApp directamente con la foto de evidencia
           setPedidoParaWhatsApp(pedidoActualizado);
@@ -844,8 +844,8 @@ const Dashboard: React.FC = () => {
         onSuccess: (pedidoActualizado) => {
           console.log('Dashboard - Recogida operativa exitosa');
           
-          // Cerrar modal de validación QR
-          setMostrarModalValidacionQR(false);
+          // Cerrar modal de entrega operativa
+          setMostrarModalEntregaOperativa(false);
           
           // Mostrar resumen final del servicio
           setPedidoParaModificar(pedidoActualizado);
@@ -1124,7 +1124,7 @@ const Dashboard: React.FC = () => {
     const pedido = pedidosPendientesEntregar.find(p => p.id === pedidoId);
     if (pedido) {
       setPedidoAValidar(pedido);
-      setMostrarModalValidacionQR(true);
+      setMostrarModalEntregaOperativa(true);
     }
   };
 
@@ -1662,18 +1662,17 @@ const Dashboard: React.FC = () => {
           </dl>
         </div>
 
-      {/* Modales de validación y facturación */}
-      {mostrarModalValidacionQR && pedidoAValidar && (
-        <ModalValidacionQR
-          isOpen={mostrarModalValidacionQR}
+      {/* Modal de entrega operativa */}
+      {mostrarModalEntregaOperativa && pedidoAValidar && (
+        <ModalEntregaOperativa
+          isOpen={mostrarModalEntregaOperativa}
           onClose={() => {
-            setMostrarModalValidacionQR(false);
+            setMostrarModalEntregaOperativa(false);
             setPedidoAValidar(null);
           }}
           onConfirm={handleEntregaOperativa}
           pedido={pedidoAValidar}
           lavadoras={lavadoras}
-          precioHoraAdicional={configuracion?.horaAdicional || 2000}
         />
       )}
 

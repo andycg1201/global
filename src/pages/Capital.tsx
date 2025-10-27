@@ -80,6 +80,9 @@ const Capital: React.FC = () => {
         capitalService.getMovimientosCapital()
       ]);
       
+      console.log('🔍 Debug Capital - Capital inicial cargado:', capitalInicialData);
+      console.log('🔍 Debug Capital - Movimientos capital cargados:', movimientosCapitalData.length);
+      
       setCapitalInicial(capitalInicialData);
       setMovimientosCapital(movimientosCapitalData);
       

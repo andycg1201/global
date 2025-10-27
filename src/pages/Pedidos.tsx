@@ -12,6 +12,7 @@ import {
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { pedidoService, configService, lavadoraService } from '../services/firebaseService';
+import { validacionQRService } from '../services/validacionQRService';
 import { Pedido } from '../types';
 import { formatDate, formatCurrency, calculatePickupDate, getCurrentDateColombia } from '../utils/dateUtils';
 import NuevoPedido from './NuevoPedido';
@@ -50,7 +51,6 @@ const Pedidos: React.FC = () => {
   const [pedidoAFacturar, setPedidoAFacturar] = useState<Pedido | null>(null);
   const [pedidoALiquidar, setPedidoALiquidar] = useState<Pedido | null>(null);
   const [configuracion, setConfiguracion] = useState<any>(null);
-  const [mostrarDiagnostico, setMostrarDiagnostico] = useState(false);
   
   // Estados para validación QR
   const [mostrarModalValidacionQR, setMostrarModalValidacionQR] = useState(false);
@@ -435,78 +435,6 @@ const Pedidos: React.FC = () => {
     return { valido: true };
   };
 
-  // Función de diagnóstico completo del sistema
-  const ejecutarDiagnosticoCompleto = () => {
-    const diagnosticos = {
-      pedidosInconsistentes: [] as any[],
-      lavadorasDesincronizadas: [] as any[],
-      resumen: {
-        totalPedidos: pedidos.length,
-        pedidosInconsistentes: 0,
-        lavadorasDesincronizadas: 0,
-        problemasCriticos: 0
-      }
-    };
-
-    // Diagnosticar pedidos
-    pedidos.forEach(pedido => {
-      const inconsistencias = detectarInconsistencias(pedido);
-      if (inconsistencias.length > 0) {
-        diagnosticos.pedidosInconsistentes.push({
-          id: pedido.id,
-          cliente: pedido.cliente.name,
-          estado: pedido.status,
-          inconsistencias,
-          fechaAsignacion: pedido.fechaAsignacion,
-          fechaEntrega: pedido.fechaEntrega,
-          fechaRecogida: pedido.fechaRecogida
-        });
-        diagnosticos.resumen.pedidosInconsistentes++;
-        if (inconsistencias.some(inc => inc.includes('sin fecha'))) {
-          diagnosticos.resumen.problemasCriticos++;
-        }
-      }
-    });
-
-    // Diagnosticar lavadoras
-    lavadoras.forEach(lavadora => {
-      const pedidoAsociado = pedidos.find(p => 
-        p.lavadoraAsignada?.lavadoraId === lavadora.id && 
-        p.status !== 'recogido' && 
-        p.status !== 'cancelado'
-      );
-      
-      if (lavadora.estado === 'alquilada' && !pedidoAsociado) {
-        diagnosticos.lavadorasDesincronizadas.push({
-          codigoQR: lavadora.codigoQR,
-          estado: lavadora.estado,
-          problema: 'Marcada como alquilada pero sin pedido activo'
-        });
-        diagnosticos.resumen.lavadorasDesincronizadas++;
-        diagnosticos.resumen.problemasCriticos++;
-      }
-    });
-
-    console.log('🔍 DIAGNÓSTICO COMPLETO DEL SISTEMA:', diagnosticos);
-    
-    // Mostrar resumen en alert
-    const mensaje = `
-🔍 DIAGNÓSTICO DEL SISTEMA
-
-📊 RESUMEN:
-• Total pedidos: ${diagnosticos.resumen.totalPedidos}
-• Pedidos inconsistentes: ${diagnosticos.resumen.pedidosInconsistentes}
-• Lavadoras desincronizadas: ${diagnosticos.resumen.lavadorasDesincronizadas}
-• Problemas críticos: ${diagnosticos.resumen.problemasCriticos}
-
-${diagnosticos.resumen.problemasCriticos > 0 ? 
-  '⚠️ Se encontraron problemas críticos. Revisar consola para detalles.' : 
-  '✅ Sistema funcionando correctamente.'}
-    `;
-    
-    alert(mensaje);
-    setMostrarDiagnostico(true);
-  };
 
   const cambiarEstadoPedido = async (pedido: Pedido, nuevoEstado: 'pendiente' | 'entregado' | 'recogido' | 'cancelado') => {
     const nombresEstados = {
@@ -986,116 +914,41 @@ ${diagnosticos.resumen.problemasCriticos > 0 ?
   };
 
   const handleValidacionQR = async (validacionData: any) => {
-    console.log('handleValidacionQR llamado con:', validacionData);
-    console.log('pedidoAValidar:', pedidoAValidar);
-    
-    if (!pedidoAValidar) {
-      console.log('No hay pedido para validar');
-      return;
-    }
-    
-    try {
-      console.log('Iniciando proceso de validación QR y facturación...');
-      
-      // Buscar la lavadora escaneada
-      const lavadoraEscaneada = lavadoras.find(l => l.codigoQR === validacionData.lavadoraEscaneada);
-      if (!lavadoraEscaneada) {
-        alert('No se encontró la lavadora escaneada');
-        return;
+    if (!pedidoAValidar) return;
+
+    const result = await validacionQRService.procesarValidacionQR(
+      pedidoAValidar,
+      validacionData,
+      lavadoras,
+      configuracion,
+      {
+        onSuccess: (pedidoActualizado) => {
+          console.log('Pedidos - Validación QR exitosa');
+          
+          // Cerrar modal de validación QR
+          setMostrarModalValidacionQR(false);
+          
+          // Abrir modal de WhatsApp directamente con la foto de evidencia
+          setPedidoParaWhatsApp(pedidoActualizado);
+          setFotoEvidenciaWhatsApp(validacionData.fotoInstalacion || null);
+          setMostrarModalWhatsApp(true);
+          
+          // Limpiar estado
+          setPedidoAValidar(null);
+          
+          // Recargar datos
+          cargarPedidos();
+          cargarLavadoras();
+          window.dispatchEvent(new CustomEvent('pagoRealizado')); // Notificar al dashboard
+        },
+        onError: (error) => {
+          alert(error);
+        }
       }
+    );
 
-      // Verificar si la lavadora escaneada está disponible
-      if (lavadoraEscaneada.estado !== 'disponible' && lavadoraEscaneada.estado !== 'alquilada') {
-        alert('La lavadora escaneada no está disponible para alquiler');
-        return;
-      }
-
-      // Calcular totales de facturación
-      const subtotal = pedidoAValidar.plan.price;
-      const totalCobrosAdicionales = validacionData.cobrosAdicionales.reduce((sum: number, cobro: any) => sum + cobro.monto, 0);
-      const totalHorasAdicionales = validacionData.horasAdicionales * (configuracion?.horaAdicional || 2000);
-      const nuevoTotal = subtotal + totalCobrosAdicionales + totalHorasAdicionales;
-
-      // Actualizar el pedido con la información de validación QR y facturación
-      const updateData: any = {
-        validacionQR_lavadoraEscaneada: validacionData.lavadoraEscaneada,
-        validacionQR_lavadoraOriginal: pedidoAValidar.lavadoraAsignada?.codigoQR || '',
-        validacionQR_cambioRealizado: validacionData.cambioRealizado,
-        validacionQR_fechaValidacion: new Date(),
-        validacionQR_fotoInstalacion: validacionData.fotoInstalacion,
-        validacionQR_observacionesValidacion: validacionData.observacionesValidacion,
-        // Datos de facturación
-        cobrosAdicionales: validacionData.cobrosAdicionales,
-        horasAdicionales: validacionData.horasAdicionales,
-        observacionesPago: validacionData.observacionesPago,
-        // Datos de recogida prioritaria
-        recogidaPrioritaria: validacionData.recogidaPrioritaria || false,
-        horaRecogida: validacionData.horaRecogida || '',
-        observacionRecogida: validacionData.observacionRecogida || '',
-        total: nuevoTotal,
-        subtotal: subtotal,
-        totalCobrosAdicionales: totalCobrosAdicionales,
-        totalHorasAdicionales: totalHorasAdicionales,
-        saldoPendiente: nuevoTotal - (pedidoAValidar.pagosRealizados?.reduce((sum, p) => sum + p.monto, 0) || 0),
-        updatedAt: new Date(),
-        status: 'entregado', // Cambiar estado a entregado
-        fechaEntrega: new Date() // Agregar fecha de entrega
-      };
-
-      // Actualizar estado de pago
-      if (pedidoAValidar.estadoPago === 'pagado_anticipado') {
-        updateData.estadoPago = 'pagado_entrega';
-      }
-
-      // SIEMPRE marcar la lavadora escaneada como alquilada
-      await lavadoraService.updateLavadora(lavadoraEscaneada.id, {
-        estado: 'alquilada'
-      });
-
-      // Si había una lavadora previamente asignada, liberarla
-      if (pedidoAValidar.lavadoraAsignada && pedidoAValidar.lavadoraAsignada.lavadoraId !== lavadoraEscaneada.id) {
-        await lavadoraService.updateLavadora(pedidoAValidar.lavadoraAsignada.lavadoraId, {
-          estado: 'disponible'
-        });
-        console.log('Lavadora anterior liberada:', pedidoAValidar.lavadoraAsignada.codigoQR);
-      }
-
-      // Actualizar la asignación en el pedido con la lavadora escaneada
-      updateData.lavadoraAsignada_lavadoraId = lavadoraEscaneada.id;
-      updateData.lavadoraAsignada_codigoQR = lavadoraEscaneada.codigoQR;
-      updateData.lavadoraAsignada_marca = lavadoraEscaneada.marca;
-      updateData.lavadoraAsignada_modelo = lavadoraEscaneada.modelo;
-      updateData.lavadoraAsignada_fotoInstalacion = validacionData.fotoInstalacion;
-      updateData.lavadoraAsignada_observacionesInstalacion = validacionData.observacionesValidacion;
-
-      console.log('Lavadora marcada como alquilada:', validacionData.lavadoraEscaneada);
-
-      console.log('Datos a actualizar:', updateData);
-
-      // Actualizar el pedido usando el servicio
-      await pedidoService.updatePedido(pedidoAValidar.id, updateData);
-      
-      console.log('Pedido actualizado y facturado exitosamente');
-      
-      // Cerrar modal de validación QR
-      setMostrarModalValidacionQR(false);
-      
-      // Abrir modal de WhatsApp directamente con la foto de evidencia
-      setPedidoParaWhatsApp(pedidoAValidar);
-      setFotoEvidenciaWhatsApp(validacionData.fotoInstalacion || null);
-      setMostrarModalWhatsApp(true);
-      
-      // Limpiar estado
-      setPedidoAValidar(null);
-      
-      // Recargar datos
-      cargarPedidos();
-      cargarLavadoras();
-      window.dispatchEvent(new CustomEvent('pagoRealizado')); // Notificar al dashboard
-      
-    } catch (error) {
-      console.error('Error al procesar validación QR y facturación:', error);
-      alert('Error al procesar la entrega: ' + (error instanceof Error ? error.message : 'Error desconocido'));
+    if (!result.success) {
+      alert(result.message);
     }
   };
 
@@ -1158,8 +1011,16 @@ ${diagnosticos.resumen.problemasCriticos > 0 ?
           onClick={() => setMostrarNuevoPedido(true)}
                 className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 flex items-center space-x-2"
         >
-                <PlusIcon className="h-5 w-5" />
           <span>Nuevo Servicio</span>
+        </button>
+        
+        <button
+          onClick={() => setMostrarEstadoLavadoras(true)}
+          className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 flex items-center space-x-2"
+          title="Ver estado de lavadoras"
+        >
+          <CalendarIcon className="h-5 w-5" />
+          <span>Ver Estado Lavadoras</span>
         </button>
             </div>
           </div>
@@ -1196,23 +1057,7 @@ ${diagnosticos.resumen.problemasCriticos > 0 ?
 
         {/* Botones de acción */}
         <div className="flex justify-center gap-4 mb-4">
-          <button
-            onClick={() => setMostrarEstadoLavadoras(true)}
-            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors flex items-center gap-2"
-            title="Ver estado de lavadoras"
-          >
-            <CalendarIcon className="h-4 w-4" />
-            Ver Estado Lavadoras
-          </button>
           
-          <button
-            onClick={ejecutarDiagnosticoCompleto}
-            className="px-4 py-2 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg hover:from-orange-700 hover:to-red-700 transition-colors flex items-center gap-2"
-            title="Ejecutar diagnóstico completo del sistema"
-          >
-            <ExclamationTriangleIcon className="h-4 w-4" />
-            Diagnóstico Sistema
-          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

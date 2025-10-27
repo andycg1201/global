@@ -259,10 +259,10 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Pedidos Pendientes de Entregar */}
+      {/* Servicios Pendientes de Entregar */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-gray-900">Pedidos Pendientes de Entregar</h3>
+          <h3 className="text-lg font-medium text-gray-900">Servicios Pendientes de Entregar</h3>
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
             {pedidosPendientesEntregar.length} pedidos
           </span>

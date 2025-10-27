@@ -14,6 +14,7 @@ import { formatCurrency, formatDate, getCurrentDateColombia } from '../utils/dat
 import { pedidoService, reporteService, gastoService, clienteService, lavadoraService, configService } from '../services/firebaseService';
 import { obtenerHistorialMantenimiento } from '../services/mantenimientoService';
 import { capitalService } from '../services/capitalService';
+import { validacionQRService } from '../services/validacionQRService';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Pedido, ReporteDiario, Lavadora, Configuracion } from '../types';
@@ -21,6 +22,7 @@ import PedidosPendientes from '../components/PedidosPendientes';
 import ModalValidacionQR from '../components/ModalValidacionQR';
 import ModalFacturacion from '../components/ModalFacturacion';
 import ModalLiquidacion from '../components/ModalLiquidacion';
+import ModalWhatsApp from '../components/ModalWhatsApp';
 
 const Dashboard: React.FC = () => {
   const [reporteDiario, setReporteDiario] = useState<ReporteDiario | null>(null);
@@ -35,8 +37,11 @@ const Dashboard: React.FC = () => {
   const [mostrarModalValidacionQR, setMostrarModalValidacionQR] = useState(false);
   const [mostrarModalFacturacion, setMostrarModalFacturacion] = useState(false);
   const [mostrarModalLiquidacion, setMostrarModalLiquidacion] = useState(false);
+  const [mostrarModalWhatsApp, setMostrarModalWhatsApp] = useState(false);
   const [pedidoAValidar, setPedidoAValidar] = useState<Pedido | null>(null);
   const [pedidoAFacturar, setPedidoAFacturar] = useState<Pedido | null>(null);
+  const [pedidoParaWhatsApp, setPedidoParaWhatsApp] = useState<Pedido | null>(null);
+  const [fotoEvidenciaWhatsApp, setFotoEvidenciaWhatsApp] = useState<string | null>(null);
   const [lavadoras, setLavadoras] = useState<Lavadora[]>([]);
   const [configuracion, setConfiguracion] = useState<Configuracion | null>(null);
   
@@ -473,7 +478,7 @@ const Dashboard: React.FC = () => {
 
       // Procesar gastos de mantenimiento usando el medio de pago real de cada mantenimiento
       mantenimientosFiltrados.forEach(mantenimiento => {
-        const medioPago = mantenimiento.medioPago || 'efectivo';
+        const medioPago = (mantenimiento as any).medioPago || 'efectivo';
         const costo = mantenimiento.costoReparacion || 0;
         
         console.log('🔧 Procesando gasto mantenimiento:', medioPago, costo);
@@ -765,94 +770,52 @@ const Dashboard: React.FC = () => {
   const handleValidacionQR = async (validacionData: any) => {
     if (!pedidoAValidar) return;
 
-    try {
-      // Buscar la lavadora escaneada
-      const lavadoraEscaneada = lavadoras.find(l => l.codigoQR === validacionData.lavadoraEscaneada);
-      if (!lavadoraEscaneada) {
-        alert('No se encontró la lavadora escaneada');
-        return;
-      }
-
-      // Verificar si la lavadora escaneada está disponible
-      if (lavadoraEscaneada.estado !== 'disponible' && lavadoraEscaneada.estado !== 'alquilada') {
-        alert('La lavadora escaneada no está disponible para alquiler');
-        return;
-      }
-
-      // Actualizar el pedido con la información de validación QR
-      const { doc, setDoc } = await import('firebase/firestore');
-      const { db } = await import('../lib/firebase');
-      
-      const pedidoRef = doc(db, 'pedidos', pedidoAValidar.id);
-      
-      // Actualizar campos básicos
-      await setDoc(pedidoRef, {
-        validacionQR_lavadoraEscaneada: validacionData.lavadoraEscaneada,
-        validacionQR_lavadoraOriginal: pedidoAValidar.lavadoraAsignada?.codigoQR || '',
-        validacionQR_cambioRealizado: validacionData.cambioRealizado,
-        validacionQR_fechaValidacion: new Date(),
-        validacionQR_fotoInstalacion: validacionData.fotoInstalacion,
-        validacionQR_observacionesValidacion: validacionData.observacionesValidacion,
-        updatedAt: new Date()
-      }, { merge: true });
-      
-      // Si hay cambios en lavadoraAsignada, actualizar por separado
-      if (validacionData.cambioRealizado) {
-        // Liberar la lavadora original si existe
-        if (pedidoAValidar.lavadoraAsignada) {
-          await lavadoraService.updateLavadora(pedidoAValidar.lavadoraAsignada.lavadoraId, {
-            estado: 'disponible'
-          });
-        }
-
-        // Asignar la nueva lavadora
-        await lavadoraService.updateLavadora(lavadoraEscaneada.id, {
-          estado: 'alquilada'
-        });
-
-        await setDoc(pedidoRef, {
-          lavadoraAsignada_lavadoraId: lavadoraEscaneada.id,
-          lavadoraAsignada_codigoQR: lavadoraEscaneada.codigoQR,
-          lavadoraAsignada_marca: lavadoraEscaneada.marca,
-          lavadoraAsignada_modelo: lavadoraEscaneada.modelo,
-          lavadoraAsignada_fotoInstalacion: validacionData.fotoInstalacion,
-          lavadoraAsignada_observacionesInstalacion: validacionData.observacionesValidacion
-        }, { merge: true });
-      } else if (pedidoAValidar.lavadoraAsignada) {
-        await setDoc(pedidoRef, {
-          lavadoraAsignada_fotoInstalacion: validacionData.fotoInstalacion,
-          lavadoraAsignada_observacionesInstalacion: validacionData.observacionesValidacion
-        }, { merge: true });
-      }
-
-      // Cerrar modal de validación y abrir modal de facturación
-      setMostrarModalValidacionQR(false);
-      setPedidoAFacturar(pedidoAValidar);
-      setMostrarModalFacturacion(true);
-      setPedidoAValidar(null);
-      
-      // Recargar datos
-      const cargarDatos = async () => {
-        try {
-          const hoy = getCurrentDateColombia();
+    const result = await validacionQRService.procesarValidacionQR(
+      pedidoAValidar,
+      validacionData,
+      lavadoras,
+      configuracion,
+      {
+        onSuccess: (pedidoActualizado) => {
+          console.log('Dashboard - Validación QR exitosa');
           
-          const [pedidosData, configuracionData] = await Promise.all([
-            pedidoService.getAllPedidos(),
-            configService.getConfiguracion()
-          ]);
+          // Cerrar modal de validación QR
+          setMostrarModalValidacionQR(false);
           
-          // Los pedidos se procesan en el useEffect principal
-          setConfiguracion(configuracionData);
-        } catch (error) {
-          console.error('Error al cargar datos:', error);
+          // Abrir modal de WhatsApp directamente con la foto de evidencia
+          setPedidoParaWhatsApp(pedidoActualizado);
+          setFotoEvidenciaWhatsApp(validacionData.fotoInstalacion || null);
+          setMostrarModalWhatsApp(true);
+          
+          setPedidoAValidar(null);
+          
+          // Recargar datos
+          const cargarDatos = async () => {
+            try {
+              const hoy = getCurrentDateColombia();
+              
+              const [pedidosData, configuracionData] = await Promise.all([
+                pedidoService.getAllPedidos(),
+                configService.getConfiguracion()
+              ]);
+              
+              // Los pedidos se procesan en el useEffect principal
+              setConfiguracion(configuracionData);
+            } catch (error) {
+              console.error('Error al cargar datos:', error);
+            }
+          };
+          cargarDatos();
+          cargarLavadoras();
+        },
+        onError: (error) => {
+          alert(error);
         }
-      };
-      cargarDatos();
-      cargarLavadoras();
-      
-    } catch (error) {
-      console.error('Error al procesar validación QR:', error);
-      alert('Error al procesar la validación QR: ' + (error instanceof Error ? error.message : 'Error desconocido'));
+      }
+    );
+
+    if (!result.success) {
+      alert(result.message);
     }
   };
 
@@ -1553,6 +1516,20 @@ const Dashboard: React.FC = () => {
           onConfirm={handleLiquidacion}
           pedido={pedidoAFacturar}
           precioHoraAdicional={configuracion?.horaAdicional || 2000}
+        />
+      )}
+
+      {/* Modal de WhatsApp */}
+      {mostrarModalWhatsApp && pedidoParaWhatsApp && (
+        <ModalWhatsApp
+          isOpen={mostrarModalWhatsApp}
+          onClose={() => {
+            setMostrarModalWhatsApp(false);
+            setPedidoParaWhatsApp(null);
+            setFotoEvidenciaWhatsApp(null);
+          }}
+          pedido={pedidoParaWhatsApp}
+          fotoEvidencia={fotoEvidenciaWhatsApp || undefined}
         />
       )}
 

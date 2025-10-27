@@ -10,6 +10,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { Pedido, PagoRealizado } from '../types';
 import { pedidoService, configService, planService } from '../services/firebaseService';
+import { capitalService } from '../services/capitalService';
 import { formatCurrency } from '../utils/dateUtils';
 import { useAuth } from '../contexts/AuthContext';
 import ModalModificacionesServicio from '../components/ModalModificacionesServicio';
@@ -57,10 +58,12 @@ const Dashboard: React.FC = () => {
       console.log('🔄 Cargando datos simplificados...');
       
       // Obtener datos básicos
-      const [pedidosData, configuracionData, planesData] = await Promise.all([
+      const [pedidosData, configuracionData, planesData, capitalInicialData, movimientosCapitalData] = await Promise.all([
         pedidoService.getAllPedidos(),
         configService.getConfiguracion(),
-        planService.getActivePlans()
+        planService.getActivePlans(),
+        capitalService.getCapitalInicial(),
+        capitalService.getMovimientosCapital()
       ]);
       
       setConfiguracion(configuracionData);
@@ -81,10 +84,30 @@ const Dashboard: React.FC = () => {
       setPedidosCompletadosConSaldo(completadosConSaldo);
       
       // Calcular datos financieros básicos
-      const ingresosReales = pedidosData.reduce((sum, pedido) => {
+      // Ingresos de servicios (pagos de pedidos)
+      const ingresosServicios = pedidosData.reduce((sum, pedido) => {
         const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
         return sum + totalPagado;
       }, 0);
+      
+      // Capital inicial
+      const capitalInicial = capitalInicialData ? 
+        (capitalInicialData.efectivo + capitalInicialData.nequi + capitalInicialData.daviplata) : 0;
+      
+      // Inyecciones de capital
+      const inyeccionesCapital = movimientosCapitalData
+        .filter(mov => mov.tipo === 'inyeccion')
+        .reduce((sum, mov) => sum + (mov.efectivo + mov.nequi + mov.daviplata), 0);
+      
+      // Ingresos reales = Servicios + Capital Inicial + Inyecciones
+      const ingresosReales = ingresosServicios + capitalInicial + inyeccionesCapital;
+      
+      console.log('💰 Desglose de Ingresos Reales:', {
+        ingresosServicios: ingresosServicios,
+        capitalInicial: capitalInicial,
+        inyeccionesCapital: inyeccionesCapital,
+        ingresosReales: ingresosReales
+      });
 
       const cuentasPorCobrar = pedidosData.reduce((sum, pedido) => {
         const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
@@ -137,7 +160,12 @@ const Dashboard: React.FC = () => {
           });
         });
       });
-      setPagos(allPagos.sort((a, b) => b.fecha.getTime() - a.fecha.getTime()));
+      setPagos(allPagos.sort((a, b) => {
+        // Manejar tanto Date como Timestamp de Firebase
+        const fechaA = a.fecha instanceof Date ? a.fecha : a.fecha.toDate();
+        const fechaB = b.fecha instanceof Date ? b.fecha : b.fecha.toDate();
+        return fechaB.getTime() - fechaA.getTime();
+      }));
       
       console.log('✅ Datos simplificados cargados correctamente');
       

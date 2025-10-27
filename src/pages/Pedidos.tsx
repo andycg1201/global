@@ -1033,7 +1033,6 @@ const Pedidos: React.FC = () => {
   const handlePagoRealizado = async () => {
     try {
       await cargarPedidos();
-      alert('Pago registrado exitosamente');
     } catch (error) {
       console.error('Pedidos - Error al registrar pago:', error);
       alert('Error al registrar pago: ' + (error instanceof Error ? error.message : 'Error desconocido'));

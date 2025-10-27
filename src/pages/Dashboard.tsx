@@ -330,7 +330,6 @@ const Dashboard: React.FC = () => {
       setMostrarModalPagos(false);
       setPedidoParaPago(null);
       await cargarDatosSimplificados();
-      alert('Pago registrado exitosamente');
     } catch (error) {
       console.error('Dashboard - Error al registrar pago:', error);
       alert('Error al registrar pago: ' + (error instanceof Error ? error.message : 'Error desconocido'));

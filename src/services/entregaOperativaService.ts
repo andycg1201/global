@@ -1,5 +1,6 @@
 import { pedidoService, lavadoraService } from './firebaseService';
 import { Pedido, Lavadora } from '../types';
+import { calculatePickupDate } from '../utils/dateUtils';
 
 export interface EntregaOperativaData {
   lavadoraEscaneada: string;
@@ -56,6 +57,17 @@ export class EntregaOperativaService {
         return { success: false, message: errorMsg };
       }
 
+      // Calcular fecha de recogida según el plan
+      const fechaEntrega = new Date();
+      const fechaRecogidaCalculada = calculatePickupDate(fechaEntrega, pedido.plan, pedido.horasAdicionales || 0);
+      
+      console.log('EntregaOperativaService - Calculando fecha de recogida:', {
+        fechaEntrega: fechaEntrega.toISOString(),
+        plan: pedido.plan.name,
+        horasAdicionales: pedido.horasAdicionales || 0,
+        fechaRecogidaCalculada: fechaRecogidaCalculada.toISOString()
+      });
+
       // Actualizar el pedido SOLO con información operativa
       const updateData: any = {
         // Información de validación QR (operativa)
@@ -73,7 +85,8 @@ export class EntregaOperativaService {
         
         // Cambio de estado operativo
         status: 'entregado',
-        fechaEntrega: new Date(),
+        fechaEntrega: fechaEntrega,
+        fechaRecogidaCalculada: fechaRecogidaCalculada, // ✅ AGREGADO: Calcular fecha de recogida
         updatedAt: new Date()
       };
 

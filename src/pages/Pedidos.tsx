@@ -22,7 +22,7 @@ import EditarPedido from '../components/EditarPedido';
 import ModalCancelacion from '../components/ModalCancelacion';
 import ModalLiquidacion from '../components/ModalLiquidacion';
 import ModalLiquidacionUniversal from '../components/ModalLiquidacionUniversal';
-import ModalValidacionQR from '../components/ModalValidacionQR';
+import ModalEntregaOperativa from '../components/ModalEntregaOperativa';
 import ModalFotoInstalacion from '../components/ModalFotoInstalacion';
 import ModalWhatsApp from '../components/ModalWhatsApp';
 import ModalHorasExtras from '../components/ModalHorasExtras';
@@ -59,7 +59,7 @@ const Pedidos: React.FC = () => {
   const [configuracion, setConfiguracion] = useState<any>(null);
   
   // Estados para validación QR
-  const [mostrarModalValidacionQR, setMostrarModalValidacionQR] = useState(false);
+  const [mostrarModalEntregaOperativa, setMostrarModalEntregaOperativa] = useState(false);
   const [pedidoAValidar, setPedidoAValidar] = useState<Pedido | null>(null);
   const [lavadoras, setLavadoras] = useState<any[]>([]);
   
@@ -638,7 +638,7 @@ const Pedidos: React.FC = () => {
               await cargarLavadoras();
               
               setPedidoAValidar(pedido);
-              setMostrarModalValidacionQR(true);
+              setMostrarModalEntregaOperativa(true);
             }}
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors w-24"
             title="Validar QR y entregar"
@@ -977,8 +977,8 @@ const Pedidos: React.FC = () => {
         onSuccess: (pedidoActualizado) => {
           console.log('Pedidos - Entrega operativa exitosa');
           
-          // Cerrar modal de validación QR
-          setMostrarModalValidacionQR(false);
+          // Cerrar modal de entrega operativa
+          setMostrarModalEntregaOperativa(false);
           
           // Abrir modal de WhatsApp directamente con la foto de evidencia
           setPedidoParaWhatsApp(pedidoActualizado);
@@ -1015,8 +1015,8 @@ const Pedidos: React.FC = () => {
         onSuccess: (pedidoActualizado) => {
           console.log('Pedidos - Recogida operativa exitosa');
           
-          // Cerrar modal de validación QR
-          setMostrarModalValidacionQR(false);
+          // Cerrar modal de entrega operativa
+          setMostrarModalEntregaOperativa(false);
           
           // Mostrar resumen final del servicio
           setPedidoParaModificar(pedidoActualizado);
@@ -1982,18 +1982,17 @@ const Pedidos: React.FC = () => {
         />
       )}
 
-      {/* Modal de Validación QR */}
-      {mostrarModalValidacionQR && pedidoAValidar && (
-        <ModalValidacionQR
-          isOpen={mostrarModalValidacionQR}
+      {/* Modal de Entrega Operativa */}
+      {mostrarModalEntregaOperativa && pedidoAValidar && (
+        <ModalEntregaOperativa
+          isOpen={mostrarModalEntregaOperativa}
           onClose={() => {
-            setMostrarModalValidacionQR(false);
+            setMostrarModalEntregaOperativa(false);
             setPedidoAValidar(null);
           }}
           onConfirm={handleEntregaOperativa}
           pedido={pedidoAValidar}
           lavadoras={lavadoras}
-          precioHoraAdicional={configuracion?.horaAdicional || 2000}
         />
       )}
 

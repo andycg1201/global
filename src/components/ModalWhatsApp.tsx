@@ -87,44 +87,10 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
   const calcularHoraRecogida = (pedido: Pedido): string => {
     if (!pedido.fechaEntrega) return '';
     
-    const planName = pedido.plan.name;
-    const fechaEntrega = pedido.fechaEntrega;
-    
-    if (planName === 'PLAN 1') {
-      // PLAN 1: Recogida mismo día a las 2:15 PM
-      const recogida = new Date(fechaEntrega);
-      recogida.setHours(14, 15, 0, 0);
-      return formatDate(recogida, 'HH:mm');
-    } else if (planName === 'PLAN 2') {
-      // PLAN 2: Recogida día siguiente a las 7 AM
-      const recogida = new Date(fechaEntrega);
-      recogida.setDate(recogida.getDate() + 1);
-      recogida.setHours(7, 0, 0, 0);
-      return formatDate(recogida, 'HH:mm');
-    } else if (planName === 'PLAN 3') {
-      // PLAN 3: 24 horas exactas
-      const recogida = new Date(fechaEntrega);
-      recogida.setHours(recogida.getHours() + 24);
-      return formatDate(recogida, 'HH:mm');
-    } else if (planName === 'PLAN 4') {
-      // PLAN 4: Fin de semana, recogida lunes 7 AM
-      const recogida = new Date(fechaEntrega);
-      // Encontrar el próximo lunes
-      const diasHastaLunes = (1 - recogida.getDay() + 7) % 7;
-      recogida.setDate(recogida.getDate() + diasHastaLunes);
-      recogida.setHours(7, 0, 0, 0);
-      return formatDate(recogida, 'HH:mm');
-    } else if (planName === 'PLAN 5') {
-      // PLAN 5: Sábado tarde, recogida lunes 7 AM
-      const recogida = new Date(fechaEntrega);
-      // Encontrar el próximo lunes
-      const diasHastaLunes = (1 - recogida.getDay() + 7) % 7;
-      recogida.setDate(recogida.getDate() + diasHastaLunes);
-      recogida.setHours(7, 0, 0, 0);
-      return formatDate(recogida, 'HH:mm');
-    }
-    
-    return formatDate(fechaEntrega, 'HH:mm');
+    // Usar la misma lógica que calcularFechaHoraRecogida pero con la fecha actual
+    const fechaActual = new Date();
+    const fechaHoraRecogida = calcularFechaHoraRecogida(fechaActual, pedido.plan.name);
+    return formatDate(fechaHoraRecogida, 'HH:mm');
   };
 
   const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {

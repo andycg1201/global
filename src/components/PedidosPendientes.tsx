@@ -16,6 +16,7 @@ import { Pedido } from '../types';
 interface PedidosPendientesProps {
   pedidosPendientesEntregar: Pedido[];
   pedidosPendientesRecoger: Pedido[];
+  pedidosCompletadosConSaldo?: Pedido[];
   onMarcarEntregado?: (pedidoId: string) => void;
   onMarcarRecogido?: (pedidoId: string) => void;
   onModificarServicio?: (pedido: Pedido) => void;
@@ -25,6 +26,7 @@ interface PedidosPendientesProps {
 const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
   pedidosPendientesEntregar,
   pedidosPendientesRecoger,
+  pedidosCompletadosConSaldo = [],
   onMarcarEntregado,
   onMarcarRecogido,
   onModificarServicio,
@@ -274,7 +276,7 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
               </button>
             )}
             
-            {tipo === 'recoger' && onMarcarRecogido && (
+            {tipo === 'recoger' && onMarcarRecogido && pedido.status !== 'recogido' && (
               <button
                 onClick={() => onMarcarRecogido(pedido.id)}
                 className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
@@ -284,8 +286,16 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
               </button>
             )}
             
+            {/* Mostrar "Completado" para servicios ya recogidos */}
+            {tipo === 'recoger' && pedido.status === 'recogido' && (
+              <span className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md text-white bg-gray-500">
+                <CheckCircleIcon className="h-3 w-3 mr-1" />
+                Completado
+              </span>
+            )}
+            
             {/* Botones de modificaciones para servicios entregados */}
-            {tipo === 'recoger' && onModificarServicio && (
+            {tipo === 'recoger' && onModificarServicio && pedido.status !== 'recogido' && (
               <div className="flex flex-col gap-1 mt-2">
                 <button
                   onClick={() => onModificarServicio(pedido)}
@@ -312,6 +322,20 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
                 )}
               </div>
             )}
+            
+            {/* Botones de pagos para servicios completados con saldo */}
+            {tipo === 'recoger' && pedido.status === 'recogido' && onRegistrarPago && saldoPendiente > 0 && (
+              <div className="flex flex-col gap-1 mt-2">
+                <button
+                  onClick={() => onRegistrarPago(pedido)}
+                  className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-green-500 hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                  title="Registrar pago del servicio completado"
+                >
+                  <CurrencyDollarIcon className="h-3 w-3 mr-1" />
+                  Pagos
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -319,15 +343,17 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Servicios Pendientes de Entregar */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-gray-900">Servicios Pendientes de Entregar</h3>
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
-            {pedidosPendientesEntregar.length} pedidos
-          </span>
-        </div>
+    <div className="space-y-6">
+      {/* Primera fila: Servicios Pendientes */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Servicios Pendientes de Entregar */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-gray-900">Servicios Pendientes de Entregar</h3>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
+              {pedidosPendientesEntregar.length} pedidos
+            </span>
+          </div>
         
         {pedidosPendientesEntregar.length === 0 ? (
           <div className="text-center py-8">
@@ -367,32 +393,65 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
             )}
           </div>
         )}
+        </div>
+
+        {/* Pedidos Pendientes de Recoger */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-medium text-gray-900">Servicios Pendientes de Recoger</h3>
+              <p className="text-sm text-gray-500">Ordenados por urgencia de vencimiento</p>
+            </div>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-warning-100 text-warning-800">
+              {pedidosPendientesRecoger.length} pedidos
+            </span>
+          </div>
+          
+          {pedidosPendientesRecoger.length === 0 ? (
+            <div className="text-center py-8">
+              <HomeIcon className="mx-auto h-12 w-12 text-gray-400 mb-2" />
+              <p className="text-sm text-gray-500">No hay pedidos pendientes de recoger</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {pedidosRecogerOrdenados.map((pedido) => (
+                <PedidoCard key={pedido.id} pedido={pedido} tipo="recoger" />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Pedidos Pendientes de Recoger */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-lg font-medium text-gray-900">Servicios Pendientes de Recoger</h3>
-            <p className="text-sm text-gray-500">Ordenados por urgencia de vencimiento</p>
+      {/* Segunda fila: Servicios Completados con Saldo */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Servicios Completados con Saldo Pendiente */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-medium text-gray-900">Servicios Completados con Saldo</h3>
+              <p className="text-sm text-gray-500">Servicios terminados con pagos pendientes</p>
+            </div>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+              {pedidosCompletadosConSaldo.length} servicios
+            </span>
           </div>
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-warning-100 text-warning-800">
-            {pedidosPendientesRecoger.length} pedidos
-          </span>
+          
+          {pedidosCompletadosConSaldo.length === 0 ? (
+            <div className="text-center py-8">
+              <CheckCircleIcon className="mx-auto h-12 w-12 text-gray-400 mb-2" />
+              <p className="text-sm text-gray-500">No hay servicios completados con saldo pendiente</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {pedidosCompletadosConSaldo.map((pedido) => (
+                <PedidoCard key={pedido.id} pedido={pedido} tipo="recoger" />
+              ))}
+            </div>
+          )}
         </div>
         
-        {pedidosPendientesRecoger.length === 0 ? (
-          <div className="text-center py-8">
-            <HomeIcon className="mx-auto h-12 w-12 text-gray-400 mb-2" />
-            <p className="text-sm text-gray-500">No hay pedidos pendientes de recoger</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {pedidosRecogerOrdenados.map((pedido) => (
-              <PedidoCard key={pedido.id} pedido={pedido} tipo="recoger" />
-            ))}
-          </div>
-        )}
+        {/* Columna vacía para mantener el mismo ancho */}
+        <div></div>
       </div>
     </div>
   );

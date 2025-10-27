@@ -3,7 +3,6 @@ import {
   ClipboardDocumentListIcon, 
   MagnifyingGlassIcon,
   FunnelIcon,
-  PencilIcon,
   PlusIcon,
   CalendarIcon,
   XMarkIcon,
@@ -19,7 +18,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { Pedido } from '../types';
 import { formatDate, formatCurrency, calculatePickupDate, getCurrentDateColombia } from '../utils/dateUtils';
 import NuevoPedido from './NuevoPedido';
-import EditarPedido from '../components/EditarPedido';
 import ModalCancelacion from '../components/ModalCancelacion';
 import ModalLiquidacion from '../components/ModalLiquidacion';
 import ModalLiquidacionUniversal from '../components/ModalLiquidacionUniversal';
@@ -49,8 +47,6 @@ const Pedidos: React.FC = () => {
   const [mostrarModalDetalles, setMostrarModalDetalles] = useState(false);
   const [mostrarModalCancelacion, setMostrarModalCancelacion] = useState(false);
   const [pedidoACancelar, setPedidoACancelar] = useState<Pedido | null>(null);
-  const [mostrarModalEditar, setMostrarModalEditar] = useState(false);
-  const [pedidoAEditar, setPedidoAEditar] = useState<Pedido | null>(null);
   
   // Estados para modales de liquidación
   const [mostrarModalLiquidacion, setMostrarModalLiquidacion] = useState(false);
@@ -655,40 +651,22 @@ const Pedidos: React.FC = () => {
     
     if (pedido.status === 'pendiente') {
       return (
-        <div className="relative">
-          <button
-            onClick={async (e) => {
-              e.stopPropagation();
-              console.log('Botón Entregar clickeado para pedido:', pedido.id);
-              
-              // Recargar lavadoras antes de abrir el modal para tener datos actualizados
-              await cargarLavadoras();
-              
-              setPedidoAValidar(pedido);
-              setMostrarModalEntregaOperativa(true);
-            }}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors w-24"
-            title="Validar QR y entregar"
-          >
-            Entregar
-          </button>
-          {/* Badge de liquidación en esquina */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!isPagado) {
-                setPedidoALiquidar(pedido);
-                setMostrarModalLiquidacionUniversal(true);
-              }
-            }}
-            className={`absolute -top-1 -right-1 w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center transition-all hover:scale-110 ${
-              isPagado ? 'bg-green-500 text-white' : 'bg-yellow-500 text-white'
-            }`}
-            title={isPagado ? 'Pagado' : `Liquidar: ${formatCurrency(saldoPendiente)}`}
-          >
-            {isPagado ? '✓' : '💰'}
-          </button>
-        </div>
+        <button
+          onClick={async (e) => {
+            e.stopPropagation();
+            console.log('Botón Entregar clickeado para pedido:', pedido.id);
+            
+            // Recargar lavadoras antes de abrir el modal para tener datos actualizados
+            await cargarLavadoras();
+            
+            setPedidoAValidar(pedido);
+            setMostrarModalEntregaOperativa(true);
+          }}
+          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors w-24"
+          title="Validar QR y entregar"
+        >
+          Entregar
+        </button>
       );
     } else if (pedido.status === 'entregado') {
       return (
@@ -734,27 +712,27 @@ const Pedidos: React.FC = () => {
         </div>
       );
     } else if (pedido.status === 'recogido') {
+      // Calcular saldo pendiente para servicios completados
+      const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
+      const saldoPendiente = Math.max(0, (pedido.total || 0) - totalPagado);
+      
       return (
         <div className="relative">
           <span className="px-4 py-2 text-sm font-medium text-white bg-gray-500 rounded-md w-24 inline-block text-center">
             Completado
           </span>
-          {/* Badge de liquidación en esquina */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!isPagado) {
-                setPedidoALiquidar(pedido);
-                setMostrarModalLiquidacionUniversal(true);
-              }
-            }}
-            className={`absolute -top-1 -right-1 w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center transition-all hover:scale-110 ${
-              isPagado ? 'bg-green-500 text-white' : 'bg-yellow-500 text-white'
-            }`}
-            title={isPagado ? 'Pagado' : `Liquidar: ${formatCurrency(saldoPendiente)}`}
-          >
-            {isPagado ? '✓' : '💰'}
-          </button>
+          {saldoPendiente > 0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRegistrarPago(pedido);
+              }}
+              className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shadow-lg transition-colors"
+              title={`Saldo pendiente: ${formatCurrency(saldoPendiente)} - Click para pagar`}
+            >
+              💰
+            </button>
+          )}
         </div>
       );
     }
@@ -766,10 +744,6 @@ const Pedidos: React.FC = () => {
     setMostrarModalDetalles(true);
   };
 
-  const editarPedido = (pedido: Pedido) => {
-    setPedidoAEditar(pedido);
-    setMostrarModalEditar(true);
-  };
 
   const calcularDuracionReal = (pedido: Pedido): string => {
     if (pedido.fechaEntrega && pedido.fechaRecogida) {
@@ -1007,20 +981,23 @@ const Pedidos: React.FC = () => {
   const handleRecogidaOperativa = async (recogidaData: any) => {
     if (!pedidoAValidar) return;
 
-    const result = await recogidaOperativaService.procesarRecogidaOperativa(
-      pedidoAValidar,
-      recogidaData,
-      {
-        onSuccess: (pedidoActualizado) => {
-          console.log('Pedidos - Recogida operativa exitosa');
-          
-          // Cerrar modal de entrega operativa
-          setMostrarModalEntregaOperativa(false);
-          
-          // Mostrar resumen final del servicio
-          setPedidoParaModificar(pedidoActualizado);
-          setMostrarResumenFinal(true);
+    try {
+      const result = await recogidaOperativaService.procesarRecogidaOperativa(
+        pedidoAValidar.id,
+        recogidaData
+      );
       
+      console.log('Pedidos - Recogida operativa exitosa');
+      
+      // Cerrar modal de entrega operativa
+      setMostrarModalEntregaOperativa(false);
+      
+      // Mostrar resumen final del servicio
+      if (result.pedidoActualizado) {
+        setPedidoParaModificar(result.pedidoActualizado);
+        setMostrarResumenFinal(true);
+      }
+  
       // Limpiar estado
       setPedidoAValidar(null);
       
@@ -1028,15 +1005,8 @@ const Pedidos: React.FC = () => {
       cargarPedidos();
       cargarLavadoras();
       window.dispatchEvent(new CustomEvent('pagoRealizado')); // Notificar al dashboard
-        },
-        onError: (error) => {
-          alert(error);
-        }
-      }
-    );
-
-    if (!result.success) {
-      alert(result.message);
+    } catch (error: any) {
+      alert(error.message || 'Error al procesar la recogida');
     }
   };
 
@@ -1310,6 +1280,9 @@ const Pedidos: React.FC = () => {
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Evidencia
                   </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Eliminar
+                  </th>
                 </tr>
               </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
@@ -1321,35 +1294,6 @@ const Pedidos: React.FC = () => {
                           {/* Botón progresivo de estado */}
                           {getProgresoButton(pedido)}
                           
-                          {/* Separador visual */}
-                          <div className="w-px h-6 bg-gray-300"></div>
-                          
-                            <div className="flex items-center space-x-1">
-                          <button
-                            onClick={(e) => {
-                                  e.stopPropagation();
-                                  editarPedido(pedido);
-                                }}
-                                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
-                            title="Editar"
-                          >
-                            <PencilIcon className="h-4 w-4" />
-                          </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                              if (confirm('¿Estás seguro de que quieres eliminar este pedido?')) {
-                                eliminarPedido(pedido);
-                              }
-                            }}
-                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
-                            title="Eliminar"
-                          >
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                            </div>
                           </div>
                         </td>
                         {/* Cliente */}
@@ -1457,6 +1401,23 @@ const Pedidos: React.FC = () => {
                               <CameraIcon className="h-4 w-4" />
                             </div>
                           )}
+                        </td>
+                        {/* Eliminar */}
+                        <td className="px-3 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm('¿Estás seguro de que quieres eliminar este pedido?')) {
+                                eliminarPedido(pedido);
+                              }
+                            }}
+                            className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200"
+                            title="Eliminar"
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
                         </td>
                   </tr>
                 ))}
@@ -1859,34 +1820,6 @@ const Pedidos: React.FC = () => {
         </div>
       )}
 
-      {/* Modal de Editar Pedido */}
-      {mostrarModalEditar && pedidoAEditar && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Editar Servicio</h3>
-              <button
-                onClick={() => setMostrarModalEditar(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <span className="sr-only">Cerrar</span>
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            <EditarPedido 
-              pedido={pedidoAEditar} 
-              onClose={() => setMostrarModalEditar(false)}
-              onSave={(pedidoActualizado) => {
-                cargarPedidos();
-                setMostrarModalEditar(false);
-              }}
-            />
-          </div>
-        </div>
-      )}
 
       {/* Modal de Cancelación */}
       {mostrarModalCancelacion && pedidoACancelar && (

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { XMarkIcon, CurrencyDollarIcon, ClockIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 import { Pedido } from '../types';
 import { formatCurrency, formatDate } from '../utils/dateUtils';
-import { modificacionesService } from '../services/modificacionesService';
 
 interface ModalLiquidacionUniversalProps {
   isOpen: boolean;
@@ -29,8 +28,8 @@ const ModalLiquidacionUniversal: React.FC<ModalLiquidacionUniversalProps> = ({
 
   if (!isOpen) return null;
 
-  // Calcular saldo pendiente usando el nuevo sistema de modificaciones dinámicas
-  const saldoPendiente = modificacionesService.calcularSaldoPendiente(pedido);
+  // Calcular saldo pendiente directamente
+  const saldoPendiente = (pedido.total || 0) - (pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0);
   const montoNumerico = parseFloat(montoAbono) || 0;
   const esAbonoParcial = montoNumerico < saldoPendiente;
   const saldoRestante = saldoPendiente - montoNumerico;
@@ -38,14 +37,17 @@ const ModalLiquidacionUniversal: React.FC<ModalLiquidacionUniversalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Usar la validación del servicio de modificaciones
-    const validacion = modificacionesService.validarPago(montoNumerico, pedido);
-    
-    if (!validacion.valido) {
-      alert(validacion.mensaje);
+    // Validación básica del pago
+    if (montoNumerico <= 0) {
+      alert('El monto debe ser mayor a 0');
       return;
     }
-
+    
+    if (montoNumerico > saldoPendiente) {
+      alert('El monto no puede ser mayor al saldo pendiente');
+      return;
+    }
+    
     onConfirm({
       amount: montoNumerico,
       medioPago,

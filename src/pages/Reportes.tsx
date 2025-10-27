@@ -569,95 +569,110 @@ const Reportes: React.FC = () => {
 
       {/* Análisis detallado */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Estados de pedidos */}
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Estados de Pedidos</h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 bg-warning-50 rounded-lg">
-              <div className="flex items-center">
-                <ExclamationTriangleIcon className="h-5 w-5 text-warning-600 mr-2" />
-                <span className="font-medium">Pendientes</span>
-              </div>
-              <span className="text-lg font-bold text-warning-600">
-                {stats.pedidosPorEstado.pendiente}
-              </span>
-            </div>
-            
-            <div className="flex items-center justify-between p-3 bg-info-50 rounded-lg">
-              <div className="flex items-center">
-                <ClockIcon className="h-5 w-5 text-info-600 mr-2" />
-                <span className="font-medium">Entregados</span>
-              </div>
-              <span className="text-lg font-bold text-info-600">
-                {stats.pedidosPorEstado.entregado}
-              </span>
-            </div>
-            
-            <div className="flex items-center justify-between p-3 bg-success-50 rounded-lg">
-              <div className="flex items-center">
-                <CheckCircleIcon className="h-5 w-5 text-success-600 mr-2" />
-                <span className="font-medium">Recogidos</span>
-              </div>
-              <span className="text-lg font-bold text-success-600">
-                {stats.pedidosPorEstado.recogido}
-              </span>
-            </div>
-            
-            <div className="flex items-center justify-between p-3 bg-danger-50 rounded-lg">
-              <div className="flex items-center">
-                <XCircleIcon className="h-5 w-5 text-danger-600 mr-2" />
-                <span className="font-medium">Cancelados</span>
-              </div>
-              <span className="text-lg font-bold text-danger-600">
-                {stats.pedidosPorEstado.cancelado}
-              </span>
-            </div>
+        {/* Tabla de Clientes con Saldo Pendiente */}
+        <div className="card lg:col-span-2">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Clientes con Saldo Pendiente</h3>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Cliente
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Servicios Totales
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Abonos Realizados
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Saldo Pendiente
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Acción
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {Object.entries(stats.clientesFrecuentes)
+                  .map(([clienteName, cantidad]) => {
+                    // Buscar todos los pedidos de este cliente
+                    const pedidosCliente = pedidos.filter(p => p.cliente.name === clienteName);
+                    
+                    // Calcular totales
+                    const serviciosTotales = pedidosCliente.reduce((sum, p) => sum + (p.total || 0), 0);
+                    const abonosRealizados = pedidosCliente.reduce((sum, p) => {
+                      return sum + (p.pagosRealizados?.reduce((sumPago, pago) => sumPago + pago.monto, 0) || 0);
+                    }, 0);
+                    const saldoPendiente = serviciosTotales - abonosRealizados;
+                    
+                    // Solo mostrar si tiene saldo pendiente
+                    if (saldoPendiente <= 0) return null;
+                    
+                    // Obtener teléfono del cliente (usar el primer pedido)
+                    const telefonoCliente = pedidosCliente[0]?.cliente.phone || '';
+                    
+                    // Generar mensaje de WhatsApp
+                    const ahora = new Date();
+                    const hora = ahora.getHours();
+                    let saludo = '';
+                    if (hora < 12) {
+                      saludo = 'Buenos días';
+                    } else if (hora < 18) {
+                      saludo = 'Buenas tardes';
+                    } else {
+                      saludo = 'Buenas noches';
+                    }
+                    
+                    const mensaje = `${saludo}, Lavadoras GLOBAL, le recuerda que tiene un saldo pendiente de $${saldoPendiente.toLocaleString()}, muchas gracias`;
+                    const whatsappUrl = `https://wa.me/${telefonoCliente.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(mensaje)}`;
+                    
+                    return (
+                      <tr key={clienteName}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10">
+                              <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
+                                <span className="text-sm font-medium text-primary-600">
+                                  {clienteName.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="ml-4">
+                              <div className="text-sm font-medium text-gray-900">{clienteName}</div>
+                              <div className="text-sm text-gray-500">{telefonoCliente}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          ${serviciosTotales.toLocaleString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          ${abonosRealizados.toLocaleString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-red-600">
+                          ${saldoPendiente.toLocaleString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <a
+                            href={whatsappUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                          >
+                            <svg className="h-4 w-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.488"/>
+                            </svg>
+                            WhatsApp
+                          </a>
+                        </td>
+                      </tr>
+                    );
+                  })
+                  .filter(Boolean)}
+              </tbody>
+            </table>
           </div>
-        </div>
-
-        {/* Planes más populares */}
-        <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Planes Más Populares</h3>
-          <div className="space-y-3">
-            {Object.entries(stats.planesPopulares)
-              .sort(([,a], [,b]) => b - a)
-              .slice(0, 5)
-              .map(([plan, cantidad]) => (
-                <div key={plan} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <span className="font-medium text-gray-900">{plan}</span>
-                  <div className="flex items-center">
-                    <div className="w-20 bg-gray-200 rounded-full h-2 mr-3">
-                      <div 
-                        className="bg-primary-600 h-2 rounded-full" 
-                        style={{ 
-                          width: `${(cantidad / Math.max(...Object.values(stats.planesPopulares))) * 100}%` 
-                        }}
-                      ></div>
-                    </div>
-                    <span className="text-sm font-bold text-primary-600">{cantidad}</span>
-                  </div>
-                </div>
-              ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Clientes más frecuentes */}
-      <div className="card">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Clientes Más Frecuentes</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Object.entries(stats.clientesFrecuentes)
-            .sort(([,a], [,b]) => b - a)
-            .slice(0, 9)
-            .map(([cliente, cantidad]) => (
-              <div key={cliente} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center">
-                  <UserIcon className="h-5 w-5 text-gray-400 mr-2" />
-                  <span className="font-medium text-gray-900 truncate">{cliente}</span>
-                </div>
-                <span className="text-sm font-bold text-primary-600">{cantidad}</span>
-              </div>
-            ))}
         </div>
       </div>
 

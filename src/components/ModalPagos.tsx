@@ -69,6 +69,11 @@ const ModalPagos: React.FC<ModalPagosProps> = ({
       // Actualizar el pedido con el nuevo pago
       const pagosActualizados = [...(pedido.pagosRealizados || []), nuevoPago];
       console.log('🔍 ModalPagos - Pagos actualizados:', pagosActualizados);
+      console.log('🔍 ModalPagos - Verificando medioPago en pagos actualizados:', pagosActualizados.map(p => ({
+        monto: p.monto,
+        medioPago: p.medioPago,
+        tipoMedioPago: typeof p.medioPago
+      })));
       
       await pedidoService.updatePedido(pedido.id, {
         pagosRealizados: pagosActualizados

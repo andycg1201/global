@@ -3,7 +3,6 @@ import {
   CurrencyDollarIcon, 
   MagnifyingGlassIcon, 
   FunnelIcon, 
-  PencilIcon, 
   TrashIcon,
   XMarkIcon,
   CalendarIcon
@@ -46,8 +45,6 @@ const Pagos: React.FC = () => {
   });
   
   // Estados para modales
-  const [mostrarModalEditar, setMostrarModalEditar] = useState(false);
-  const [pagoAEditar, setPagoAEditar] = useState<PagoCompleto | null>(null);
   const [mostrarModalEliminar, setMostrarModalEliminar] = useState(false);
   const [pagoAEliminar, setPagoAEliminar] = useState<PagoCompleto | null>(null);
 
@@ -202,64 +199,9 @@ const Pagos: React.FC = () => {
     }
   };
 
-  const editarPago = (pago: PagoCompleto) => {
-    setPagoAEditar(pago);
-    setMostrarModalEditar(true);
-  };
-
   const eliminarPago = (pago: PagoCompleto) => {
     setPagoAEliminar(pago);
     setMostrarModalEliminar(true);
-  };
-
-  const handleEditarPago = async (pagoEditado: Partial<PagoCompleto>) => {
-    if (!pagoAEditar) return;
-
-    try {
-      // Obtener el pedido actual
-      const pedidos = await pedidoService.getAllPedidos();
-      const pedido = pedidos.find(p => p.id === pagoAEditar.pedidoId);
-      
-      if (!pedido || !pedido.pagosRealizados) return;
-
-      // Encontrar el índice del pago a editar
-      const pagoIndex = pedido.pagosRealizados.findIndex((p, index) => 
-        `${pedido.id}-${index}` === pagoAEditar.id
-      );
-
-      if (pagoIndex === -1) return;
-
-      // Actualizar el pago
-      const pagosActualizados = [...pedido.pagosRealizados];
-      pagosActualizados[pagoIndex] = {
-        ...pagosActualizados[pagoIndex],
-        monto: pagoEditado.monto || pagosActualizados[pagoIndex].monto,
-        medioPago: pagoEditado.medioPago || pagosActualizados[pagoIndex].medioPago,
-        referencia: pagoEditado.referencia,
-        fecha: pagoEditado.fecha || pagosActualizados[pagoIndex].fecha
-      };
-
-      // Recalcular saldo pendiente
-      const nuevoSaldoPendiente = Math.max(0, pedido.total - pagosActualizados.reduce((sum, p) => sum + p.monto, 0));
-
-      // Actualizar el pedido
-      await pedidoService.updatePedido(pedido.id, {
-        pagosRealizados: pagosActualizados,
-        saldoPendiente: nuevoSaldoPendiente,
-        estadoPago: nuevoSaldoPendiente === 0 ? 'pagado_recogida' : 'debe'
-      });
-
-      // Recargar pagos
-      await cargarPagos();
-      setMostrarModalEditar(false);
-      setPagoAEditar(null);
-      
-      // Disparar evento para recargar dashboard
-      window.dispatchEvent(new CustomEvent('pagoRealizado'));
-    } catch (error) {
-      console.error('Error al editar pago:', error);
-      alert('Error al editar el pago');
-    }
   };
 
   const handleEliminarPago = async () => {
@@ -327,6 +269,19 @@ const Pagos: React.FC = () => {
   const totalEfectivo = pagos.filter(p => p.medioPago === 'efectivo').reduce((sum, p) => sum + p.monto, 0);
   const totalNequi = pagos.filter(p => p.medioPago === 'nequi').reduce((sum, p) => sum + p.monto, 0);
   const totalDaviplata = pagos.filter(p => p.medioPago === 'daviplata').reduce((sum, p) => sum + p.monto, 0);
+
+  // Debug: Mostrar cálculos de totales
+  console.log('🔍 Debug Pagos - Cálculo de totales:', {
+    totalPagos,
+    totalEfectivo,
+    totalNequi,
+    totalDaviplata,
+    pagosDetalle: pagos.map(p => ({
+      monto: p.monto,
+      medioPago: p.medioPago,
+      cliente: p.clienteName
+    }))
+  });
 
   return (
     <div className="space-y-6">
@@ -523,13 +478,6 @@ const Pagos: React.FC = () => {
                     </div>
                     <div className="flex items-center space-x-1">
                       <button
-                        onClick={() => editarPago(pago)}
-                        className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Editar pago"
-                      >
-                        <PencilIcon className="h-4 w-4" />
-                      </button>
-                      <button
                         onClick={() => eliminarPago(pago)}
                         className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
                         title="Eliminar pago"
@@ -545,17 +493,6 @@ const Pagos: React.FC = () => {
         )}
       </div>
 
-      {/* Modal de editar pago */}
-      {mostrarModalEditar && pagoAEditar && (
-        <ModalEditarPago
-          pago={pagoAEditar}
-          onClose={() => {
-            setMostrarModalEditar(false);
-            setPagoAEditar(null);
-          }}
-          onSave={handleEditarPago}
-        />
-      )}
 
       {/* Modal de eliminar pago */}
       {mostrarModalEliminar && pagoAEliminar && (
@@ -568,127 +505,6 @@ const Pagos: React.FC = () => {
           onConfirm={handleEliminarPago}
         />
       )}
-    </div>
-  );
-};
-
-// Modal para editar pago
-const ModalEditarPago: React.FC<{
-  pago: PagoCompleto;
-  onClose: () => void;
-  onSave: (pago: Partial<PagoCompleto>) => void;
-}> = ({ pago, onClose, onSave }) => {
-  const [formData, setFormData] = useState({
-    monto: pago.monto,
-    medioPago: pago.medioPago,
-    referencia: pago.referencia || '',
-    fecha: pago.fecha.toISOString().slice(0, 16)
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave({
-      monto: formData.monto,
-      medioPago: formData.medioPago,
-      referencia: formData.referencia.trim() || undefined,
-      fecha: new Date(formData.fecha)
-    });
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-        <div className="flex justify-between items-center p-6 border-b">
-          <h3 className="text-lg font-medium text-gray-900">Editar Pago</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <XMarkIcon className="h-6 w-6" />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Monto *
-            </label>
-            <input
-              type="number"
-              min="0"
-              step="100"
-              value={formData.monto}
-              onChange={(e) => setFormData(prev => ({ ...prev, monto: parseFloat(e.target.value) || 0 }))}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Medio de Pago *
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {['efectivo', 'nequi', 'daviplata'].map((medio) => (
-                <button
-                  key={medio}
-                  type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, medioPago: medio as any }))}
-                  className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                    formData.medioPago === medio
-                      ? medio === 'efectivo' ? 'bg-green-50 border-green-500 text-green-700' :
-                        medio === 'nequi' ? 'bg-blue-50 border-blue-500 text-blue-700' :
-                        'bg-purple-50 border-purple-500 text-purple-700'
-                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  {medio === 'efectivo' ? '💵 Efectivo' :
-                   medio === 'nequi' ? '📱 Nequi' :
-                   '📱 Daviplata'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Referencia/Comprobante
-            </label>
-            <input
-              type="text"
-              value={formData.referencia}
-              onChange={(e) => setFormData(prev => ({ ...prev, referencia: e.target.value }))}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Número de comprobante, referencia, etc."
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Fecha y Hora *
-            </label>
-            <input
-              type="datetime-local"
-              value={formData.fecha}
-              onChange={(e) => setFormData(prev => ({ ...prev, fecha: e.target.value }))}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              required
-            />
-          </div>
-
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Guardar Cambios
-            </button>
-          </div>
-        </form>
-      </div>
     </div>
   );
 };

@@ -260,9 +260,9 @@ export const obtenerTodosLosMantenimientos = async (): Promise<Mantenimiento[]> 
 // Obtener todos los mantenimientos activos
 export const obtenerMantenimientosActivos = async (): Promise<Mantenimiento[]> => {
   try {
+    // Simplificar consulta para evitar índice compuesto
     const q = query(
       collection(db, MANTENIMIENTOS_COLLECTION),
-      where('fechaFin', '==', null),
       orderBy('createdAt', 'desc')
     );
 
@@ -271,22 +271,26 @@ export const obtenerMantenimientosActivos = async (): Promise<Mantenimiento[]> =
 
     querySnapshot.forEach((doc) => {
       const data = doc.data();
-      mantenimientos.push({
-        id: doc.id,
-        lavadoraId: data.lavadoraId,
-        tipoFalla: data.tipoFalla,
-        descripcion: data.descripcion,
-        costoReparacion: data.costoReparacion,
-        servicioTecnico: data.servicioTecnico,
-        fechaInicio: data.fechaInicio?.toDate() || new Date(),
-        fechaEstimadaFin: data.fechaEstimadaFin?.toDate() || new Date(),
-        fechaFin: data.fechaFin?.toDate(),
-        fotos: data.fotos || [],
-        observaciones: data.observaciones || '',
-        createdBy: data.createdBy,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date()
-      });
+      // Filtrar solo los activos (fechaFin es null) en memoria
+      if (!data.fechaFin) {
+        mantenimientos.push({
+          id: doc.id,
+          lavadoraId: data.lavadoraId,
+          tipoFalla: data.tipoFalla,
+          descripcion: data.descripcion,
+          costoReparacion: data.costoReparacion,
+          servicioTecnico: data.servicioTecnico,
+          fechaInicio: data.fechaInicio?.toDate() || new Date(),
+          fechaEstimadaFin: data.fechaEstimadaFin?.toDate() || new Date(),
+          fechaFin: data.fechaFin?.toDate(),
+          fotos: data.fotos || [],
+          observaciones: data.observaciones || '',
+          medioPago: data.medioPago || 'efectivo',
+          createdBy: data.createdBy,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date()
+        });
+      }
     });
 
     return mantenimientos;

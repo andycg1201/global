@@ -119,7 +119,16 @@ const Dashboard: React.FC = () => {
       const gastosGenerales = gastosData.reduce((sum, gasto) => sum + gasto.amount, 0);
       
       // Calcular gastos de mantenimiento
+      console.log('🔧 Debug Dashboard - Mantenimientos cargados:', mantenimientosData.length);
+      console.log('🔧 Debug Dashboard - Datos de mantenimientos:', mantenimientosData.map(m => ({
+        id: m.id,
+        costoReparacion: m.costoReparacion,
+        medioPago: m.medioPago,
+        createdAt: m.createdAt
+      })));
+      
       const gastosMantenimiento = mantenimientosData.reduce((sum, mantenimiento) => sum + (mantenimiento.costoReparacion || 0), 0);
+      console.log('🔧 Debug Dashboard - Total gastos mantenimiento calculado:', gastosMantenimiento);
       
       // Retiros de capital
       const retirosCapital = movimientosCapitalData
@@ -199,9 +208,12 @@ const Dashboard: React.FC = () => {
       });
       
       // Procesar gastos de mantenimiento
+      console.log('🔧 Debug Dashboard - Procesando mantenimientos para saldos...');
       mantenimientosData.forEach(mantenimiento => {
         const medioPago = mantenimiento.medioPago || 'efectivo';
         const costo = mantenimiento.costoReparacion || 0;
+        console.log('🔧 Procesando mantenimiento:', mantenimiento.id, 'costo:', costo, 'medioPago:', medioPago);
+        
         if (medioPago === 'efectivo') {
           saldosCalculados.efectivo.gastos += costo;
         } else if (medioPago === 'nequi') {
@@ -210,6 +222,7 @@ const Dashboard: React.FC = () => {
           saldosCalculados.daviplata.gastos += costo;
         }
       });
+      console.log('🔧 Debug Dashboard - Saldos después de procesar mantenimientos:', saldosCalculados);
       
       // Procesar movimientos de capital
       movimientosCapitalData.forEach(mov => {

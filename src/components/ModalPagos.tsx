@@ -16,7 +16,7 @@ const ModalPagos: React.FC<ModalPagosProps> = ({
   pedido,
   onPagoRealizado
 }) => {
-  const [montoPago, setMontoPago] = useState<number>(0);
+  const [montoPago, setMontoPago] = useState<number | undefined>(undefined);
   const [medioPago, setMedioPago] = useState<'efectivo' | 'nequi' | 'daviplata'>('efectivo');
   const [observaciones, setObservaciones] = useState<string>('');
 
@@ -26,21 +26,22 @@ const ModalPagos: React.FC<ModalPagosProps> = ({
   // Resetear formulario cuando se abre el modal
   useEffect(() => {
     if (isOpen && pedido) {
-      setMontoPago(saldoPendiente); // Por defecto, el monto completo
+      setMontoPago(undefined); // Campo vacío por defecto
       setMedioPago('efectivo');
       setObservaciones('');
     }
-  }, [isOpen, pedido, saldoPendiente]);
+  }, [isOpen, pedido]);
 
   const handleClose = () => {
-    setMontoPago(0);
+    setMontoPago(undefined);
     setMedioPago('efectivo');
     setObservaciones('');
     onClose();
   };
 
   const handleConfirmar = async () => {
-    if (!pedido || montoPago <= 0 || montoPago > saldoPendiente) {
+    const montoFinal = montoPago || 0;
+    if (!pedido || montoFinal <= 0 || montoFinal > saldoPendiente) {
       alert('Monto inválido');
       return;
     }
@@ -57,10 +58,10 @@ const ModalPagos: React.FC<ModalPagosProps> = ({
 
       // Crear el pago
       const nuevoPago = {
-        monto: montoPago,
+        monto: montoFinal,
         medioPago: medioPago,
         fecha: new Date(),
-        isPartial: montoPago < saldoPendiente
+        isPartial: montoFinal < saldoPendiente
       };
 
       console.log('🔍 ModalPagos - Nuevo pago creado:', nuevoPago);
@@ -84,7 +85,7 @@ const ModalPagos: React.FC<ModalPagosProps> = ({
       console.log('✅ Pago registrado en pedido - NO se crea movimiento de capital separado');
 
       console.log('✅ Pago registrado exitosamente:', nuevoPago);
-      alert(`Pago de ${formatCurrency(montoPago)} registrado exitosamente`);
+      alert(`Pago de ${formatCurrency(montoFinal)} registrado exitosamente`);
       
       onPagoRealizado();
       handleClose();
@@ -149,8 +150,12 @@ const ModalPagos: React.FC<ModalPagosProps> = ({
               min="0"
               max={saldoPendiente}
               step="100"
-              value={montoPago}
-              onChange={(e) => setMontoPago(parseFloat(e.target.value) || 0)}
+              value={montoPago || ''}
+              onChange={(e) => {
+                const value = e.target.value;
+                const cantidad = value === '' ? undefined : parseFloat(value) || 0;
+                setMontoPago(cantidad);
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
               placeholder="0"
             />
@@ -226,7 +231,7 @@ const ModalPagos: React.FC<ModalPagosProps> = ({
           </button>
           <button
             onClick={handleConfirmar}
-            disabled={montoPago <= 0 || montoPago > saldoPendiente || !medioPago}
+            disabled={(montoPago || 0) <= 0 || (montoPago || 0) > saldoPendiente || !medioPago}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
           >
             Registrar Pago

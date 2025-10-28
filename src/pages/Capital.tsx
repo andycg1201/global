@@ -653,7 +653,7 @@ const Capital: React.FC = () => {
         />
       ) : (
         <>
-          {/* Filtros */}
+      {/* Filtros */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-medium text-gray-900">Filtros</h3>
@@ -869,6 +869,7 @@ const Capital: React.FC = () => {
             </table>
           </div>
         )}
+        </>
       )}
       
       {/* Modales */}

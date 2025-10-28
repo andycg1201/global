@@ -199,6 +199,7 @@ export interface Pedido {
   
   // Sistema de modificaciones dinámicas
   modificaciones?: ModificacionPedido[]; // historial de modificaciones al pedido
+  modificacionesServicio?: ModificacionServicio[]; // historial de modificaciones del nuevo sistema
   
   // Gestión de lavadoras
   lavadoraAsignada?: {

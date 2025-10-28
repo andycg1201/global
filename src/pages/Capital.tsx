@@ -869,7 +869,6 @@ const Capital: React.FC = () => {
             </table>
           </div>
         )}
-        </>
       )}
       
       {/* Modales */}

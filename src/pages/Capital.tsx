@@ -869,8 +869,6 @@ const Capital: React.FC = () => {
             </table>
           </div>
         )}
-        </>
-      )}
       
       {/* Modales */}
       <ModalCapitalInicial
@@ -891,6 +889,8 @@ const Capital: React.FC = () => {
         }}
         tipo={tipoMovimiento}
       />
+        </>
+      )}
     </div>
   );
 };

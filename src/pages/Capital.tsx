@@ -21,6 +21,7 @@ import { Pedido, Gasto, Mantenimiento, CapitalInicial, MovimientoCapital } from 
 import { formatDate, formatCurrency, getCurrentDateColombia } from '../utils/dateUtils';
 import ModalCapitalInicial from '../components/ModalCapitalInicial';
 import ModalMovimientoCapital from '../components/ModalMovimientoCapital';
+import ResumenCapital from '../components/ResumenCapital';
 
 interface FiltrosCapital {
   fechaInicio: Date;
@@ -79,6 +80,18 @@ const Capital: React.FC = () => {
   const [showModalCapitalInicial, setShowModalCapitalInicial] = useState(false);
   const [showModalMovimiento, setShowModalMovimiento] = useState(false);
   const [tipoMovimiento, setTipoMovimiento] = useState<'inyeccion' | 'retiro'>('inyeccion');
+  const [mostrarResumen, setMostrarResumen] = useState(true); // Por defecto mostrar resumen
+  
+  // Estados para el resumen
+  const [datosResumen, setDatosResumen] = useState({
+    capitalInicial: 0,
+    inyeccionesCapital: 0,
+    serviciosPagados: 0,
+    serviciosPendientes: 0,
+    retiros: 0,
+    gastosGenerales: 0,
+    mantenimientos: 0
+  });
 
   const cargarDatos = async () => {
     try {
@@ -253,22 +266,22 @@ const Capital: React.FC = () => {
           return !esPagoServicio;
         })
         .map(mov => ({
-          id: `capital-${mov.id}`,
-          fecha: mov.fecha,
-          hora: mov.fecha.toLocaleTimeString('es-CO', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-          }),
-          tipo: mov.tipo === 'inyeccion' ? 'ingreso' as const : 'gasto' as const,
-          concepto: `${mov.tipo === 'inyeccion' ? 'Inyección' : 'Retiro'} de Capital - ${mov.concepto}`,
-          monto: mov.efectivo + mov.nequi + mov.daviplata,
-          medioPago: 'efectivo' as const, // Se mostrará como efectivo pero se procesará por separado
-          referencia: mov.observaciones || '',
-          saldoEfectivo: 0,
-          saldoNequi: 0,
-          saldoDaviplata: 0,
-          saldoTotal: 0
-        }));
+        id: `capital-${mov.id}`,
+        fecha: mov.fecha,
+        hora: mov.fecha.toLocaleTimeString('es-CO', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        }),
+        tipo: mov.tipo === 'inyeccion' ? 'ingreso' as const : 'gasto' as const,
+        concepto: `${mov.tipo === 'inyeccion' ? 'Inyección' : 'Retiro'} de Capital - ${mov.concepto}`,
+        monto: mov.efectivo + mov.nequi + mov.daviplata,
+        medioPago: 'efectivo' as const, // Se mostrará como efectivo pero se procesará por separado
+        referencia: mov.observaciones || '',
+        saldoEfectivo: 0,
+        saldoNequi: 0,
+        saldoDaviplata: 0,
+        saldoTotal: 0
+      }));
 
       // Incluir capital inicial si existe
       const capitalInicialLibro: MovimientoLibroDiario[] = capitalInicialData ? [{
@@ -424,6 +437,47 @@ const Capital: React.FC = () => {
 
       setSaldos(saldosCalculados);
 
+      // Calcular datos para el resumen
+      const capitalInicialTotal = capitalInicialData?.monto || 0;
+      
+      // Calcular inyecciones de capital (movimientos de tipo 'inyeccion')
+      const inyeccionesTotal = movimientosCapitalData
+        .filter(mov => mov.tipo === 'inyeccion')
+        .reduce((sum, mov) => sum + mov.monto, 0);
+      
+      // Calcular retiros de capital (movimientos de tipo 'retiro')
+      const retirosTotal = movimientosCapitalData
+        .filter(mov => mov.tipo === 'retiro')
+        .reduce((sum, mov) => sum + mov.monto, 0);
+      
+      // Calcular servicios pagados y pendientes
+      let serviciosPagadosTotal = 0;
+      let serviciosPendientesTotal = 0;
+      
+      todosLosPedidos.forEach(pedido => {
+        const pagosRecibidos = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
+        serviciosPagadosTotal += pagosRecibidos;
+        serviciosPendientesTotal += Math.max(0, pedido.total - pagosRecibidos);
+      });
+      
+      // Calcular gastos generales
+      const gastosGeneralesTotal = gastos.reduce((sum, gasto) => sum + gasto.amount, 0);
+      
+      // Calcular mantenimientos
+      const mantenimientosTotal = mantenimientosFiltrados.reduce((sum, mant) => sum + mant.costoReparacion, 0);
+      
+      setDatosResumen({
+        capitalInicial: capitalInicialTotal,
+        inyeccionesCapital: inyeccionesTotal,
+        serviciosPagados: serviciosPagadosTotal,
+        serviciosPendientes: serviciosPendientesTotal,
+        retiros: retirosTotal,
+        gastosGenerales: gastosGeneralesTotal,
+        mantenimientos: mantenimientosTotal
+      });
+
+      console.log('✅ Capital - Datos cargados exitosamente');
+
     } catch (error) {
       console.error('Error al cargar datos del capital:', error);
     } finally {
@@ -562,7 +616,44 @@ const Capital: React.FC = () => {
         </div>
       </div>
 
-      {/* Filtros */}
+      {/* Botones de vista */}
+      <div className="flex items-center justify-center space-x-4">
+        <button
+          onClick={() => setMostrarResumen(true)}
+          className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+            mostrarResumen 
+              ? 'bg-blue-600 text-white' 
+              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          }`}
+        >
+          📊 Resumen General
+        </button>
+        <button
+          onClick={() => setMostrarResumen(false)}
+          className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+            !mostrarResumen 
+              ? 'bg-blue-600 text-white' 
+              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          }`}
+        >
+          📋 Libro Diario
+        </button>
+      </div>
+
+      {/* Contenido según vista seleccionada */}
+      {mostrarResumen ? (
+        <ResumenCapital
+          capitalInicial={datosResumen.capitalInicial}
+          inyeccionesCapital={datosResumen.inyeccionesCapital}
+          serviciosPagados={datosResumen.serviciosPagados}
+          serviciosPendientes={datosResumen.serviciosPendientes}
+          retiros={datosResumen.retiros}
+          gastosGenerales={datosResumen.gastosGenerales}
+          mantenimientos={datosResumen.mantenimientos}
+        />
+      ) : (
+        <>
+          {/* Filtros */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-medium text-gray-900">Filtros</h3>
@@ -778,7 +869,8 @@ const Capital: React.FC = () => {
             </table>
           </div>
         )}
-      </div>
+        </>
+      )}
       
       {/* Modales */}
       <ModalCapitalInicial

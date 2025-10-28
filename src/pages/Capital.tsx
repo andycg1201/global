@@ -188,7 +188,7 @@ const Capital: React.FC = () => {
             concepto: gasto.description,
             monto: gasto.amount,
             medioPago: gasto.medioPago || 'efectivo',
-            referencia: gasto.reference,
+            referencia: gasto.description,
             saldoEfectivo: 0,
             saldoNequi: 0,
             saldoDaviplata: 0,
@@ -303,7 +303,7 @@ const Capital: React.FC = () => {
             const fechaPago = new Date(pago.fecha);
             if (!isNaN(fechaPago.getTime())) {
               pagosPedidosLibro.push({
-                id: `pago-${pedido.id}-${pago.id}`,
+                id: `pago-${pedido.id}-${Date.now()}`,
                 fecha: fechaPago,
                 hora: fechaPago.toLocaleTimeString('es-CO', { 
                   hour: '2-digit', 
@@ -314,8 +314,8 @@ const Capital: React.FC = () => {
                 monto: pago.monto,
                 medioPago: pago.medioPago,
                 cliente: pedido.cliente.name,
-                plan: pedido.plan?.nombre || 'Sin plan',
-                referencia: pago.observaciones,
+                plan: pedido.plan?.name || 'Sin plan',
+                referencia: pago.referencia,
                 saldoEfectivo: 0,
                 saldoNequi: 0,
                 saldoDaviplata: 0,

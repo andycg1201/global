@@ -169,13 +169,14 @@ const Capital: React.FC = () => {
       }
 
       // Los pagos de servicios se procesan más abajo en pagosPedidosLibro
+      // para evitar duplicación
       const movimientosIngresos: MovimientoLibroDiario[] = [];
-      const movimientosGastos: MovimientoLibroDiario[] = [];
+      console.log('📊 Movimientos de ingresos (pagos procesados más abajo):', movimientosIngresos.length);
 
-      // Procesar gastos
+      // Procesar movimientos de gastos generales
+      const movimientosGastos: MovimientoLibroDiario[] = [];
       gastos.forEach(gasto => {
         const fechaGasto = new Date(gasto.date);
-        console.log('🔧 Procesando gasto:', gasto.id, 'fecha:', fechaGasto, 'monto:', gasto.amount);
         if (!isNaN(fechaGasto.getTime())) {
           movimientosGastos.push({
             id: `gasto-${gasto.id}`,
@@ -185,22 +186,28 @@ const Capital: React.FC = () => {
               minute: '2-digit' 
             }),
             tipo: 'gasto',
-            concepto: gasto.description,
+            concepto: gasto.concepto.name,
             monto: gasto.amount,
-            medioPago: gasto.medioPago || 'efectivo',
-            referencia: gasto.reference,
+            medioPago: gasto.medioPago,
+            referencia: gasto.description,
             saldoEfectivo: 0,
             saldoNequi: 0,
             saldoDaviplata: 0,
             saldoTotal: 0
           });
-          console.log('✅ Gasto agregado al libro diario:', gasto.id);
-        } else {
-          console.log('❌ Fecha inválida para gasto:', gasto.id, gasto.date);
         }
       });
 
-      // Procesar mantenimientos
+      // Procesar movimientos de mantenimiento
+      console.log('🔧 Debug Capital - Mantenimientos encontrados:', mantenimientosFiltrados.length);
+      console.log('🔧 Debug Capital - Todos los mantenimientos:', mantenimientosFiltrados.map(m => ({
+        id: m.id,
+        costo: m.costoReparacion,
+        fechaInicio: m.fechaInicio,
+        medioPago: m.medioPago,
+        lavadoraId: m.lavadoraId
+      })));
+      
       mantenimientosFiltrados.forEach(mant => {
         // El gasto se hace efectivo cuando se CREA el mantenimiento, no cuando se estima que termine
         const fechaMant = new Date(mant.createdAt);
@@ -267,16 +274,16 @@ const Capital: React.FC = () => {
         }),
         tipo: mov.tipo === 'inyeccion' ? 'ingreso' as const : 'gasto' as const,
         concepto: `${mov.tipo === 'inyeccion' ? 'Inyección' : 'Retiro'} de Capital - ${mov.concepto}`,
-        monto: (mov.efectivo || 0) + (mov.nequi || 0) + (mov.daviplata || 0),
-        medioPago: 'efectivo', // Por defecto efectivo ya que es la suma de todos
-        referencia: mov.observaciones,
+        monto: mov.efectivo + mov.nequi + mov.daviplata,
+        medioPago: 'efectivo' as const, // Se mostrará como efectivo pero se procesará por separado
+        referencia: mov.observaciones || '',
         saldoEfectivo: 0,
         saldoNequi: 0,
         saldoDaviplata: 0,
         saldoTotal: 0
       }));
 
-      // Incluir capital inicial en el libro diario
+      // Incluir capital inicial si existe
       const capitalInicialLibro: MovimientoLibroDiario[] = capitalInicialData ? [{
         id: 'capital-inicial',
         fecha: capitalInicialData.fecha,
@@ -284,38 +291,47 @@ const Capital: React.FC = () => {
           hour: '2-digit', 
           minute: '2-digit' 
         }),
-        tipo: 'ingreso',
+        tipo: 'ingreso' as const,
         concepto: 'Capital Inicial',
         monto: capitalInicialData.efectivo + capitalInicialData.nequi + capitalInicialData.daviplata,
-        medioPago: 'efectivo', // Por defecto efectivo ya que es la suma de todos
-        referencia: 'Capital inicial registrado',
+        medioPago: 'efectivo' as const,
+        referencia: '',
         saldoEfectivo: 0,
         saldoNequi: 0,
         saldoDaviplata: 0,
         saldoTotal: 0
       }] : [];
 
-      // Procesar pagos de servicios
+      // Incluir pagos de pedidos en el libro diario
       const pagosPedidosLibro: MovimientoLibroDiario[] = [];
       todosLosPedidos.forEach(pedido => {
         if (pedido.pagosRealizados && pedido.pagosRealizados.length > 0) {
-          pedido.pagosRealizados.forEach(pago => {
-            const fechaPago = new Date(pago.fecha);
-            if (!isNaN(fechaPago.getTime())) {
+          pedido.pagosRealizados.forEach((pago, index) => {
+            // Verificar que el pago esté en el rango de fechas
+            let fechaPago: Date;
+            if (pago.fecha instanceof Date) {
+              fechaPago = pago.fecha;
+            } else if (pago.fecha && typeof pago.fecha === 'object' && 'toDate' in pago.fecha) {
+              fechaPago = (pago.fecha as any).toDate();
+            } else {
+              fechaPago = new Date(pago.fecha);
+            }
+            
+            if (fechaPago >= filtros.fechaInicio && fechaPago <= filtros.fechaFin) {
               pagosPedidosLibro.push({
-                id: `pago-${pedido.id}-${pago.id}`,
+                id: `pago-${pedido.id}-${index}`,
                 fecha: fechaPago,
                 hora: fechaPago.toLocaleTimeString('es-CO', { 
                   hour: '2-digit', 
                   minute: '2-digit' 
                 }),
-                tipo: 'ingreso',
-                concepto: `Pago servicio - ${pedido.cliente.name}`,
+                tipo: 'ingreso' as const,
+                concepto: `Pago servicio - ${pedido.plan.name}`,
                 monto: pago.monto,
-                medioPago: pago.medioPago,
+                medioPago: (pago.medioPago || 'efectivo') as 'efectivo' | 'nequi' | 'daviplata',
                 cliente: pedido.cliente.name,
-                plan: pedido.plan?.nombre || 'Sin plan',
-                referencia: pago.observaciones,
+                plan: pedido.plan.name,
+                referencia: '',
                 saldoEfectivo: 0,
                 saldoNequi: 0,
                 saldoDaviplata: 0,
@@ -325,7 +341,12 @@ const Capital: React.FC = () => {
           });
         }
       });
+      
+      console.log('🔍 Debug Capital - Capital inicial libro:', capitalInicialLibro);
+      console.log('🔍 Debug Capital - Movimientos capital libro:', movimientosCapitalLibro);
+      console.log('🔍 Debug Capital - Pagos de pedidos libro:', pagosPedidosLibro);
 
+      // Combinar todos los movimientos incluyendo capital y pagos de pedidos
       const todosLosMovimientosCompletos = [...movimientosIngresos, ...movimientosGastos, ...capitalInicialLibro, ...movimientosCapitalLibro, ...pagosPedidosLibro]
         .sort((a, b) => {
           const fechaA = new Date(a.fecha);
@@ -344,30 +365,53 @@ const Capital: React.FC = () => {
       let saldoDaviplata = 0;
       
       const movimientosConSaldos = todosLosMovimientosCompletos.map(movimiento => {
-        // Actualizar saldos según el medio de pago
-        if (movimiento.tipo === 'ingreso') {
-          switch (movimiento.medioPago) {
-            case 'efectivo':
-              saldoEfectivo += movimiento.monto;
-              break;
-            case 'nequi':
-              saldoNequi += movimiento.monto;
-              break;
-            case 'daviplata':
-              saldoDaviplata += movimiento.monto;
-              break;
+        console.log('🔍 Procesando movimiento:', movimiento.id, movimiento.concepto);
+        
+        // Procesar capital inicial primero (antes que movimientos de capital)
+        if (movimiento.id === 'capital-inicial') {
+          console.log('🔍 Verificando capital inicial - capitalInicialData:', capitalInicialData);
+          if (capitalInicialData) {
+            console.log('💰 Procesando capital inicial:', capitalInicialData.efectivo, capitalInicialData.nequi, capitalInicialData.daviplata);
+            saldoEfectivo += capitalInicialData.efectivo;
+            saldoNequi += capitalInicialData.nequi;
+            saldoDaviplata += capitalInicialData.daviplata;
+          } else {
+            console.log('❌ Error: capitalInicialData es null/undefined');
+          }
+        } else if (movimiento.id.startsWith('capital-')) {
+          const movCapital = movimientosCapitalData.find(m => `capital-${m.id}` === movimiento.id);
+          if (movCapital) {
+            console.log('💰 Procesando movimiento capital:', movCapital.tipo, movCapital.efectivo, movCapital.nequi, movCapital.daviplata);
+            if (movCapital.tipo === 'inyeccion') {
+              saldoEfectivo += movCapital.efectivo;
+              saldoNequi += movCapital.nequi;
+              saldoDaviplata += movCapital.daviplata;
+            } else {
+              saldoEfectivo -= movCapital.efectivo;
+              saldoNequi -= movCapital.nequi;
+              saldoDaviplata -= movCapital.daviplata;
+            }
+          }
+        } else if (movimiento.id.startsWith('pago-')) {
+          console.log('💰 Procesando pago de pedido:', movimiento.tipo, movimiento.monto, movimiento.medioPago);
+          // Pagos de pedidos
+          const medioPagoReal = movimiento.medioPago || 'efectivo';
+          if (medioPagoReal === 'efectivo') {
+            saldoEfectivo += movimiento.monto;
+          } else if (medioPagoReal === 'nequi') {
+            saldoNequi += movimiento.monto;
+          } else if (medioPagoReal === 'daviplata') {
+            saldoDaviplata += movimiento.monto;
           }
         } else {
-          switch (movimiento.medioPago) {
-            case 'efectivo':
-              saldoEfectivo -= movimiento.monto;
-              break;
-            case 'nequi':
-              saldoNequi -= movimiento.monto;
-              break;
-            case 'daviplata':
-              saldoDaviplata -= movimiento.monto;
-              break;
+          console.log('💰 Procesando movimiento normal:', movimiento.tipo, movimiento.monto, movimiento.medioPago);
+          // Movimientos normales (ingresos/gastos)
+          if (movimiento.medioPago === 'efectivo') {
+            saldoEfectivo += movimiento.tipo === 'ingreso' ? movimiento.monto : -movimiento.monto;
+          } else if (movimiento.medioPago === 'nequi') {
+            saldoNequi += movimiento.tipo === 'ingreso' ? movimiento.monto : -movimiento.monto;
+          } else if (movimiento.medioPago === 'daviplata') {
+            saldoDaviplata += movimiento.tipo === 'ingreso' ? movimiento.monto : -movimiento.monto;
           }
         }
         
@@ -394,34 +438,33 @@ const Capital: React.FC = () => {
       setSaldos(saldosCalculados);
 
       // Calcular datos para el resumen
-      const capitalInicialTotal = capitalInicialData ? 
-        (capitalInicialData.efectivo + capitalInicialData.nequi + capitalInicialData.daviplata) : 0;
+      const capitalInicialTotal = capitalInicialData?.monto || 0;
       
       // Calcular inyecciones de capital (movimientos de tipo 'inyeccion')
       const inyeccionesTotal = movimientosCapitalData
         .filter(mov => mov.tipo === 'inyeccion')
-        .reduce((sum, mov) => sum + (mov.efectivo || 0) + (mov.nequi || 0) + (mov.daviplata || 0), 0);
+        .reduce((sum, mov) => sum + mov.monto, 0);
       
       // Calcular retiros de capital (movimientos de tipo 'retiro')
       const retirosTotal = movimientosCapitalData
         .filter(mov => mov.tipo === 'retiro')
-        .reduce((sum, mov) => sum + (mov.efectivo || 0) + (mov.nequi || 0) + (mov.daviplata || 0), 0);
+        .reduce((sum, mov) => sum + mov.monto, 0);
       
       // Calcular servicios pagados y pendientes
       let serviciosPagadosTotal = 0;
       let serviciosPendientesTotal = 0;
       
       todosLosPedidos.forEach(pedido => {
-        const pagosRecibidos = pedido.pagosRealizados?.reduce((sum, pago) => sum + (pago.monto || 0), 0) || 0;
+        const pagosRecibidos = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
         serviciosPagadosTotal += pagosRecibidos;
-        serviciosPendientesTotal += Math.max(0, (pedido.total || 0) - pagosRecibidos);
+        serviciosPendientesTotal += Math.max(0, pedido.total - pagosRecibidos);
       });
       
       // Calcular gastos generales
-      const gastosGeneralesTotal = gastos.reduce((sum, gasto) => sum + (gasto.amount || 0), 0);
+      const gastosGeneralesTotal = gastos.reduce((sum, gasto) => sum + gasto.amount, 0);
       
       // Calcular mantenimientos
-      const mantenimientosTotal = mantenimientosFiltrados.reduce((sum, mant) => sum + (mant.costoReparacion || 0), 0);
+      const mantenimientosTotal = mantenimientosFiltrados.reduce((sum, mant) => sum + mant.costoReparacion, 0);
       
       setDatosResumen({
         capitalInicial: capitalInicialTotal,
@@ -431,24 +474,6 @@ const Capital: React.FC = () => {
         retiros: retirosTotal,
         gastosGenerales: gastosGeneralesTotal,
         mantenimientos: mantenimientosTotal
-      });
-
-      console.log('🔍 Debug Capital - Datos del resumen:', {
-        capitalInicialTotal,
-        inyeccionesTotal,
-        serviciosPagadosTotal,
-        serviciosPendientesTotal,
-        retirosTotal,
-        gastosGeneralesTotal,
-        mantenimientosTotal,
-        movimientosCapitalData: movimientosCapitalData.map(m => ({ 
-          id: m.id, 
-          tipo: m.tipo, 
-          efectivo: m.efectivo, 
-          nequi: m.nequi, 
-          daviplata: m.daviplata,
-          total: (m.efectivo || 0) + (m.nequi || 0) + (m.daviplata || 0)
-        }))
       });
 
       console.log('✅ Capital - Datos cargados exitosamente');
@@ -464,78 +489,49 @@ const Capital: React.FC = () => {
     cargarDatos();
   }, [filtros]);
 
-  const handleFiltroChange = (tipo: 'hoy' | 'ayer' | 'personalizado') => {
-    const hoy = getCurrentDateColombia();
-    
-    switch (tipo) {
-      case 'hoy':
-        setFiltros({
-          fechaInicio: new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 0, 0, 0),
-          fechaFin: new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59),
-          tipo: 'hoy'
-        });
-        break;
-      case 'ayer':
-        const ayer = new Date(hoy);
-        ayer.setDate(ayer.getDate() - 1);
-        setFiltros({
-          fechaInicio: new Date(ayer.getFullYear(), ayer.getMonth(), ayer.getDate(), 0, 0, 0),
-          fechaFin: new Date(ayer.getFullYear(), ayer.getMonth(), ayer.getDate(), 23, 59, 59),
-          tipo: 'ayer'
-        });
-        break;
-      case 'personalizado':
-        setFiltros(prev => ({ ...prev, tipo: 'personalizado' }));
-        break;
-    }
-  };
-
   const exportarLibroDiario = () => {
-    if (movimientos.length === 0) {
-      alert('No hay movimientos para exportar');
-      return;
-    }
-
-    const headers = [
-      'Fecha',
-      'Hora',
-      'Tipo',
-      'Concepto',
-      'Monto',
-      'Medio de Pago',
-      'Cliente',
-      'Plan',
-      'Referencia',
-      'Saldo Efectivo',
-      'Saldo Nequi',
-      'Saldo Daviplata',
-      'Saldo Total'
-    ];
-
-    const csvContent = [
-      headers.join(','),
+    const datos = [
+      ['LIBRO DIARIO - LAVADORAS GLOBAL'],
+      [''],
+      [`Período: ${formatDate(filtros.fechaInicio, 'dd/MM/yyyy')} - ${formatDate(filtros.fechaFin, 'dd/MM/yyyy')}`],
+      [''],
+      ['FECHA', 'HORA', 'TIPO', 'CONCEPTO', 'MONTO', 'MEDIO PAGO', 'CLIENTE/PLAN', 'REFERENCIA', 'SALDO EFECTIVO', 'SALDO NEQUI', 'SALDO DAVIPLATA', 'SALDO TOTAL'],
       ...movimientos.map(mov => [
         formatDate(mov.fecha, 'dd/MM/yyyy'),
         mov.hora,
-        mov.tipo,
-        `"${mov.concepto}"`,
+        mov.tipo === 'ingreso' ? 'INGRESO' : 'GASTO',
+        mov.concepto,
         mov.monto,
-        mov.medioPago,
-        mov.cliente || '',
-        mov.plan || '',
+        mov.medioPago.toUpperCase(),
+        mov.cliente ? `${mov.cliente} - ${mov.plan}` : '',
         mov.referencia || '',
         mov.saldoEfectivo,
         mov.saldoNequi,
         mov.saldoDaviplata,
         mov.saldoTotal
-      ].join(','))
-    ].join('\n');
+      ]),
+      [''],
+      ['RESUMEN DE SALDOS:'],
+      [''],
+      ['MEDIO DE PAGO', 'SALDO FINAL'],
+      ['EFECTIVO', saldos.efectivo],
+      ['NEQUI', saldos.nequi],
+      ['DAVIPLATA', saldos.daviplata],
+      [''],
+      ['TOTAL GENERAL', saldos.efectivo + saldos.nequi + saldos.daviplata]
+    ];
 
+    // Crear CSV
+    const csvContent = datos.map(row => 
+      row.map(cell => `"${cell}"`).join(',')
+    ).join('\n');
+
+    // Descargar archivo
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `libro_diario_${formatDate(new Date(), 'yyyy-MM-dd')}.csv`);
+    link.setAttribute('download', `libro_diario_${formatDate(filtros.fechaInicio, 'yyyy-MM-dd')}_${formatDate(filtros.fechaFin, 'yyyy-MM-dd')}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -656,246 +652,224 @@ const Capital: React.FC = () => {
           mantenimientos={datosResumen.mantenimientos}
         />
       ) : (
-        <div>
-          {/* Filtros */}
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Filtros</h3>
-              <FunnelIcon className="h-5 w-5 text-gray-500" />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Período
-                </label>
-                <select
-                  value={filtros.tipo}
-                  onChange={(e) => {
-                    const tipo = e.target.value as 'hoy' | 'ayer' | 'personalizado';
-                    handleFiltroChange(tipo);
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="hoy">Hoy</option>
-                  <option value="ayer">Ayer</option>
-                  <option value="personalizado">Personalizado</option>
-                </select>
-              </div>
-              
+        <>
+      {/* Filtros */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-900">Filtros</h3>
+          <FunnelIcon className="h-5 w-5 text-gray-500" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Período
+            </label>
+            <select
+              value={filtros.tipo}
+              onChange={(e) => {
+                const tipo = e.target.value as 'hoy' | 'ayer' | 'personalizado';
+                const hoy = getCurrentDateColombia();
+                const ayer = new Date(hoy);
+                ayer.setDate(ayer.getDate() - 1);
+                
+                setFiltros(prev => ({
+                  ...prev,
+                  tipo,
+                  fechaInicio: tipo === 'hoy' ? hoy : tipo === 'ayer' ? ayer : prev.fechaInicio,
+                  fechaFin: tipo === 'hoy' ? hoy : tipo === 'ayer' ? ayer : prev.fechaFin
+                }));
+              }}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="hoy">Hoy</option>
+              <option value="ayer">Ayer</option>
+              <option value="personalizado">Personalizado</option>
+            </select>
+          </div>
+          
+          {filtros.tipo === 'personalizado' && (
+            <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Fecha Inicio
                 </label>
                 <input
-                  type="datetime-local"
-                  value={filtros.fechaInicio.toISOString().slice(0, 16)}
-                  onChange={(e) => {
-                    const fecha = new Date(e.target.value);
-                    setFiltros(prev => ({ ...prev, fechaInicio: fecha }));
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  type="date"
+                  value={formatDate(filtros.fechaInicio, 'yyyy-MM-dd')}
+                  onChange={(e) => setFiltros(prev => ({
+                    ...prev,
+                    fechaInicio: new Date(e.target.value)
+                  }))}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>
-              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Fecha Fin
                 </label>
                 <input
-                  type="datetime-local"
-                  value={filtros.fechaFin.toISOString().slice(0, 16)}
-                  onChange={(e) => {
-                    const fecha = new Date(e.target.value);
-                    setFiltros(prev => ({ ...prev, fechaFin: fecha }));
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  type="date"
+                  value={formatDate(filtros.fechaFin, 'yyyy-MM-dd')}
+                  onChange={(e) => setFiltros(prev => ({
+                    ...prev,
+                    fechaFin: new Date(e.target.value)
+                  }))}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>
-            </div>
-          </div>
+            </>
+          )}
+        </div>
+      </div>
 
-          {/* Resumen de saldos */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="card">
-              <div className="flex items-center">
-                <BanknotesIcon className="h-8 w-8 text-green-600" />
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-500">Efectivo</p>
-                  <p className="text-lg font-semibold text-gray-900">
-                    {formatCurrency(saldos.efectivo)}
-                  </p>
-                </div>
-              </div>
+      {/* Resumen de Saldos */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-green-50 p-4 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-green-600">Efectivo</p>
+              <p className="text-2xl font-bold text-green-900">
+                {formatCurrency(saldos.efectivo)}
+              </p>
             </div>
-            
-            <div className="card">
-              <div className="flex items-center">
-                <DevicePhoneMobileIcon className="h-8 w-8 text-blue-600" />
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-500">Nequi</p>
-                  <p className="text-lg font-semibold text-gray-900">
-                    {formatCurrency(saldos.nequi)}
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="card">
-              <div className="flex items-center">
-                <CreditCardIcon className="h-8 w-8 text-purple-600" />
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-500">Daviplata</p>
-                  <p className="text-lg font-semibold text-gray-900">
-                    {formatCurrency(saldos.daviplata)}
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="card">
-              <div className="flex items-center">
-                <CurrencyDollarIcon className="h-8 w-8 text-gray-600" />
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-500">Total</p>
-                  <p className="text-lg font-semibold text-gray-900">
-                    {formatCurrency(saldos.efectivo + saldos.nequi + saldos.daviplata)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Tabla de movimientos */}
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Libro Diario</h3>
-              <ChartBarIcon className="h-5 w-5 text-gray-500" />
-            </div>
-            
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <span className="ml-2 text-gray-600">Cargando movimientos...</span>
-              </div>
-            ) : movimientos.length === 0 ? (
-              <div className="text-center py-8">
-                <CurrencyDollarIcon className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900">No hay movimientos</h3>
-                <p className="mt-1 text-sm text-gray-500">
-                  No se encontraron movimientos para el período seleccionado.
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Fecha/Hora
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Tipo
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Concepto
-                      </th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Monto
-                      </th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Medio
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Cliente/Plan
-                      </th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Saldo Efectivo
-                      </th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Saldo Nequi
-                      </th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Saldo Daviplata
-                      </th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Saldo Total
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {movimientos.map((mov) => (
-                      <tr key={mov.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-900">
-                          <div>
-                            <div className="font-medium">{formatDate(mov.fecha, 'dd/MM/yyyy')}</div>
-                            <div className="text-gray-500">{mov.hora}</div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTipoColor(mov.tipo)}`}>
-                            {getTipoIcon(mov.tipo)} {mov.tipo}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
-                          <div className="max-w-xs truncate" title={mov.concepto}>
-                            {mov.concepto}
-                          </div>
-                          {mov.referencia && (
-                            <div className="text-xs text-gray-500 mt-1 truncate" title={mov.referencia}>
-                              {mov.referencia}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-right text-sm font-medium">
-                          <span className={getTipoColor(mov.tipo)}>
-                            {mov.tipo === 'ingreso' ? '+' : '-'}{formatCurrency(mov.monto)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center text-sm">
-                          <div className="flex items-center justify-center">
-                            {getMedioPagoIcon(mov.medioPago)}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
-                          {mov.cliente && (
-                            <div>
-                              <div className="font-medium">{mov.cliente}</div>
-                              {mov.plan && (
-                                <div className="text-xs text-gray-500">{mov.plan}</div>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-right text-sm font-medium">
-                          <span className={mov.saldoEfectivo >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {formatCurrency(mov.saldoEfectivo)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right text-sm font-medium">
-                          <span className={mov.saldoNequi >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {formatCurrency(mov.saldoNequi)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right text-sm font-medium">
-                          <span className={mov.saldoDaviplata >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {formatCurrency(mov.saldoDaviplata)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right text-sm font-bold">
-                          <span className={mov.saldoTotal >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {formatCurrency(mov.saldoTotal)}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <BanknotesIcon className="h-8 w-8 text-green-600" />
           </div>
         </div>
-      )}
+        
+        <div className="bg-blue-50 p-4 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-blue-600">Nequi</p>
+              <p className="text-2xl font-bold text-blue-900">
+                {formatCurrency(saldos.nequi)}
+              </p>
+            </div>
+            <DevicePhoneMobileIcon className="h-8 w-8 text-blue-600" />
+          </div>
+        </div>
+        
+        <div className="bg-purple-50 p-4 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-purple-600">Daviplata</p>
+              <p className="text-2xl font-bold text-purple-900">
+                {formatCurrency(saldos.daviplata)}
+              </p>
+            </div>
+            <CreditCardIcon className="h-8 w-8 text-purple-600" />
+          </div>
+        </div>
+      </div>
 
+      {/* Libro Diario */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-900">Libro Diario</h3>
+          <div className="flex items-center space-x-2 text-sm text-gray-500">
+            <ChartBarIcon className="h-4 w-4" />
+            <span>{movimientos.length} movimientos</span>
+          </div>
+        </div>
+        
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          </div>
+        ) : movimientos.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            No hay movimientos en el período seleccionado
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Fecha/Hora
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Tipo
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Concepto
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Monto
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Cliente/Plan
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Saldo Efectivo
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Saldo Nequi
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Saldo Daviplata
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Saldo Total
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {movimientos.map((mov) => (
+                  <tr key={mov.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                      <div>
+                        <div className="font-medium">{formatDate(mov.fecha, 'dd/MM/yyyy')}</div>
+                        <div className="text-gray-500">{mov.hora}</div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTipoColor(mov.tipo)}`}>
+                        {getTipoIcon(mov.tipo)} {mov.tipo.toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      {mov.concepto}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
+                      <span className={getTipoColor(mov.tipo)}>
+                        {mov.tipo === 'ingreso' ? '+' : '-'}{formatCurrency(mov.monto)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-500">
+                      {mov.cliente && (
+                        <div>
+                          <div className="font-medium">{mov.cliente}</div>
+                          <div className="text-xs">{mov.plan}</div>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm font-medium">
+                      <span className={mov.saldoEfectivo >= 0 ? 'text-green-600' : 'text-red-600'}>
+                        {formatCurrency(mov.saldoEfectivo)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm font-medium">
+                      <span className={mov.saldoNequi >= 0 ? 'text-green-600' : 'text-red-600'}>
+                        {formatCurrency(mov.saldoNequi)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm font-medium">
+                      <span className={mov.saldoDaviplata >= 0 ? 'text-green-600' : 'text-red-600'}>
+                        {formatCurrency(mov.saldoDaviplata)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm font-bold">
+                      <span className={mov.saldoTotal >= 0 ? 'text-green-600' : 'text-red-600'}>
+                        {formatCurrency(mov.saldoTotal)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      
       {/* Modales */}
       <ModalCapitalInicial
         isOpen={showModalCapitalInicial}
@@ -915,6 +889,8 @@ const Capital: React.FC = () => {
         }}
         tipo={tipoMovimiento}
       />
+        </>
+      )}
     </div>
   );
 };

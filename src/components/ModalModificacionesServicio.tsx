@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { XMarkIcon, PlusIcon, TrashIcon, CurrencyDollarIcon, ClockIcon, MinusIcon } from '@heroicons/react/24/outline';
 import { Pedido, Plan, ModificacionServicio } from '../types';
-import { ModificacionesService } from '../services/modificacionesService';
+import { modificacionesService } from '../services/modificacionesService';
 
 interface ModalModificacionesServicioProps {
   isOpen: boolean;
@@ -19,7 +19,7 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
   onModificacionAplicada
 }) => {
   const [modificacion, setModificacion] = useState<Partial<ModificacionServicio>>({
-    horasExtras: { cantidad: 0, precioUnitario: 0, total: 0 },
+    horasExtras: [],
     cobrosAdicionales: [],
     descuentos: [],
     observaciones: '',
@@ -37,6 +37,7 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
 
   const [nuevoCobro, setNuevoCobro] = useState({ concepto: '', monto: 0 });
   const [nuevoDescuento, setNuevoDescuento] = useState({ concepto: '', monto: 0 });
+  const [nuevaHoraExtra, setNuevaHoraExtra] = useState({ concepto: '', cantidad: 0 });
   const [precioHoraExtra, setPrecioHoraExtra] = useState(2000); // Valor por defecto
 
   // Cargar configuración al abrir el modal
@@ -84,9 +85,32 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
     if (!pedido) return;
     
     try {
-      const modificacionExistente = await ModificacionesService.obtenerModificacionPorPedido(pedido.id);
+      const modificacionExistente = await modificacionesService.obtenerModificacionPorPedido(pedido.id);
       if (modificacionExistente) {
-        setModificacion(modificacionExistente);
+        // Migrar formato antiguo de horasExtras a nuevo formato
+        let horasExtrasMigradas = modificacionExistente.horasExtras || [];
+        
+        // Si horasExtras es un objeto (formato antiguo), convertirlo a array
+        if (modificacionExistente.horasExtras && !Array.isArray(modificacionExistente.horasExtras)) {
+          const horasAntiguas = modificacionExistente.horasExtras as any;
+          if (horasAntiguas.cantidad > 0) {
+            horasExtrasMigradas = [{
+              concepto: `${horasAntiguas.cantidad} hora${horasAntiguas.cantidad > 1 ? 's' : ''} adicional${horasAntiguas.cantidad > 1 ? 'es' : ''}`,
+              cantidad: horasAntiguas.cantidad,
+              precioUnitario: horasAntiguas.precioUnitario,
+              total: horasAntiguas.total
+            }];
+          } else {
+            horasExtrasMigradas = [];
+          }
+        }
+        
+        const modificacionMigrada = {
+          ...modificacionExistente,
+          horasExtras: horasExtrasMigradas
+        };
+        
+        setModificacion(modificacionMigrada);
         if (modificacionExistente.cambioPlan) {
           setCambioPlan(modificacionExistente.cambioPlan);
         }
@@ -98,7 +122,10 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
 
   // Calcular totales
   useEffect(() => {
-    const totalHorasExtras = modificacion.horasExtras?.cantidad! * modificacion.horasExtras?.precioUnitario! || 0;
+    // Asegurar que horasExtras sea un array
+    const horasExtrasArray = Array.isArray(modificacion.horasExtras) ? modificacion.horasExtras : [];
+    
+    const totalHorasExtras = horasExtrasArray.reduce((sum, hora) => sum + hora.total, 0);
     const totalCobrosAdicionales = modificacion.cobrosAdicionales?.reduce((sum, cobro) => sum + cobro.monto, 0) || 0;
     const totalDescuentos = modificacion.descuentos?.reduce((sum, descuento) => sum + descuento.monto, 0) || 0;
     const totalModificaciones = totalHorasExtras + totalCobrosAdicionales - totalDescuentos + cambioPlan.diferencia;
@@ -109,6 +136,7 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
     console.log('  - Descuentos:', totalDescuentos);
     console.log('  - Diferencia plan:', cambioPlan.diferencia);
     console.log('  - Total modificaciones:', totalModificaciones);
+    console.log('  - Horas extras array:', horasExtrasArray);
     console.log('  - Cobros array:', modificacion.cobrosAdicionales);
     console.log('  - Descuentos array:', modificacion.descuentos);
 
@@ -136,16 +164,29 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
     }
   }, [cambioPlan.planAnterior, cambioPlan.planNuevo, planes]);
 
-  const handleHorasExtrasChange = (cantidad: number) => {
-    const cantidadFinal = cantidad || 0;
+  const handleAgregarHoraExtra = () => {
+    if (nuevaHoraExtra.concepto.trim() && nuevaHoraExtra.cantidad > 0) {
+      const total = nuevaHoraExtra.cantidad * precioHoraExtra;
+      const nuevaEntrada = {
+        concepto: nuevaHoraExtra.concepto.trim(),
+        cantidad: nuevaHoraExtra.cantidad,
+        precioUnitario: precioHoraExtra,
+        total: total
+      };
+      
+      setModificacion(prev => ({
+        ...prev,
+        horasExtras: [...(prev.horasExtras || []), nuevaEntrada]
+      }));
+      
+      setNuevaHoraExtra({ concepto: '', cantidad: 0 });
+    }
+  };
+
+  const handleEliminarHoraExtra = (index: number) => {
     setModificacion(prev => ({
       ...prev,
-      horasExtras: {
-        cantidad: cantidadFinal, // Usar cantidadFinal en lugar de cantidad
-        precioUnitario: precioHoraExtra, // Usar precio de configuración
-        total: cantidadFinal * precioHoraExtra
-      },
-      totalHorasExtras: cantidadFinal * precioHoraExtra
+      horasExtras: prev.horasExtras?.filter((_, i) => i !== index) || []
     }));
   };
 
@@ -232,7 +273,7 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
         };
       }
 
-      await ModificacionesService.guardarModificacion(modificacionCompleta);
+      await modificacionesService.guardarModificacion(modificacionCompleta);
       
       // Si hay cambio de plan, actualizar el pedido
       if (cambioPlan.planAnterior !== cambioPlan.planNuevo) {
@@ -322,7 +363,7 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
 
   const handleClose = () => {
     setModificacion({
-      horasExtras: { cantidad: 0, precioUnitario: 0, total: 0 },
+      horasExtras: [],
       cobrosAdicionales: [],
       descuentos: [],
       observaciones: '',
@@ -338,6 +379,7 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
     });
     setNuevoCobro({ concepto: '', monto: 0 });
     setNuevoDescuento({ concepto: '', monto: 0 });
+    setNuevaHoraExtra({ concepto: '', cantidad: 0 });
     onClose();
   };
 
@@ -446,45 +488,70 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
 
           {/* Horas Extras */}
           <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
-            <h3 className="font-medium text-gray-900 mb-2 flex items-center">
+            <h3 className="font-medium text-gray-900 mb-3 flex items-center">
               <ClockIcon className="h-5 w-5 mr-2 text-orange-600" />
               Horas Extras
             </h3>
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Cantidad
-                </label>
+            
+            {/* Lista de horas extras existentes */}
+            {modificacion.horasExtras && modificacion.horasExtras.length > 0 && (
+              <div className="space-y-2 mb-4">
+                {modificacion.horasExtras.map((hora, index) => (
+                  <div key={index} className="flex items-center justify-between p-2 bg-orange-50 rounded-lg border border-orange-200">
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-orange-900">{hora.concepto}</div>
+                      <div className="text-xs text-orange-700">
+                        {hora.cantidad}h × ${hora.precioUnitario.toLocaleString()} = ${hora.total.toLocaleString()}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleEliminarHoraExtra(index)}
+                      className="ml-2 p-1 text-orange-600 hover:text-orange-800 hover:bg-orange-100 rounded transition-colors"
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Formulario para agregar nueva hora extra */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-2">
+                <input
+                  type="text"
+                  value={nuevaHoraExtra.concepto}
+                  onChange={(e) => setNuevaHoraExtra(prev => ({ ...prev, concepto: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  placeholder="Concepto de la hora extra"
+                />
+              </div>
+              <div className="flex gap-2">
                 <input
                   type="number"
                   min="0"
                   step="0.5"
-                  value={modificacion.horasExtras?.cantidad || ''}
+                  value={nuevaHoraExtra.cantidad || ''}
                   onChange={(e) => {
                     const value = e.target.value;
                     const cantidad = value === '' ? 0 : parseFloat(value) || 0;
-                    handleHorasExtrasChange(cantidad);
+                    setNuevaHoraExtra(prev => ({ ...prev, cantidad }));
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
-                  placeholder="0"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  placeholder="Horas"
                 />
+                <button
+                  onClick={handleAgregarHoraExtra}
+                  disabled={!nuevaHoraExtra.concepto.trim() || nuevaHoraExtra.cantidad <= 0}
+                  className="px-3 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                >
+                  <PlusIcon className="h-4 w-4" />
+                </button>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Precio por Hora
-                </label>
-                <div className="w-full px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg text-orange-700 font-medium">
-                  ${precioHoraExtra.toLocaleString()}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Total
-                </label>
-                <div className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-semibold text-gray-900">
-                  ${(modificacion.horasExtras?.total || 0).toLocaleString()}
-                </div>
-              </div>
+            </div>
+            
+            <div className="text-xs text-gray-500 mt-1">
+              Precio por hora: <span className="font-medium text-orange-600">${precioHoraExtra.toLocaleString()}</span>
             </div>
           </div>
 

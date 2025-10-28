@@ -72,12 +72,13 @@ export interface ModificacionServicio {
   id: string;
   pedidoId: string;
   
-  // Horas extras
-  horasExtras: {
+  // Horas extras - Array de entradas individuales
+  horasExtras: Array<{
+    concepto: string; // Ej: "1 hora adicional", "2 horas extras"
     cantidad: number;
     precioUnitario: number;
     total: number;
-  };
+  }>;
   
   // Cobros adicionales
   cobrosAdicionales: Array<{

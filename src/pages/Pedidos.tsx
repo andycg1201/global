@@ -17,6 +17,7 @@ import { modificacionesService } from '../services/modificacionesService';
 import { useAuth } from '../contexts/AuthContext';
 import { Pedido } from '../types';
 import { formatDate, formatCurrency, calculatePickupDate, getCurrentDateColombia } from '../utils/dateUtils';
+import { generarTimelineServicio, formatearFechaTimeline } from '../utils/timelineUtils';
 import NuevoPedido from './NuevoPedido';
 import ModalCancelacion from '../components/ModalCancelacion';
 import ModalLiquidacion from '../components/ModalLiquidacion';
@@ -119,6 +120,22 @@ const Pedidos: React.FC = () => {
       const todosLosPedidos = await pedidoService.getAllPedidos();
       console.log('🔍 Total pedidos cargados desde Firebase:', todosLosPedidos.length);
       
+      // Cargar modificaciones para cada pedido
+      const pedidosConModificaciones = await Promise.all(
+        todosLosPedidos.map(async (pedido) => {
+          try {
+            const modificaciones = await modificacionesService.obtenerModificacionesPorPedido(pedido.id);
+            return {
+              ...pedido,
+              modificacionesServicio: modificaciones
+            };
+          } catch (error) {
+            console.error(`Error cargando modificaciones para pedido ${pedido.id}:`, error);
+            return pedido;
+          }
+        })
+      );
+      
       // Filtrar por rango de fechas localmente
       const fechaInicio = new Date(filtros.fechaInicio);
       fechaInicio.setHours(0, 0, 0, 0);
@@ -127,7 +144,7 @@ const Pedidos: React.FC = () => {
       
       console.log('📅 Rango de fechas:', fechaInicio.toISOString(), 'a', fechaFin.toISOString());
       
-      const pedidosFiltradosPorFecha = todosLosPedidos.filter(pedido => {
+      const pedidosFiltradosPorFecha = pedidosConModificaciones.filter(pedido => {
         const fechaPedido = new Date(pedido.fechaAsignacion);
         const dentroDelRango = fechaPedido >= fechaInicio && fechaPedido <= fechaFin;
         
@@ -137,7 +154,8 @@ const Pedidos: React.FC = () => {
             fechaAsignacion: pedido.fechaAsignacion,
             fechaPedido: fechaPedido.toISOString(),
             dentroDelRango,
-            estado: pedido.status
+            estado: pedido.status,
+            modificaciones: pedido.modificacionesServicio?.length || 0
           });
         }
         
@@ -1745,22 +1763,73 @@ const Pedidos: React.FC = () => {
                   💰 Información Financiera
                 </h4>
                 
-                {/* Resumen de Valores */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <div className="bg-white p-3 rounded-lg border">
-                    <div className="text-sm text-gray-600 mb-1">Precio Base del Plan</div>
-                    <div className="text-lg font-semibold text-gray-900">
-                      {formatCurrency(pedidoSeleccionado.plan.price)}
-                    </div>
-                    <div className="text-xs text-gray-500">{pedidoSeleccionado.plan.name}</div>
-                  </div>
+                {/* Resumen Detallado de Valores - Similar al Modal de Modificaciones */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 shadow-sm">
+                  <h5 className="font-semibold text-blue-900 mb-3 flex items-center">
+                    <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    Resumen Financiero del Servicio
+                  </h5>
                   
-                  <div className="bg-white p-3 rounded-lg border">
-                    <div className="text-sm text-gray-600 mb-1">Total Final</div>
-                    <div className="text-lg font-bold text-blue-900">
-                      {formatCurrency(pedidoSeleccionado.total)}
+                  <div className="space-y-2">
+                    {/* Precio Base del Plan */}
+                    <div className="flex justify-between items-center py-2 border-b border-blue-100">
+                      <span className="text-gray-700 font-medium">Precio del plan:</span>
+                      <span className="font-semibold text-gray-900">
+                        {formatCurrency(pedidoSeleccionado.plan.price)}
+                      </span>
                     </div>
-                    <div className="text-xs text-gray-500">Incluye modificaciones</div>
+                    
+                    {/* Horas Extras Totales */}
+                    {pedidoSeleccionado.modificacionesServicio && pedidoSeleccionado.modificacionesServicio.some(mod => mod.horasExtras && mod.horasExtras.length > 0) && (
+                      <div className="flex justify-between items-center py-2 border-b border-blue-100">
+                        <span className="text-gray-700 font-medium">Horas extras:</span>
+                        <span className="font-semibold text-orange-600">
+                          {formatCurrency(
+                            pedidoSeleccionado.modificacionesServicio.reduce((total, mod) => 
+                              total + (mod.totalHorasExtras || 0), 0
+                            )
+                          )}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Cobros Adicionales Totales */}
+                    {pedidoSeleccionado.modificacionesServicio && pedidoSeleccionado.modificacionesServicio.some(mod => mod.totalCobrosAdicionales && mod.totalCobrosAdicionales > 0) && (
+                      <div className="flex justify-between items-center py-2 border-b border-blue-100">
+                        <span className="text-gray-700 font-medium">Cobros adicionales:</span>
+                        <span className="font-semibold text-green-600">
+                          {formatCurrency(
+                            pedidoSeleccionado.modificacionesServicio.reduce((total, mod) => 
+                              total + (mod.totalCobrosAdicionales || 0), 0
+                            )
+                          )}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Descuentos Totales */}
+                    {pedidoSeleccionado.modificacionesServicio && pedidoSeleccionado.modificacionesServicio.some(mod => mod.totalDescuentos && mod.totalDescuentos > 0) && (
+                      <div className="flex justify-between items-center py-2 border-b border-blue-100">
+                        <span className="text-gray-700 font-medium">Descuentos:</span>
+                        <span className="font-semibold text-red-600">
+                          -{formatCurrency(
+                            pedidoSeleccionado.modificacionesServicio.reduce((total, mod) => 
+                              total + (mod.totalDescuentos || 0), 0
+                            )
+                          )}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Total Final */}
+                    <div className="flex justify-between items-center py-2 bg-blue-100 rounded-lg px-3 mt-3">
+                      <span className="text-blue-900 font-bold text-lg">Total del servicio:</span>
+                      <span className="text-blue-900 font-bold text-xl">
+                        {formatCurrency(pedidoSeleccionado.total)}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -1781,12 +1850,21 @@ const Pedidos: React.FC = () => {
                           </div>
                           
                           {/* Horas Extras */}
-                          {mod.horasExtras && mod.horasExtras.cantidad > 0 && (
+                          {mod.horasExtras && mod.horasExtras.length > 0 && (
                             <div className="mb-2 p-2 bg-green-50 rounded border-l-4 border-green-400">
-                              <div className="flex justify-between">
-                                <span className="text-green-800 font-medium">⏰ Horas Extras:</span>
+                              <div className="text-green-800 font-medium mb-1">⏰ Horas Extras:</div>
+                              {mod.horasExtras.map((hora, i) => (
+                                <div key={i} className="flex justify-between text-sm">
+                                  <span className="text-green-700">{hora.concepto}</span>
+                                  <span className="text-green-900 font-semibold">
+                                    {hora.cantidad}h × {formatCurrency(hora.precioUnitario)} = {formatCurrency(hora.total)}
+                                  </span>
+                                </div>
+                              ))}
+                              <div className="flex justify-between mt-1 pt-1 border-t border-green-200">
+                                <span className="text-green-800 font-medium">Subtotal:</span>
                                 <span className="text-green-900 font-semibold">
-                                  {mod.horasExtras.cantidad}h × {formatCurrency(mod.horasExtras.precioUnitario)} = {formatCurrency(mod.horasExtras.total)}
+                                  +{formatCurrency(mod.totalHorasExtras || 0)}
                                 </span>
                               </div>
                             </div>
@@ -1844,56 +1922,147 @@ const Pedidos: React.FC = () => {
                 )}
 
                 {/* Resumen de Pagos */}
-                <div className="bg-white p-3 rounded-lg border">
-                  <h5 className="font-medium text-gray-900 mb-2">💳 Estado de Pagos</h5>
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4 shadow-sm mt-4">
+                  <h5 className="font-semibold text-green-900 mb-3 flex items-center">
+                    <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                    Estado de Pagos
+                  </h5>
                   
                   {pedidoSeleccionado.pagosRealizados && pedidoSeleccionado.pagosRealizados.length > 0 ? (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
+                      {/* Lista de Pagos */}
                       {pedidoSeleccionado.pagosRealizados.map((pago, index) => (
-                        <div key={index} className="flex justify-between items-center p-2 bg-green-50 rounded border-l-4 border-green-400">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-green-600">💳</span>
+                        <div key={index} className="flex justify-between items-center p-3 bg-white rounded-lg border border-green-200 shadow-sm">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                              <span className="text-green-600 text-sm font-bold">#{index + 1}</span>
+                            </div>
                             <div>
-                              <div className="text-sm font-medium text-green-900">
+                              <div className="text-sm font-medium text-gray-900">
                                 {formatCurrency(pago.monto)} - {pago.medioPago}
                               </div>
-                              <div className="text-xs text-green-700">
+                              <div className="text-xs text-gray-500">
                                 {pago.fecha && !isNaN(new Date(pago.fecha).getTime()) 
                                   ? formatDate(pago.fecha, 'dd/MM HH:mm') 
                                   : 'Sin fecha'
                                 }
+                                {pago.referencia && ` • Ref: ${pago.referencia}`}
                               </div>
                             </div>
                           </div>
-                          {pago.referencia && (
-                            <div className="text-xs text-green-600 max-w-32 truncate" title={pago.referencia}>
-                              {pago.referencia}
+                          <div className="text-right">
+                            <div className="text-sm font-semibold text-green-600">
+                              {formatCurrency(pago.monto)}
                             </div>
-                          )}
+                          </div>
                         </div>
                       ))}
                       
-                      <div className="flex justify-between items-center pt-2 border-t border-gray-200">
-                        <span className="text-sm font-medium text-gray-700">Total Pagado:</span>
-                        <span className="text-lg font-bold text-green-600">
-                          {formatCurrency(pedidoSeleccionado.pagosRealizados.reduce((sum, pago) => sum + pago.monto, 0))}
-                        </span>
-                      </div>
-                      
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium text-gray-700">Saldo Pendiente:</span>
-                        <span className="text-lg font-bold text-red-600">
-                          {formatCurrency(Math.max(0, pedidoSeleccionado.total - pedidoSeleccionado.pagosRealizados.reduce((sum, pago) => sum + pago.monto, 0)))}
-                        </span>
+                      {/* Totales */}
+                      <div className="space-y-2 pt-3 border-t border-green-200">
+                        <div className="flex justify-between items-center py-2">
+                          <span className="text-sm font-medium text-gray-700">Total Pagado:</span>
+                          <span className="text-lg font-bold text-green-600">
+                            {formatCurrency(pedidoSeleccionado.pagosRealizados.reduce((sum, pago) => sum + pago.monto, 0))}
+                          </span>
+                        </div>
+                        
+                        <div className="flex justify-between items-center py-2 bg-red-50 rounded-lg px-3">
+                          <span className="text-sm font-medium text-red-700">Saldo Pendiente:</span>
+                          <span className="text-lg font-bold text-red-600">
+                            {formatCurrency(Math.max(0, pedidoSeleccionado.total - pedidoSeleccionado.pagosRealizados.reduce((sum, pago) => sum + pago.monto, 0)))}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   ) : (
-                    <div className="text-center py-4 text-gray-500 bg-gray-50 rounded">
-                      <div className="text-2xl mb-2">💸</div>
-                      <div className="font-medium">Sin pagos realizados</div>
-                      <div className="text-sm">Saldo pendiente: {formatCurrency(pedidoSeleccionado.total)}</div>
+                    <div className="text-center py-6 text-gray-500 bg-white rounded-lg border border-green-200">
+                      <div className="text-3xl mb-3">💸</div>
+                      <div className="font-medium text-gray-700 mb-1">Sin pagos realizados</div>
+                      <div className="text-sm text-gray-500">Saldo pendiente: {formatCurrency(pedidoSeleccionado.total)}</div>
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* Historial de Modificaciones */}
+              <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4 shadow-sm">
+                <h4 className="font-semibold text-purple-900 mb-3 flex items-center">
+                  <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Historial de Modificaciones
+                </h4>
+                
+                <div className="space-y-3">
+                  {(() => {
+                    const timeline = generarTimelineServicio(pedidoSeleccionado, planes);
+                    return timeline.map((evento, index) => (
+                      <div key={evento.id} className="flex items-start space-x-3 p-3 bg-white rounded-lg border border-purple-100 shadow-sm">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                          evento.color === 'blue' ? 'bg-blue-100 text-blue-600' :
+                          evento.color === 'green' ? 'bg-green-100 text-green-600' :
+                          evento.color === 'orange' ? 'bg-orange-100 text-orange-600' :
+                          evento.color === 'red' ? 'bg-red-100 text-red-600' :
+                          evento.color === 'purple' ? 'bg-purple-100 text-purple-600' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          {evento.icono}
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <h5 className="text-sm font-medium text-gray-900">{evento.titulo}</h5>
+                            <span className="text-xs text-gray-500">{formatearFechaTimeline(evento.fecha)}</span>
+                          </div>
+                          
+                          <p className="text-sm text-gray-600 mt-1">{evento.descripcion}</p>
+                          
+                          {/* Mostrar montos según el tipo de evento */}
+                          {evento.monto !== undefined && (
+                            <div className="mt-2 flex items-center space-x-2">
+                              {evento.tipo === 'cambio_plan' && evento.montoAnterior && evento.montoNuevo ? (
+                                <div className="text-xs">
+                                  <span className="text-gray-500">Valor anterior: </span>
+                                  <span className="font-medium text-gray-700">{formatCurrency(evento.montoAnterior)}</span>
+                                  <span className="mx-1">→</span>
+                                  <span className="text-gray-500">Nuevo: </span>
+                                  <span className={`font-medium ${evento.monto > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {formatCurrency(evento.montoNuevo)}
+                                  </span>
+                                  <span className="ml-2 text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                                    {evento.monto > 0 ? '+' : ''}{formatCurrency(evento.monto)}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                  evento.monto > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                }`}>
+                                  {evento.monto > 0 ? '+' : ''}{formatCurrency(evento.monto)}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                  
+                  {(() => {
+                    const timeline = generarTimelineServicio(pedidoSeleccionado, planes);
+                    if (timeline.length === 0) {
+                      return (
+                        <div className="text-center py-4 text-gray-500">
+                          <div className="text-2xl mb-2">📋</div>
+                          <div className="font-medium">Sin modificaciones registradas</div>
+                          <div className="text-sm">El servicio se mantiene con su configuración original</div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
 

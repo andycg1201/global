@@ -1560,55 +1560,48 @@ const Pedidos: React.FC = () => {
                 </div>
               </div>
 
-              {/* Información del Plan */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-medium text-gray-900 mb-2">Plan</h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-500">Plan:</span>
-                    <span className="ml-2 font-medium">{pedidoSeleccionado.plan.name}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Duración:</span>
-                    <span className="ml-2 font-medium">
-                      {pedidoSeleccionado.status === 'recogido' && pedidoSeleccionado.fechaEntrega && pedidoSeleccionado.fechaRecogida
+              {/* Información del Plan Mejorada */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
+                <h4 className="font-medium text-blue-900 mb-3 flex items-center">
+                  📋 Plan y Estado del Servicio
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div className="bg-white p-3 rounded-lg border">
+                    <div className="text-gray-500 mb-1">Plan Contratado</div>
+                    <div className="font-semibold text-gray-900 text-lg">{pedidoSeleccionado.plan.name}</div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      Duración: {pedidoSeleccionado.status === 'recogido' && pedidoSeleccionado.fechaEntrega && pedidoSeleccionado.fechaRecogida
                         ? calcularDuracionReal(pedidoSeleccionado)
                         : `${pedidoSeleccionado.plan.duration}h`
                       }
-                    </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-gray-500">Precio:</span>
-                    <span className="ml-2 font-medium">{formatCurrency(pedidoSeleccionado.plan.price)}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Estado:</span>
-                    <span className="ml-2">{getStatusBadge(pedidoSeleccionado.status)}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Estado de Pago:</span>
-                    <span className="ml-2">
-                      {pedidoSeleccionado.pagosRealizados && pedidoSeleccionado.pagosRealizados.length > 0 ? (
+                  
+                  <div className="bg-white p-3 rounded-lg border">
+                    <div className="text-gray-500 mb-1">Estado Actual</div>
+                    <div className="mb-2">{getStatusBadge(pedidoSeleccionado.status)}</div>
+                    <div className="text-xs text-gray-600">
+                      Estado de Pago: {pedidoSeleccionado.pagosRealizados && pedidoSeleccionado.pagosRealizados.length > 0 ? (
                         pedidoSeleccionado.pagosRealizados.reduce((sum, pago) => sum + pago.monto, 0) >= pedidoSeleccionado.total ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                             ✅ Pagado
                           </span>
                         ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                             ⚠️ Parcial
                           </span>
                         )
                       ) : (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
                           ❌ Pendiente
                         </span>
                       )}
-                    </span>
+                    </div>
                   </div>
                   
                   {/* Información de Recogida Prioritaria */}
                   {pedidoSeleccionado.recogidaPrioritaria && (
-                    <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                    <div className="md:col-span-2 mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
                       <div className="flex items-center space-x-2 mb-2">
                         <span className="text-orange-600 font-medium">⏰ Recogida Prioritaria</span>
                       </div>
@@ -1713,87 +1706,194 @@ const Pedidos: React.FC = () => {
                 </div>
               </div>
 
-              {/* Información de Lavadora */}
+              {/* Información de Lavadora Mejorada */}
               {pedidoSeleccionado.lavadoraAsignada && (
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-gray-900 mb-2">Lavadora Asignada</h4>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-500">Código QR:</span>
-                      <span className="ml-2 font-medium">{pedidoSeleccionado.lavadoraAsignada.codigoQR}</span>
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200">
+                  <h4 className="font-medium text-green-900 mb-3 flex items-center">
+                    🧺 Lavadora Asignada
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div className="bg-white p-3 rounded-lg border">
+                      <div className="text-gray-500 mb-1">Código QR</div>
+                      <div className="font-bold text-green-900 text-lg">{pedidoSeleccionado.lavadoraAsignada.codigoQR}</div>
+                      <div className="text-xs text-gray-600 mt-1">Identificador único</div>
                     </div>
-                    <div>
-                      <span className="text-gray-500">Marca:</span>
-                      <span className="ml-2 font-medium">{pedidoSeleccionado.lavadoraAsignada.marca}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Modelo:</span>
-                      <span className="ml-2 font-medium">{pedidoSeleccionado.lavadoraAsignada.modelo}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Estado:</span>
-                      <span className="ml-2 font-medium capitalize">Asignada</span>
+                    
+                    <div className="bg-white p-3 rounded-lg border">
+                      <div className="text-gray-500 mb-1">Especificaciones</div>
+                      <div className="text-sm text-gray-900">
+                        <div><strong>Marca:</strong> {pedidoSeleccionado.lavadoraAsignada.marca}</div>
+                        <div><strong>Modelo:</strong> {pedidoSeleccionado.lavadoraAsignada.modelo}</div>
+                      </div>
+                      <div className="text-xs text-green-600 mt-1 font-medium">✅ Asignada al servicio</div>
                     </div>
                   </div>
+                  
+                  {/* Observaciones de instalación */}
+                  {pedidoSeleccionado.lavadoraAsignada.observacionesInstalacion && (
+                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="text-blue-800 font-medium mb-1">📝 Observaciones de Instalación</div>
+                      <div className="text-sm text-blue-700">{pedidoSeleccionado.lavadoraAsignada.observacionesInstalacion}</div>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Pagos y Descuentos */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-medium text-gray-900 mb-2">Pagos y Descuentos</h4>
-                <div className="space-y-2 text-sm">
-                  {/* Pagos Realizados */}
+              {/* Información Financiera Completa */}
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h4 className="font-medium text-blue-900 mb-3 flex items-center">
+                  💰 Información Financiera
+                </h4>
+                
+                {/* Resumen de Valores */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div className="bg-white p-3 rounded-lg border">
+                    <div className="text-sm text-gray-600 mb-1">Precio Base del Plan</div>
+                    <div className="text-lg font-semibold text-gray-900">
+                      {formatCurrency(pedidoSeleccionado.plan.price)}
+                    </div>
+                    <div className="text-xs text-gray-500">{pedidoSeleccionado.plan.name}</div>
+                  </div>
+                  
+                  <div className="bg-white p-3 rounded-lg border">
+                    <div className="text-sm text-gray-600 mb-1">Total Final</div>
+                    <div className="text-lg font-bold text-blue-900">
+                      {formatCurrency(pedidoSeleccionado.total)}
+                    </div>
+                    <div className="text-xs text-gray-500">Incluye modificaciones</div>
+                  </div>
+                </div>
+
+                {/* Modificaciones del Servicio */}
+                {pedidoSeleccionado.modificacionesServicio && pedidoSeleccionado.modificacionesServicio.length > 0 && (
+                  <div className="mb-4">
+                    <h5 className="font-medium text-blue-900 mb-2">📝 Modificaciones Aplicadas</h5>
+                    <div className="space-y-2">
+                      {pedidoSeleccionado.modificacionesServicio.map((mod, index) => (
+                        <div key={index} className="bg-white p-3 rounded-lg border text-sm">
+                          <div className="flex justify-between items-start mb-2">
+                            <span className="font-medium text-gray-900">
+                              Modificación #{index + 1}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {mod.fecha ? formatDate(mod.fecha, 'dd/MM HH:mm') : 'Sin fecha'}
+                            </span>
+                          </div>
+                          
+                          {/* Horas Extras */}
+                          {mod.horasExtras && mod.horasExtras.cantidad > 0 && (
+                            <div className="mb-2 p-2 bg-green-50 rounded border-l-4 border-green-400">
+                              <div className="flex justify-between">
+                                <span className="text-green-800 font-medium">⏰ Horas Extras:</span>
+                                <span className="text-green-900 font-semibold">
+                                  {mod.horasExtras.cantidad}h × {formatCurrency(mod.horasExtras.precioUnitario)} = {formatCurrency(mod.horasExtras.total)}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Cobros Adicionales */}
+                          {mod.cobrosAdicionales && mod.cobrosAdicionales.length > 0 && (
+                            <div className="mb-2 p-2 bg-orange-50 rounded border-l-4 border-orange-400">
+                              <div className="text-orange-800 font-medium mb-1">💰 Cobros Adicionales:</div>
+                              {mod.cobrosAdicionales.map((cobro, i) => (
+                                <div key={i} className="flex justify-between text-sm">
+                                  <span className="text-orange-700">{cobro.concepto}</span>
+                                  <span className="text-orange-900 font-semibold">+{formatCurrency(cobro.monto)}</span>
+                                </div>
+                              ))}
+                              <div className="flex justify-between mt-1 pt-1 border-t border-orange-200">
+                                <span className="text-orange-800 font-medium">Subtotal:</span>
+                                <span className="text-orange-900 font-semibold">
+                                  +{formatCurrency(mod.totalCobrosAdicionales || 0)}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Descuentos */}
+                          {mod.descuentos && mod.descuentos.length > 0 && (
+                            <div className="mb-2 p-2 bg-red-50 rounded border-l-4 border-red-400">
+                              <div className="text-red-800 font-medium mb-1">🎯 Descuentos:</div>
+                              {mod.descuentos.map((desc, i) => (
+                                <div key={i} className="flex justify-between text-sm">
+                                  <span className="text-red-700">{desc.concepto}</span>
+                                  <span className="text-red-900 font-semibold">-{formatCurrency(desc.monto)}</span>
+                                </div>
+                              ))}
+                              <div className="flex justify-between mt-1 pt-1 border-t border-red-200">
+                                <span className="text-red-800 font-medium">Subtotal:</span>
+                                <span className="text-red-900 font-semibold">
+                                  -{formatCurrency(mod.totalDescuentos || 0)}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Observaciones de la modificación */}
+                          {mod.observaciones && (
+                            <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
+                              <span className="text-gray-600 font-medium">Observación:</span>
+                              <span className="text-gray-700 ml-1">{mod.observaciones}</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Resumen de Pagos */}
+                <div className="bg-white p-3 rounded-lg border">
+                  <h5 className="font-medium text-gray-900 mb-2">💳 Estado de Pagos</h5>
+                  
                   {pedidoSeleccionado.pagosRealizados && pedidoSeleccionado.pagosRealizados.length > 0 ? (
-                    <div>
-                      <span className="text-gray-500">Pagos Realizados:</span>
-                      <ul className="ml-4 mt-1 space-y-1">
-                        {pedidoSeleccionado.pagosRealizados.map((pago, index) => (
-                          <li key={index} className="text-sm">
-                            {formatCurrency(pago.monto)} - {pago.medioPago} ({pago.fecha && !isNaN(new Date(pago.fecha).getTime()) ? formatDate(pago.fecha, 'dd/MM HH:mm') : 'Sin fecha'})
-                          </li>
-                        ))}
-                      </ul>
-                      <div className="flex justify-between mt-2 pt-2 border-t">
-                        <span className="text-gray-500">Total Pagado:</span>
-                        <span className="font-medium text-green-600">
+                    <div className="space-y-2">
+                      {pedidoSeleccionado.pagosRealizados.map((pago, index) => (
+                        <div key={index} className="flex justify-between items-center p-2 bg-green-50 rounded border-l-4 border-green-400">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-green-600">💳</span>
+                            <div>
+                              <div className="text-sm font-medium text-green-900">
+                                {formatCurrency(pago.monto)} - {pago.medioPago}
+                              </div>
+                              <div className="text-xs text-green-700">
+                                {pago.fecha && !isNaN(new Date(pago.fecha).getTime()) 
+                                  ? formatDate(pago.fecha, 'dd/MM HH:mm') 
+                                  : 'Sin fecha'
+                                }
+                              </div>
+                            </div>
+                          </div>
+                          {pago.referencia && (
+                            <div className="text-xs text-green-600 max-w-32 truncate" title={pago.referencia}>
+                              {pago.referencia}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      
+                      <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                        <span className="text-sm font-medium text-gray-700">Total Pagado:</span>
+                        <span className="text-lg font-bold text-green-600">
                           {formatCurrency(pedidoSeleccionado.pagosRealizados.reduce((sum, pago) => sum + pago.monto, 0))}
                         </span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Saldo Pendiente:</span>
-                        <span className="font-medium text-red-600">
-                          {formatCurrency(pedidoSeleccionado.total - pedidoSeleccionado.pagosRealizados.reduce((sum, pago) => sum + pago.monto, 0))}
+                      
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-700">Saldo Pendiente:</span>
+                        <span className="text-lg font-bold text-red-600">
+                          {formatCurrency(Math.max(0, pedidoSeleccionado.total - pedidoSeleccionado.pagosRealizados.reduce((sum, pago) => sum + pago.monto, 0)))}
                         </span>
                       </div>
                     </div>
                   ) : (
-                    <div className="text-center py-4 text-gray-500">
-                      No hay pagos realizados
+                    <div className="text-center py-4 text-gray-500 bg-gray-50 rounded">
+                      <div className="text-2xl mb-2">💸</div>
+                      <div className="font-medium">Sin pagos realizados</div>
+                      <div className="text-sm">Saldo pendiente: {formatCurrency(pedidoSeleccionado.total)}</div>
                     </div>
                   )}
-                  
-                  {pedidoSeleccionado.horasAdicionales > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Horas Adicionales:</span>
-                      <span className="font-medium">{pedidoSeleccionado.horasAdicionales}h (+{formatCurrency(pedidoSeleccionado.horasAdicionales * 2000)})</span>
-                    </div>
-                  )}
-                  {pedidoSeleccionado.descuentos.length > 0 && (
-                    <div>
-                      <span className="text-gray-500">Descuentos:</span>
-                      <ul className="ml-4 mt-1">
-                        {pedidoSeleccionado.descuentos.map((desc, index) => (
-                          <li key={index} className="text-sm">
-                            {desc.reason}: -{formatCurrency(desc.amount)}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  <div className="flex justify-between border-t pt-2">
-                    <span className="text-gray-500 font-medium">Total del Servicio:</span>
-                    <span className="font-bold text-lg">{formatCurrency(pedidoSeleccionado.total)}</span>
-                  </div>
                 </div>
               </div>
 

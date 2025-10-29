@@ -13,6 +13,20 @@ export interface TimelineEvent {
   color: string;
 }
 
+// Función auxiliar para convertir fechas a Date
+const convertirFecha = (fecha: any): Date => {
+  if (fecha instanceof Date) {
+    return fecha;
+  }
+  if (fecha && typeof fecha.toDate === 'function') {
+    return fecha.toDate();
+  }
+  if (typeof fecha === 'string' || typeof fecha === 'number') {
+    return new Date(fecha);
+  }
+  return new Date();
+};
+
 export const generarTimelineServicio = (pedido: Pedido, planes: Plan[]): TimelineEvent[] => {
   const eventos: TimelineEvent[] = [];
 
@@ -22,7 +36,7 @@ export const generarTimelineServicio = (pedido: Pedido, planes: Plan[]): Timelin
     tipo: 'creacion',
     titulo: 'Servicio Creado',
     descripcion: `Plan ${pedido.plan.name} para ${pedido.cliente.name}`,
-    fecha: pedido.createdAt,
+    fecha: convertirFecha(pedido.createdAt),
     monto: pedido.subtotal,
     icono: '📋',
     color: 'blue'
@@ -31,7 +45,7 @@ export const generarTimelineServicio = (pedido: Pedido, planes: Plan[]): Timelin
   // 2. Eventos de modificaciones del servicio
   if (pedido.modificacionesServicio && pedido.modificacionesServicio.length > 0) {
     pedido.modificacionesServicio.forEach((modificacion, modIndex) => {
-      const fechaModificacion = modificacion.fecha || modificacion.createdAt;
+      const fechaModificacion = convertirFecha(modificacion.fecha || modificacion.createdAt);
 
       // Cambio de plan
       if (modificacion.cambioPlan) {
@@ -109,7 +123,7 @@ export const generarTimelineServicio = (pedido: Pedido, planes: Plan[]): Timelin
       tipo: 'entrega',
       titulo: 'Servicio Entregado',
       descripcion: `Lavadora ${pedido.lavadoraAsignada?.codigoQR || 'N/A'} instalada`,
-      fecha: pedido.fechaEntrega,
+      fecha: convertirFecha(pedido.fechaEntrega),
       icono: '✅',
       color: 'green'
     });
@@ -123,7 +137,7 @@ export const generarTimelineServicio = (pedido: Pedido, planes: Plan[]): Timelin
         tipo: 'pago',
         titulo: `Pago ${pago.medioPago}`,
         descripcion: pago.referencia ? `Ref: ${pago.referencia}` : 'Sin referencia',
-        fecha: pago.fecha,
+        fecha: convertirFecha(pago.fecha),
         monto: pago.monto,
         icono: '💳',
         color: 'blue'
@@ -138,7 +152,7 @@ export const generarTimelineServicio = (pedido: Pedido, planes: Plan[]): Timelin
       tipo: 'recogida',
       titulo: 'Servicio Recogido',
       descripcion: 'Servicio completado',
-      fecha: pedido.fechaRecogida,
+      fecha: convertirFecha(pedido.fechaRecogida),
       icono: '🏁',
       color: 'purple'
     });

@@ -12,12 +12,14 @@ import { Pedido, PagoRealizado } from '../types';
 import { pedidoService, configService, planService, gastoService, lavadoraService } from '../services/firebaseService';
 import { capitalService } from '../services/capitalService';
 import { obtenerTodosLosMantenimientos } from '../services/mantenimientoService';
+import { movimientosSaldosService, MovimientoSaldo, MovimientosSaldosService } from '../services/movimientosSaldosService';
 import { formatCurrency } from '../utils/dateUtils';
 import { useAuth } from '../contexts/AuthContext';
 import ModalModificacionesServicio from '../components/ModalModificacionesServicio';
 import ModalPagos from '../components/ModalPagos';
 import ModalRecogidaOperativa from '../components/ModalRecogidaOperativa';
 import ModalEntregaOperativa from '../components/ModalEntregaOperativa';
+import ModalHistorialSaldos from '../components/ModalHistorialSaldos';
 import ModalWhatsApp from '../components/ModalWhatsApp';
 import { recogidaOperativaService } from '../services/recogidaOperativaService';
 import { entregaOperativaService } from '../services/entregaOperativaService';
@@ -61,6 +63,12 @@ const Dashboard: React.FC = () => {
   const [mostrarModalWhatsApp, setMostrarModalWhatsApp] = useState<boolean>(false);
   const [pedidoParaWhatsApp, setPedidoParaWhatsApp] = useState<Pedido | null>(null);
   const [fotoEvidenciaWhatsApp, setFotoEvidenciaWhatsApp] = useState<string | null>(null);
+  
+  // Estados para modal de historial de saldos
+  const [mostrarModalHistorialSaldos, setMostrarModalHistorialSaldos] = useState<boolean>(false);
+  const [tipoSaldoSeleccionado, setTipoSaldoSeleccionado] = useState<'efectivo' | 'nequi' | 'daviplata'>('efectivo');
+  const [movimientosSaldos, setMovimientosSaldos] = useState<MovimientoSaldo[]>([]);
+  const [cargandoMovimientos, setCargandoMovimientos] = useState<boolean>(false);
 
   // Estados de configuración
   const [configuracion, setConfiguracion] = useState<any>(null);
@@ -395,6 +403,26 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleAbrirHistorialSaldos = async (tipo: 'efectivo' | 'nequi' | 'daviplata') => {
+    console.log('🔍 Abriendo historial de saldos para:', tipo);
+    setTipoSaldoSeleccionado(tipo);
+    setMostrarModalHistorialSaldos(true);
+    
+    // Cargar movimientos para el tipo de saldo seleccionado
+    setCargandoMovimientos(true);
+    try {
+      console.log('📊 Cargando movimientos desde Firebase...');
+      const movimientos = await MovimientosSaldosService.obtenerMovimientosPorMedioPago(tipo);
+      console.log('✅ Movimientos cargados:', movimientos.length, movimientos);
+      setMovimientosSaldos(movimientos);
+    } catch (error) {
+      console.error('❌ Error al cargar movimientos:', error);
+      setMovimientosSaldos([]);
+    } finally {
+      setCargandoMovimientos(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -496,7 +524,10 @@ const Dashboard: React.FC = () => {
           <span className="ml-4 text-sm text-gray-500">* Incluye gastos de mantenimiento</span>
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-green-50 p-4 rounded-lg flex items-center justify-between">
+          <div 
+            className="bg-green-50 p-4 rounded-lg flex items-center justify-between cursor-pointer hover:bg-green-100 transition-colors"
+            onClick={() => handleAbrirHistorialSaldos('efectivo')}
+          >
             <div>
               <p className="text-green-700 font-medium">Efectivo</p>
               <p className="text-sm text-gray-600">Ingresos: {formatCurrency(saldosPorMedioDePago.efectivo.ingresos)}</p>
@@ -507,7 +538,10 @@ const Dashboard: React.FC = () => {
               <span className="text-xs text-green-600">Saldo positivo</span>
             </div>
           </div>
-          <div className="bg-purple-50 p-4 rounded-lg flex items-center justify-between">
+          <div 
+            className="bg-purple-50 p-4 rounded-lg flex items-center justify-between cursor-pointer hover:bg-purple-100 transition-colors"
+            onClick={() => handleAbrirHistorialSaldos('nequi')}
+          >
             <div>
               <p className="text-purple-700 font-medium">Nequi</p>
               <p className="text-sm text-gray-600">Ingresos: {formatCurrency(saldosPorMedioDePago.nequi.ingresos)}</p>
@@ -518,7 +552,10 @@ const Dashboard: React.FC = () => {
               <span className="text-xs text-purple-600">Saldo positivo</span>
         </div>
       </div>
-          <div className="bg-indigo-50 p-4 rounded-lg flex items-center justify-between">
+          <div 
+            className="bg-indigo-50 p-4 rounded-lg flex items-center justify-between cursor-pointer hover:bg-indigo-100 transition-colors"
+            onClick={() => handleAbrirHistorialSaldos('daviplata')}
+          >
             <div>
               <p className="text-indigo-700 font-medium">Daviplata</p>
               <p className="text-sm text-gray-600">Ingresos: {formatCurrency(saldosPorMedioDePago.daviplata.ingresos)}</p>
@@ -627,6 +664,16 @@ const Dashboard: React.FC = () => {
           fotoEvidencia={fotoEvidenciaWhatsApp || undefined}
         />
       )}
+
+      {/* Modal de Historial de Saldos */}
+      <ModalHistorialSaldos
+        isOpen={mostrarModalHistorialSaldos}
+        onClose={() => setMostrarModalHistorialSaldos(false)}
+        tipoSaldo={tipoSaldoSeleccionado}
+        saldoActual={saldosPorMedioDePago[tipoSaldoSeleccionado].saldo}
+        movimientos={movimientosSaldos}
+        cargando={cargandoMovimientos}
+      />
     </div>
   );
 };

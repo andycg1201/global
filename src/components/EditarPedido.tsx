@@ -77,6 +77,30 @@ const EditarPedido: React.FC<EditarPedidoProps> = ({ pedido, onClose, onSave }) 
       const totalDescuentos = formData.descuentos.reduce((sum, descuento) => sum + descuento.amount, 0);
       total -= totalDescuentos;
 
+      // Recalcular fecha de recogida si hay fecha de entrega y horas adicionales
+      let fechaRecogidaCalculada = undefined;
+      if (pedido.fechaEntrega && formData.horasAdicionales > 0) {
+        const { calculatePickupDate } = await import('../utils/dateUtils');
+        
+        // Manejar tanto Date como Timestamp
+        const fechaEntrega = pedido.fechaEntrega instanceof Date 
+          ? pedido.fechaEntrega 
+          : (pedido.fechaEntrega as any).toDate();
+        
+        fechaRecogidaCalculada = calculatePickupDate(
+          fechaEntrega, 
+          formData.plan, 
+          formData.horasAdicionales
+        );
+        
+        console.log('🔍 Recalculando fecha de recogida en EditarPedido:', {
+          fechaEntrega,
+          plan: formData.plan.name,
+          horasAdicionales: formData.horasAdicionales,
+          nuevaFechaRecogida: fechaRecogidaCalculada
+        });
+      }
+
       const pedidoActualizado: Pedido = {
         ...pedido,
         cliente: formData.cliente,
@@ -85,7 +109,8 @@ const EditarPedido: React.FC<EditarPedidoProps> = ({ pedido, onClose, onSave }) 
         paymentMethod: formData.paymentMethod,
         descuentos: formData.descuentos,
         observaciones: formData.observaciones,
-        total: Math.max(0, total) // Asegurar que el total no sea negativo
+        total: Math.max(0, total), // Asegurar que el total no sea negativo
+        ...(fechaRecogidaCalculada && { fechaRecogidaCalculada })
       };
 
       await pedidoService.updatePedido(pedidoActualizado.id, pedidoActualizado);

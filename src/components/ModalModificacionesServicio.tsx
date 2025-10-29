@@ -37,7 +37,7 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
 
   const [nuevoCobro, setNuevoCobro] = useState({ concepto: '', monto: 0 });
   const [nuevoDescuento, setNuevoDescuento] = useState({ concepto: '', monto: 0 });
-  const [nuevaHoraExtra, setNuevaHoraExtra] = useState({ concepto: '', cantidad: 0 });
+  const [nuevaHoraExtra, setNuevaHoraExtra] = useState({ cantidad: 0 });
   const [precioHoraExtra, setPrecioHoraExtra] = useState(2000); // Valor por defecto
 
   // Cargar configuración al abrir el modal
@@ -165,10 +165,12 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
   }, [cambioPlan.planAnterior, cambioPlan.planNuevo, planes]);
 
   const handleAgregarHoraExtra = () => {
-    if (nuevaHoraExtra.concepto.trim() && nuevaHoraExtra.cantidad > 0) {
+    if (nuevaHoraExtra.cantidad > 0) {
       const total = nuevaHoraExtra.cantidad * precioHoraExtra;
+      const concepto = nuevaHoraExtra.cantidad === 1 ? '1 hora adicional' : `${nuevaHoraExtra.cantidad} horas extras`;
+      
       const nuevaEntrada = {
-        concepto: nuevaHoraExtra.concepto.trim(),
+        concepto: concepto,
         cantidad: nuevaHoraExtra.cantidad,
         precioUnitario: precioHoraExtra,
         total: total
@@ -179,7 +181,7 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
         horasExtras: [...(prev.horasExtras || []), nuevaEntrada]
       }));
       
-      setNuevaHoraExtra({ concepto: '', cantidad: 0 });
+      setNuevaHoraExtra({ cantidad: 0 });
     }
   };
 
@@ -322,10 +324,13 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
             
             console.log('🔍 FechaEntrega procesada:', fechaEntrega);
             
+            // Calcular total de horas extras de las modificaciones
+            const totalHorasExtras = modificacion.horasExtras?.reduce((sum, h) => sum + h.cantidad, 0) || 0;
+            
             fechaRecogidaCalculada = calculatePickupDate(
               fechaEntrega, 
               nuevoPlan, 
-              pedido.horasAdicionales || 0
+              totalHorasExtras
             );
             
             console.log('🔍 Nueva fechaRecogidaCalculada:', fechaRecogidaCalculada);
@@ -342,12 +347,46 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
           alert(`Cambios realizados satisfactoriamente.`);
         }
       } else {
-        // Si no hay cambio de plan pero sí hay modificaciones, actualizar el total
+        // Si no hay cambio de plan pero sí hay modificaciones, actualizar el total y fecha de recogida
         if (totalModificaciones !== 0) {
           const { pedidoService } = await import('../services/firebaseService');
-          await pedidoService.updatePedido(pedido.id, {
+          const { calculatePickupDate } = await import('../utils/dateUtils');
+          
+          // Calcular total de horas extras de las modificaciones
+          const totalHorasExtras = modificacion.horasExtras?.reduce((sum, h) => sum + h.cantidad, 0) || 0;
+          
+          // Recalcular fecha de recogida si hay fecha de entrega y horas extras
+          let fechaRecogidaCalculada = undefined;
+          if (pedido.fechaEntrega && totalHorasExtras > 0) {
+            // Manejar tanto Date como Timestamp
+            const fechaEntrega = pedido.fechaEntrega instanceof Date 
+              ? pedido.fechaEntrega 
+              : (pedido.fechaEntrega as any).toDate();
+            
+            fechaRecogidaCalculada = calculatePickupDate(
+              fechaEntrega, 
+              pedido.plan, 
+              totalHorasExtras
+            );
+            
+            console.log('🔍 Recalculando fecha de recogida con horas extras:', {
+              fechaEntrega,
+              plan: pedido.plan.name,
+              totalHorasExtras,
+              nuevaFechaRecogida: fechaRecogidaCalculada
+            });
+          }
+          
+          const updateData: any = {
             total: totalFinalServicio
-          });
+          };
+          
+          // Solo actualizar fechaRecogidaCalculada si se calculó
+          if (fechaRecogidaCalculada) {
+            updateData.fechaRecogidaCalculada = fechaRecogidaCalculada;
+          }
+          
+          await pedidoService.updatePedido(pedido.id, updateData);
           console.log('✅ Pedido actualizado con modificaciones (sin cambio de plan)');
           alert(`Cambios realizados satisfactoriamente.`);
         }
@@ -379,7 +418,7 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
     });
     setNuevoCobro({ concepto: '', monto: 0 });
     setNuevoDescuento({ concepto: '', monto: 0 });
-    setNuevaHoraExtra({ concepto: '', cantidad: 0 });
+    setNuevaHoraExtra({ cantidad: 0 });
     onClose();
   };
 
@@ -516,38 +555,27 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
             )}
             
             {/* Formulario para agregar nueva hora extra */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="col-span-2">
-                <input
-                  type="text"
-                  value={nuevaHoraExtra.concepto}
-                  onChange={(e) => setNuevaHoraExtra(prev => ({ ...prev, concepto: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  placeholder="Concepto de la hora extra"
-                />
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  value={nuevaHoraExtra.cantidad || ''}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    const cantidad = value === '' ? 0 : parseFloat(value) || 0;
-                    setNuevaHoraExtra(prev => ({ ...prev, cantidad }));
-                  }}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  placeholder="Horas"
-                />
-                <button
-                  onClick={handleAgregarHoraExtra}
-                  disabled={!nuevaHoraExtra.concepto.trim() || nuevaHoraExtra.cantidad <= 0}
-                  className="px-3 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
-                >
-                  <PlusIcon className="h-4 w-4" />
-                </button>
-              </div>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={nuevaHoraExtra.cantidad || ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const cantidad = value === '' ? 0 : parseInt(value) || 0;
+                  setNuevaHoraExtra(prev => ({ ...prev, cantidad }));
+                }}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                placeholder="Cantidad de horas"
+              />
+              <button
+                onClick={handleAgregarHoraExtra}
+                disabled={nuevaHoraExtra.cantidad <= 0}
+                className="px-3 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+              >
+                <PlusIcon className="h-4 w-4" />
+              </button>
             </div>
             
             <div className="text-xs text-gray-500 mt-1">

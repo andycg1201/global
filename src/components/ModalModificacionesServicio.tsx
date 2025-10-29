@@ -74,9 +74,27 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
     }
   }, [pedido]);
 
-  // Cargar modificaciones existentes
+  // Resetear estado y cargar modificaciones cuando se abre el modal
   useEffect(() => {
     if (isOpen && pedido) {
+      console.log('🔄 ModalModificacionesServicio - Reseteando estado y cargando modificaciones');
+      
+      // Primero resetear el estado
+      setModificacion({
+        horasExtras: [],
+        cobrosAdicionales: [],
+        descuentos: [],
+        observaciones: '',
+        totalHorasExtras: 0,
+        totalCobrosAdicionales: 0,
+        totalDescuentos: 0,
+        totalModificaciones: 0
+      });
+      setNuevoCobro({ concepto: '', monto: 0 });
+      setNuevoDescuento({ concepto: '', monto: 0 });
+      setNuevaHoraExtra({ cantidad: 0 });
+      
+      // Luego cargar las modificaciones existentes
       cargarModificacionesExistentes();
     }
   }, [isOpen, pedido]);
@@ -84,8 +102,12 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
   const cargarModificacionesExistentes = async () => {
     if (!pedido) return;
     
+    console.log('🔍 ModalModificacionesServicio - Cargando modificaciones existentes para pedido:', pedido.id);
+    
     try {
       const modificacionExistente = await modificacionesService.obtenerModificacionPorPedido(pedido.id);
+      console.log('🔍 ModalModificacionesServicio - Modificación existente encontrada:', modificacionExistente);
+      
       if (modificacionExistente) {
         // Migrar formato antiguo de horasExtras a nuevo formato
         let horasExtrasMigradas = modificacionExistente.horasExtras || [];
@@ -110,13 +132,17 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
           horasExtras: horasExtrasMigradas
         };
         
+        console.log('🔍 ModalModificacionesServicio - Modificación migrada:', modificacionMigrada);
         setModificacion(modificacionMigrada);
         if (modificacionExistente.cambioPlan) {
           setCambioPlan(modificacionExistente.cambioPlan);
         }
+        console.log('✅ ModalModificacionesServicio - Modificaciones cargadas exitosamente');
+      } else {
+        console.log('ℹ️ ModalModificacionesServicio - No se encontraron modificaciones existentes');
       }
     } catch (error) {
-      console.error('Error al cargar modificaciones existentes:', error);
+      console.error('❌ Error al cargar modificaciones existentes:', error);
     }
   };
 

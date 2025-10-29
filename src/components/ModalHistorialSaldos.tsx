@@ -64,9 +64,12 @@ const ModalHistorialSaldos: React.FC<ModalHistorialSaldosProps> = ({
     daviplata: 'Daviplata'
   };
 
-  // Inicializar fechas
+  // Inicializar fechas y resetear filtro
   useEffect(() => {
     if (isOpen) {
+      // Resetear filtro a "hoy" cada vez que se abre el modal
+      setFiltroFecha('hoy');
+      
       const hoy = new Date();
       const ayer = new Date(hoy);
       ayer.setDate(hoy.getDate() - 1);

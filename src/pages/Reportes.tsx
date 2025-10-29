@@ -17,6 +17,7 @@ import { pedidoService, gastoService, planService, clienteService } from '../ser
 import { ModificacionesService } from '../services/modificacionesService';
 import { Pedido, Gasto, Plan, Cliente } from '../types';
 import { formatDate, formatCurrency, getCurrentDateColombia } from '../utils/dateUtils';
+import * as XLSX from 'xlsx';
 
 interface FiltrosReporte {
   fechaInicio: Date;
@@ -306,49 +307,173 @@ const Reportes: React.FC = () => {
     const fechaInicioStr = formatDate(filtros.fechaInicio, 'dd/MM/yyyy');
     const fechaFinStr = formatDate(filtros.fechaFin, 'dd/MM/yyyy');
     
-    const csv = [
+    console.log('📊 Exportando reporte a Excel...');
+    console.log('📊 Estadísticas:', stats);
+    
+    // Crear un nuevo workbook
+    const wb = XLSX.utils.book_new();
+    
+    // Hoja 1: Resumen General
+    const resumenData = [
       ['REPORTE DE PEDIDOS'],
       [''],
       ['Período', `${fechaInicioStr} - ${fechaFinStr}`],
+      ['Fecha de generación', formatDate(new Date(), 'dd/MM/yyyy HH:mm')],
       [''],
       ['RESUMEN FINANCIERO'],
-      ['Ingresos Cobrados', formatCurrency(stats.ingresos)],
-      ['Total Pendiente', formatCurrency(stats.totalPendiente)],
-      ['Gastos', formatCurrency(stats.gastos)],
-      ['Neto', formatCurrency(stats.neto)],
-      ['Promedio por pedido', formatCurrency(stats.promedioPorPedido)],
+      ['Ingresos Cobrados', stats.ingresos],
+      ['Total Pendiente', stats.totalPendiente],
+      ['Gastos', stats.gastos],
+      ['Neto', stats.neto],
+      ['Promedio por pedido', stats.promedioPorPedido],
       [''],
       ['INGRESOS POR MÉTODO DE PAGO'],
-      ['Efectivo', formatCurrency(stats.ingresosPorMetodo.efectivo)],
-      ['Nequi', formatCurrency(stats.ingresosPorMetodo.nequi)],
-      ['Daviplata', formatCurrency(stats.ingresosPorMetodo.daviplata)],
+      ['Efectivo', stats.ingresosPorMetodo.efectivo],
+      ['Nequi', stats.ingresosPorMetodo.nequi],
+      ['Daviplata', stats.ingresosPorMetodo.daviplata],
       [''],
       ['RESUMEN OPERACIONAL'],
-      ['Total pedidos', stats.totalPedidos.toString()],
-      ['Pendientes', stats.pedidosPorEstado.pendiente.toString()],
-      ['Entregados', stats.pedidosPorEstado.entregado.toString()],
-      ['Recogidos', stats.pedidosPorEstado.recogido.toString()],
-      ['Cancelados', stats.pedidosPorEstado.cancelado.toString()],
-      [''],
-      ['PLANES MÁS POPULARES'],
-      ...Object.entries(stats.planesPopulares)
-        .sort(([,a], [,b]) => b - a)
-        .map(([plan, cantidad]) => [plan, cantidad.toString()]),
-      [''],
-      ['CLIENTES MÁS FRECUENTES'],
-      ...Object.entries(stats.clientesFrecuentes)
-        .sort(([,a], [,b]) => b - a)
-        .slice(0, 10)
-        .map(([cliente, cantidad]) => [cliente, cantidad.toString()])
-    ].map(row => row.join(',')).join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `reporte-${fechaInicioStr}-${fechaFinStr}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+      ['Total pedidos', stats.totalPedidos],
+      ['Pendientes', stats.pedidosPorEstado.pendiente],
+      ['Entregados', stats.pedidosPorEstado.entregado],
+      ['Recogidos', stats.pedidosPorEstado.recogido],
+      ['Cancelados', stats.pedidosPorEstado.cancelado]
+    ];
+    
+    const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
+    
+    // Configurar ancho de columnas
+    wsResumen['!cols'] = [
+      { wch: 25 }, // Columna A
+      { wch: 20 }  // Columna B
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen General');
+    
+    // Hoja 2: Análisis de Planes
+    const planesData = [
+      ['PLAN', 'CANTIDAD', 'VALOR TOTAL', 'PRECIO UNITARIO'],
+      ...analisisPlanes.map(plan => [
+        plan.planName,
+        plan.cantidad,
+        plan.valorTotal,
+        plan.planPrice
+      ])
+    ];
+    
+    const wsPlanes = XLSX.utils.aoa_to_sheet(planesData);
+    wsPlanes['!cols'] = [
+      { wch: 20 }, // Plan
+      { wch: 12 }, // Cantidad
+      { wch: 15 }, // Valor Total
+      { wch: 15 }  // Precio Unitario
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, wsPlanes, 'Análisis de Planes');
+    
+    // Hoja 3: Clientes con Saldo Pendiente
+    const clientesConSaldo = Object.entries(stats.clientesFrecuentes)
+      .map(([clienteName, cantidad]) => {
+        const pedidosCliente = pedidos.filter(p => p.cliente.name === clienteName);
+        const serviciosTotales = pedidosCliente.reduce((sum, p) => sum + (p.total || 0), 0);
+        const abonosRealizados = pedidosCliente.reduce((sum, p) => {
+          return sum + (p.pagosRealizados?.reduce((sumPago, pago) => sumPago + pago.monto, 0) || 0);
+        }, 0);
+        const saldoPendiente = serviciosTotales - abonosRealizados;
+        
+        return {
+          cliente: clienteName,
+          servicios: cantidad,
+          serviciosTotales,
+          abonosRealizados,
+          saldoPendiente,
+          telefono: pedidosCliente[0]?.cliente.phone || ''
+        };
+      })
+      .filter(cliente => cliente.saldoPendiente > 0)
+      .sort((a, b) => b.saldoPendiente - a.saldoPendiente);
+    
+    const clientesData = [
+      ['CLIENTE', 'TELÉFONO', 'SERVICIOS', 'TOTAL SERVICIOS', 'ABONOS REALIZADOS', 'SALDO PENDIENTE'],
+      ...clientesConSaldo.map(cliente => [
+        cliente.cliente,
+        cliente.telefono,
+        cliente.servicios,
+        cliente.serviciosTotales,
+        cliente.abonosRealizados,
+        cliente.saldoPendiente
+      ])
+    ];
+    
+    const wsClientes = XLSX.utils.aoa_to_sheet(clientesData);
+    wsClientes['!cols'] = [
+      { wch: 25 }, // Cliente
+      { wch: 15 }, // Teléfono
+      { wch: 12 }, // Servicios
+      { wch: 15 }, // Total Servicios
+      { wch: 15 }, // Abonos
+      { wch: 15 }  // Saldo Pendiente
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, wsClientes, 'Clientes con Saldo');
+    
+    // Hoja 4: Detalle de Pedidos
+    const pedidosData = [
+      ['FECHA', 'CLIENTE', 'PLAN', 'ESTADO', 'TOTAL', 'PAGADO', 'PENDIENTE', 'MÉTODO PAGO'],
+      ...pedidos.map(pedido => {
+        const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
+        const saldoPendiente = pedido.total - totalPagado;
+        const metodoPago = pedido.pagosRealizados?.map(p => p.medioPago).join(', ') || 'Sin pago';
+        
+        return [
+          formatDate(pedido.fechaAsignacion, 'dd/MM/yyyy'),
+          pedido.cliente.name,
+          pedido.plan.name,
+          pedido.status,
+          pedido.total,
+          totalPagado,
+          saldoPendiente,
+          metodoPago
+        ];
+      })
+    ];
+    
+    const wsPedidos = XLSX.utils.aoa_to_sheet(pedidosData);
+    wsPedidos['!cols'] = [
+      { wch: 12 }, // Fecha
+      { wch: 25 }, // Cliente
+      { wch: 15 }, // Plan
+      { wch: 12 }, // Estado
+      { wch: 12 }, // Total
+      { wch: 12 }, // Pagado
+      { wch: 12 }, // Pendiente
+      { wch: 15 }  // Método Pago
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, wsPedidos, 'Detalle de Pedidos');
+    
+    // Hoja 5: Modificaciones
+    const modificacionesData = [
+      ['CONCEPTO', 'VALOR'],
+      ['Horas Extras', totalModificaciones.horasExtras],
+      ['Cobros Adicionales', totalModificaciones.cobrosAdicionales],
+      ['Descuentos', totalModificaciones.descuentos],
+      ['TOTAL MODIFICACIONES', totalModificaciones.total]
+    ];
+    
+    const wsModificaciones = XLSX.utils.aoa_to_sheet(modificacionesData);
+    wsModificaciones['!cols'] = [
+      { wch: 20 }, // Concepto
+      { wch: 15 }  // Valor
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, wsModificaciones, 'Modificaciones');
+    
+    // Generar y descargar el archivo
+    const nombreArchivo = `reporte_${fechaInicioStr.replace(/\//g, '-')}_a_${fechaFinStr.replace(/\//g, '-')}.xlsx`;
+    XLSX.writeFile(wb, nombreArchivo);
+    
+    console.log('✅ Reporte exportado exitosamente:', nombreArchivo);
   };
 
   const aplicarFiltroRapido = (tipo: 'hoy' | 'ayer' | 'semana' | 'mes') => {
@@ -405,7 +530,7 @@ const Reportes: React.FC = () => {
           disabled={pedidos.length === 0}
         >
           <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
-          Exportar CSV
+          Exportar Excel
         </button>
       </div>
 

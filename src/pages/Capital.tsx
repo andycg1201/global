@@ -496,6 +496,9 @@ const Capital: React.FC = () => {
       return;
     }
 
+    console.log('📊 Exportando libro diario con', movimientos.length, 'movimientos');
+    console.log('📊 Primeros movimientos:', movimientos.slice(0, 3));
+
     const headers = [
       'Fecha',
       'Hora',
@@ -518,12 +521,12 @@ const Capital: React.FC = () => {
         formatDate(mov.fecha, 'dd/MM/yyyy'),
         mov.hora,
         mov.tipo,
-        `"${mov.concepto}"`,
+        `"${mov.concepto.replace(/"/g, '""')}"`, // Escapar comillas dobles
         mov.monto,
         mov.medioPago,
-        mov.cliente || '',
-        mov.plan || '',
-        mov.referencia || '',
+        mov.cliente ? `"${mov.cliente.replace(/"/g, '""')}"` : '',
+        mov.plan ? `"${mov.plan.replace(/"/g, '""')}"` : '',
+        mov.referencia ? `"${mov.referencia.replace(/"/g, '""')}"` : '',
         mov.saldoEfectivo,
         mov.saldoNequi,
         mov.saldoDaviplata,
@@ -531,15 +534,27 @@ const Capital: React.FC = () => {
       ].join(','))
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // Agregar BOM para UTF-8 en Excel
+    const BOM = '\uFEFF';
+    const csvContentWithBOM = BOM + csvContent;
+
+    const blob = new Blob([csvContentWithBOM], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `libro_diario_${formatDate(new Date(), 'yyyy-MM-dd')}.csv`);
+    
+    // Nombre del archivo con rango de fechas
+    const fechaInicio = formatDate(filtros.fechaInicio, 'yyyy-MM-dd');
+    const fechaFin = formatDate(filtros.fechaFin, 'yyyy-MM-dd');
+    const nombreArchivo = `libro_diario_${fechaInicio}_a_${fechaFin}.csv`;
+    
+    link.setAttribute('download', nombreArchivo);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    
+    console.log('✅ Archivo exportado:', nombreArchivo);
   };
 
   const getTipoColor = (tipo: string) => {

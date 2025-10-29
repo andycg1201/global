@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { XMarkIcon, ClockIcon, UserIcon, DevicePhoneMobileIcon, CurrencyDollarIcon, DocumentTextIcon, PlusIcon, MinusIcon } from '@heroicons/react/24/outline';
 import { Pedido } from '../types';
 import { formatCurrency, formatDate } from '../utils/dateUtils';
-import { ModificacionesService } from '../services/modificacionesService';
+import { modificacionesService } from '../services/modificacionesService';
 
 interface ModalRecogidaOperativaProps {
   isOpen: boolean;
@@ -56,7 +56,7 @@ const ModalRecogidaOperativa: React.FC<ModalRecogidaOperativaProps> = ({
     
     setCargandoModificaciones(true);
     try {
-      const modificacionesData = await ModificacionesService.obtenerModificacionPorPedido(pedido.id);
+      const modificacionesData = await modificacionesService.obtenerModificacionPorPedido(pedido.id);
       setModificaciones(modificacionesData);
     } catch (error) {
       console.error('Error al cargar modificaciones:', error);

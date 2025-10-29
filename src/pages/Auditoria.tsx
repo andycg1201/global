@@ -79,7 +79,7 @@ const Auditoria: React.FC = () => {
       filtrados = filtrados.filter(servicio => {
         const fechaEliminacion = servicio.fechaEliminacion instanceof Date 
           ? servicio.fechaEliminacion 
-          : new Date(servicio.fechaEliminacion);
+          : (servicio.fechaEliminacion ? new Date(servicio.fechaEliminacion) : new Date());
         return fechaEliminacion >= fechaInicio;
       });
     }
@@ -90,7 +90,7 @@ const Auditoria: React.FC = () => {
       filtrados = filtrados.filter(servicio => {
         const fechaEliminacion = servicio.fechaEliminacion instanceof Date 
           ? servicio.fechaEliminacion 
-          : new Date(servicio.fechaEliminacion);
+          : (servicio.fechaEliminacion ? new Date(servicio.fechaEliminacion) : new Date());
         return fechaEliminacion <= fechaFin;
       });
     }

@@ -49,7 +49,7 @@ const ModalDetallesServicio: React.FC<ModalDetallesServicioProps> = ({
               </div>
               <div>
                 <p className="text-sm text-gray-600">Barrio</p>
-                <p className="font-medium">{pedido.cliente.barrio}</p>
+                <p className="font-medium">{pedido.cliente.address || 'N/A'}</p>
               </div>
             </div>
           </div>

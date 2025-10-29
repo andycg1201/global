@@ -14,7 +14,7 @@ import {
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { pedidoService, gastoService, planService, clienteService } from '../services/firebaseService';
-import { ModificacionesService } from '../services/modificacionesService';
+import { modificacionesService } from '../services/modificacionesService';
 import { Pedido, Gasto, Plan, Cliente } from '../types';
 import { formatDate, formatCurrency, getCurrentDateColombia } from '../utils/dateUtils';
 import * as XLSX from 'xlsx';
@@ -182,26 +182,26 @@ const Reportes: React.FC = () => {
       // Obtener todas las modificaciones en paralelo (con límite para evitar sobrecarga)
       const modificacionesPromises = pedidosFiltrados.slice(0, 50).map(async (pedido) => {
         try {
-          return await ModificacionesService.obtenerModificacionPorPedido(pedido.id);
+          return await modificacionesService.obtenerModificacionPorPedido(pedido.id);
         } catch (error) {
           return null;
         }
       });
       
       const modificaciones = await Promise.all(modificacionesPromises);
-      console.log('📊 Modificaciones obtenidas:', modificaciones.filter(m => m !== null).length);
+      console.log('📊 Modificaciones obtenidas:', modificaciones.filter((m: any) => m !== null).length);
       
       // Procesar modificaciones
-      modificaciones.forEach((modificacion) => {
+      modificaciones.forEach((modificacion: any) => {
         if (modificacion) {
           // Horas extras (asumiendo $2,000 por hora)
           totalHorasExtras += (modificacion.horasExtras?.total || 0);
           
           // Cobros adicionales
-          totalCobrosAdicionales += modificacion.cobrosAdicionales?.reduce((sum, cobro) => sum + cobro.monto, 0) || 0;
+          totalCobrosAdicionales += modificacion.cobrosAdicionales?.reduce((sum: any, cobro: any) => sum + cobro.monto, 0) || 0;
           
           // Descuentos
-          totalDescuentos += modificacion.descuentos?.reduce((sum, descuento) => sum + descuento.monto, 0) || 0;
+          totalDescuentos += modificacion.descuentos?.reduce((sum: any, descuento: any) => sum + descuento.monto, 0) || 0;
         }
       });
       

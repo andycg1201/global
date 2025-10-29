@@ -229,6 +229,12 @@ export interface Pedido {
   createdBy: string; // ID del usuario que creó el pedido
   createdAt: Date;
   updatedAt: Date;
+  
+  // Sistema de auditoría
+  eliminado?: boolean; // true = servicio eliminado, false/undefined = activo
+  fechaEliminacion?: Date; // fecha y hora de eliminación
+  eliminadoPor?: string; // ID del usuario que eliminó el servicio
+  motivoEliminacion?: string; // motivo de la eliminación (opcional)
 }
 
 // Tipos de pago

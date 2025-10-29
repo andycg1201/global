@@ -45,13 +45,13 @@ export class MovimientosSaldosService {
         
         pagosRealizados.forEach((pago: any, index: number) => {
           if (pago.medioPago === medioPago) {
-            const movimiento = {
+            const movimiento: MovimientoSaldo = {
               id: `pago-${doc.id}-${index}`,
               fecha: pago.fecha?.toDate ? pago.fecha.toDate() : new Date(pago.fecha),
               concepto: `Pago de ${pedidoData.cliente?.name || 'Cliente'}`,
               referencia: `Pedido #${doc.id.slice(-6)}`,
               monto: pago.monto,
-              tipo: 'ingreso',
+              tipo: 'ingreso' as const,
               descripcion: `Plan ${pedidoData.plan?.name || 'N/A'}`,
               medioPago: pago.medioPago,
               pedidoId: doc.id,
@@ -77,13 +77,13 @@ export class MovimientosSaldosService {
         const montoCapitalInicial = data[medioPago] || 0;
         
         if (montoCapitalInicial > 0) {
-          const movimiento = {
+          const movimiento: MovimientoSaldo = {
             id: `capital-inicial-${doc.id}`,
             fecha: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
             concepto: 'Capital Inicial',
             referencia: `Cap Inicial #${doc.id.slice(-6)}`,
             monto: montoCapitalInicial,
-            tipo: 'ingreso',
+            tipo: 'ingreso' as const,
             descripcion: 'Capital inicial del negocio',
             medioPago: medioPago
           };
@@ -103,13 +103,13 @@ export class MovimientosSaldosService {
       
       gastosSnapshot.forEach(doc => {
         const data = doc.data();
-        const movimiento = {
+        const movimiento: MovimientoSaldo = {
           id: `gasto-${doc.id}`,
           fecha: data.fecha?.toDate ? data.fecha.toDate() : new Date(data.fecha),
           concepto: data.concepto || 'Gasto General',
           referencia: `Ref #${doc.id.slice(-6)}`,
           monto: data.amount,
-          tipo: 'gasto',
+          tipo: 'gasto' as const,
           descripcion: data.descripcion,
           medioPago: data.medioPago
         };
@@ -128,13 +128,13 @@ export class MovimientosSaldosService {
       
       mantenimientosSnapshot.forEach(doc => {
         const data = doc.data();
-        const movimiento = {
+        const movimiento: MovimientoSaldo = {
           id: `mantenimiento-${doc.id}`,
           fecha: data.fechaInicio?.toDate ? data.fechaInicio.toDate() : new Date(data.fechaInicio),
           concepto: `Mantenimiento - ${data.tipoFalla || 'Reparación'}`,
           referencia: `Mant #${doc.id.slice(-6)}`,
           monto: data.costoReparacion || 0,
-          tipo: 'gasto',
+          tipo: 'gasto' as const,
           descripcion: data.descripcion,
           medioPago: data.medioPago
         };
@@ -155,13 +155,13 @@ export class MovimientosSaldosService {
         const monto = data[medioPago] || 0;
         
         if (monto !== 0) {
-          const movimiento = {
+          const movimiento: MovimientoSaldo = {
             id: `capital-${doc.id}`,
             fecha: data.fecha?.toDate ? data.fecha.toDate() : new Date(data.fecha),
             concepto: data.tipo === 'inyeccion' ? 'Inyección de Capital' : 'Retiro de Capital',
             referencia: `Cap #${doc.id.slice(-6)}`,
             monto: Math.abs(monto),
-            tipo: data.tipo === 'inyeccion' ? 'ingreso' : 'gasto',
+            tipo: data.tipo === 'inyeccion' ? 'ingreso' as const : 'gasto' as const,
             descripcion: data.descripcion,
             medioPago: medioPago
           };

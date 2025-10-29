@@ -12,6 +12,7 @@ import InventarioLavadoras from './pages/InventarioLavadoras';
 import Gastos from './pages/Gastos';
 import Reportes from './pages/Reportes';
 import Capital from './pages/Capital';
+import Auditoria from './pages/Auditoria';
 import Configuracion from './pages/Configuracion';
 import { initializeApp } from './utils/initializeApp';
 import './style.css';
@@ -123,6 +124,14 @@ const AppContent: React.FC = () => {
           element={
             <ProtectedRoute>
               <Capital />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/auditoria" 
+          element={
+            <ProtectedRoute>
+              <Auditoria />
             </ProtectedRoute>
           } 
         />

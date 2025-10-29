@@ -815,9 +815,9 @@ const Pedidos: React.FC = () => {
         console.log('⚠️ No hay lavadora asignada para liberar o falta lavadoraId');
       }
       
-      console.log('🗑️ Eliminando pedido de la base de datos...');
-      await pedidoService.deletePedido(pedido.id);
-      console.log('✅ Pedido eliminado exitosamente');
+      console.log('🗑️ Marcando pedido como eliminado en la base de datos...');
+      await pedidoService.marcarComoEliminado(pedido.id, firebaseUser?.uid || 'sistema');
+      console.log('✅ Pedido marcado como eliminado exitosamente');
       
       cargarPedidos();
       cargarLavadoras(); // Recargar lavadoras para actualizar el estado

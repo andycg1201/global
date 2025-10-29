@@ -300,6 +300,18 @@ export const pedidoService = {
     await deleteDoc(docRef);
   },
 
+  // Marcar pedido como eliminado (para auditoría)
+  async marcarComoEliminado(id: string, eliminadoPor: string, motivo?: string): Promise<void> {
+    const docRef = doc(db, 'pedidos', id);
+    await updateDoc(docRef, {
+      eliminado: true,
+      fechaEliminacion: Timestamp.fromDate(new Date()),
+      eliminadoPor: eliminadoPor,
+      motivoEliminacion: motivo || '',
+      updatedAt: Timestamp.fromDate(new Date())
+    });
+  },
+
   // Obtener pedidos del día
   async getPedidosDelDia(fecha: Date): Promise<Pedido[]> {
     const startOfDay = new Date(fecha);
@@ -331,8 +343,52 @@ export const pedidoService = {
     });
   },
 
-  // Obtener todos los pedidos
+  // Obtener todos los pedidos (excluyendo eliminados)
   async getAllPedidos(): Promise<Pedido[]> {
+    const q = query(
+      collection(db, 'pedidos'),
+      orderBy('fechaAsignacion', 'desc')
+    );
+
+    const snapshot = await getDocs(q);
+    return snapshot.docs
+      .filter(doc => {
+        const data = doc.data();
+        return !data.eliminado; // Excluir pedidos eliminados
+      })
+      .map(doc => {
+        const data = doc.data();
+        
+        // Construir objeto lavadoraAsignada si existe
+        let lavadoraAsignada = undefined;
+        if (data.lavadoraAsignada_lavadoraId) {
+          lavadoraAsignada = {
+            lavadoraId: data.lavadoraAsignada_lavadoraId,
+            codigoQR: data.lavadoraAsignada_codigoQR || '',
+            marca: data.lavadoraAsignada_marca || '',
+            modelo: data.lavadoraAsignada_modelo || '',
+            fotoInstalacion: data.lavadoraAsignada_fotoInstalacion || '',
+            observacionesInstalacion: data.lavadoraAsignada_observacionesInstalacion || ''
+          };
+        }
+        
+        return {
+          id: doc.id,
+          ...data,
+          lavadoraAsignada,
+          fechaAsignacion: data.fechaAsignacion?.toDate() || new Date(),
+          fechaEntrega: data.fechaEntrega?.toDate() || undefined,
+          fechaRecogida: data.fechaRecogida?.toDate() || undefined,
+          fechaRecogidaCalculada: data.fechaRecogidaCalculada?.toDate() || new Date(),
+          fechaEliminacion: data.fechaEliminacion?.toDate() || undefined,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date()
+        } as Pedido;
+      });
+  },
+
+  // Obtener todos los pedidos (incluyendo eliminados para auditoría)
+  async getAllPedidosConEliminados(): Promise<Pedido[]> {
     const q = query(
       collection(db, 'pedidos'),
       orderBy('fechaAsignacion', 'desc')
@@ -363,6 +419,7 @@ export const pedidoService = {
         fechaEntrega: data.fechaEntrega?.toDate() || undefined,
         fechaRecogida: data.fechaRecogida?.toDate() || undefined,
         fechaRecogidaCalculada: data.fechaRecogidaCalculada?.toDate() || new Date(),
+        fechaEliminacion: data.fechaEliminacion?.toDate() || undefined,
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date()
       } as Pedido;

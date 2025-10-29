@@ -436,7 +436,7 @@ const InventarioLavadoras: React.FC = () => {
           )}
           {lavadoras.length > 0 && (
             <button
-              onClick={handleExportarTodos}
+              onClick={() => handleExportarTodos()}
               disabled={loading}
               className="btn-secondary flex items-center space-x-2"
             >

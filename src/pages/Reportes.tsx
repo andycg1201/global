@@ -29,9 +29,13 @@ interface FiltrosReporte {
 }
 
 const Reportes: React.FC = () => {
+  const fechaHoyBase = getCurrentDateColombia();
+  const fechaHoy = new Date(fechaHoyBase);
+  fechaHoy.setHours(0, 0, 0, 0);
+  
   const [filtros, setFiltros] = useState<FiltrosReporte>({
-    fechaInicio: getCurrentDateColombia(),
-    fechaFin: getCurrentDateColombia(),
+    fechaInicio: new Date(fechaHoy),
+    fechaFin: new Date(fechaHoy),
     estado: 'todos',
     planId: 'todos',
     clienteId: 'todos',
@@ -79,7 +83,12 @@ const Reportes: React.FC = () => {
       // Cargar pedidos del rango de fechas
       const pedidosPromises = [];
       const fechaActual = new Date(filtros.fechaInicio);
+      // Normalizar fecha de inicio a medianoche
+      fechaActual.setHours(0, 0, 0, 0);
+      
       const fechaFin = new Date(filtros.fechaFin);
+      // Normalizar fecha fin a medianoche
+      fechaFin.setHours(0, 0, 0, 0);
       
       console.log('📅 Rango de fechas:', fechaActual.toDateString(), 'a', fechaFin.toDateString());
       
@@ -90,8 +99,20 @@ const Reportes: React.FC = () => {
       
       console.log('📋 Cargando pedidos de', pedidosPromises.length, 'días...');
       const pedidosArrays = await Promise.all(pedidosPromises);
-      let todosLosPedidos = pedidosArrays.flat();
-      console.log('📊 Total de pedidos encontrados:', todosLosPedidos.length);
+      const pedidosConDuplicados = pedidosArrays.flat();
+      
+      // Eliminar duplicados basándose en el ID del pedido
+      const pedidosUnicos = pedidosConDuplicados.reduce((acc, pedido) => {
+        if (!acc.find(p => p.id === pedido.id)) {
+          acc.push(pedido);
+        }
+        return acc;
+      }, [] as Pedido[]);
+      
+      console.log('📊 Total de pedidos encontrados:', pedidosConDuplicados.length);
+      console.log('📊 Pedidos únicos (sin duplicados):', pedidosUnicos.length);
+      
+      let todosLosPedidos = pedidosUnicos;
 
       // Aplicar filtros
       if (filtros.estado !== 'todos') {
@@ -119,8 +140,13 @@ const Reportes: React.FC = () => {
       console.log('🔄 Cargando gastos...');
       const gastosPromises = [];
       const fechaActualGastos = new Date(filtros.fechaInicio);
+      // Normalizar fecha de inicio a medianoche
+      fechaActualGastos.setHours(0, 0, 0, 0);
+      const fechaFinGastos = new Date(filtros.fechaFin);
+      // Normalizar fecha fin a medianoche
+      fechaFinGastos.setHours(0, 0, 0, 0);
       
-      while (fechaActualGastos <= fechaFin) {
+      while (fechaActualGastos <= fechaFinGastos) {
         gastosPromises.push(gastoService.getGastosDelDia(new Date(fechaActualGastos)));
         fechaActualGastos.setDate(fechaActualGastos.getDate() + 1);
       }
@@ -148,7 +174,7 @@ const Reportes: React.FC = () => {
       for (const pedido of pedidosFiltrados) {
         const planId = pedido.plan.id;
         const planName = pedido.plan.name;
-        const planPrice = pedido.plan.price;
+        const planPrice = pedido.plan.price || 0;
         
         if (!planesMap.has(planId)) {
           planesMap.set(planId, {
@@ -179,11 +205,12 @@ const Reportes: React.FC = () => {
       
       console.log('🔄 Calculando modificaciones...');
       
-      // Obtener todas las modificaciones en paralelo (con límite para evitar sobrecarga)
-      const modificacionesPromises = pedidosFiltrados.slice(0, 50).map(async (pedido) => {
+      // Obtener todas las modificaciones en paralelo para todos los pedidos
+      const modificacionesPromises = pedidosFiltrados.map(async (pedido) => {
         try {
           return await modificacionesService.obtenerModificacionPorPedido(pedido.id);
         } catch (error) {
+          console.error('Error obteniendo modificación para pedido', pedido.id, error);
           return null;
         }
       });
@@ -191,17 +218,13 @@ const Reportes: React.FC = () => {
       const modificaciones = await Promise.all(modificacionesPromises);
       console.log('📊 Modificaciones obtenidas:', modificaciones.filter((m: any) => m !== null).length);
       
-      // Procesar modificaciones
+      // Procesar modificaciones usando los totales ya calculados
       modificaciones.forEach((modificacion: any) => {
         if (modificacion) {
-          // Horas extras (asumiendo $2,000 por hora)
-          totalHorasExtras += (modificacion.horasExtras?.total || 0);
-          
-          // Cobros adicionales
-          totalCobrosAdicionales += modificacion.cobrosAdicionales?.reduce((sum: any, cobro: any) => sum + cobro.monto, 0) || 0;
-          
-          // Descuentos
-          totalDescuentos += modificacion.descuentos?.reduce((sum: any, descuento: any) => sum + descuento.monto, 0) || 0;
+          // Usar los totales ya calculados en la modificación
+          totalHorasExtras += modificacion.totalHorasExtras || 0;
+          totalCobrosAdicionales += modificacion.totalCobrosAdicionales || 0;
+          totalDescuentos += modificacion.totalDescuentos || 0;
         }
       });
       
@@ -245,9 +268,21 @@ const Reportes: React.FC = () => {
       daviplata: 0
     };
     
-    pedidos.forEach(pedido => {
-      const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
-      const saldoPendiente = pedido.total - totalPagado;
+    // Filtrar pedidos eliminados y cancelados del cálculo de pendiente
+    const pedidosValidos = pedidos.filter(p => !p.eliminado && p.status !== 'cancelado');
+    
+    pedidosValidos.forEach(pedido => {
+      const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + (pago.monto || 0), 0) || 0;
+      const totalPedido = pedido.total || 0;
+      const saldoPendiente = Math.max(0, totalPedido - totalPagado);
+      
+      console.log('📊 Pedido:', pedido.id, {
+        cliente: pedido.cliente.name,
+        totalPedido,
+        totalPagado,
+        saldoPendiente,
+        pagosRealizados: pedido.pagosRealizados?.length || 0
+      });
       
       ingresos += totalPagado;
       totalPendiente += saldoPendiente;
@@ -255,34 +290,49 @@ const Reportes: React.FC = () => {
       // Calcular ingresos por método de pago basado en pagos reales
       if (pedido.pagosRealizados) {
         pedido.pagosRealizados.forEach(pago => {
+          const monto = pago.monto || 0;
           if (pago.medioPago === 'efectivo') {
-            ingresosPorMetodo.efectivo += pago.monto;
+            ingresosPorMetodo.efectivo += monto;
           } else if (pago.medioPago === 'nequi') {
-            ingresosPorMetodo.nequi += pago.monto;
+            ingresosPorMetodo.nequi += monto;
           } else if (pago.medioPago === 'daviplata') {
-            ingresosPorMetodo.daviplata += pago.monto;
+            ingresosPorMetodo.daviplata += monto;
           }
         });
       }
+    });
+    
+    console.log('💰 Totales calculados:', {
+      ingresos,
+      totalPendiente,
+      ingresosPorMetodo
     });
     
     const gastosTotal = gastos.reduce((sum, g) => sum + g.amount, 0);
     const neto = ingresos - gastosTotal;
     
     const pedidosPorEstado = {
-      pendiente: pedidos.filter(p => p.status === 'pendiente').length,
-      entregado: pedidos.filter(p => p.status === 'entregado').length,
-      recogido: pedidos.filter(p => p.status === 'recogido').length,
+      pendiente: pedidosValidos.filter(p => p.status === 'pendiente').length,
+      entregado: pedidosValidos.filter(p => p.status === 'entregado').length,
+      recogido: pedidosValidos.filter(p => p.status === 'recogido').length,
       cancelado: pedidos.filter(p => p.status === 'cancelado').length
     };
 
-    const planesPopulares = pedidos.reduce((acc, pedido) => {
+    // Eliminar duplicados antes de calcular planes y clientes frecuentes
+    const pedidosUnicos = pedidosValidos.reduce((acc, pedido) => {
+      if (!acc.find(p => p.id === pedido.id)) {
+        acc.push(pedido);
+      }
+      return acc;
+    }, [] as Pedido[]);
+
+    const planesPopulares = pedidosUnicos.reduce((acc, pedido) => {
       const planName = pedido.plan.name;
       acc[planName] = (acc[planName] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
 
-    const clientesFrecuentes = pedidos.reduce((acc, pedido) => {
+    const clientesFrecuentes = pedidosUnicos.reduce((acc, pedido) => {
       const clienteName = pedido.cliente.name;
       acc[clienteName] = (acc[clienteName] || 0) + 1;
       return acc;
@@ -293,12 +343,12 @@ const Reportes: React.FC = () => {
       totalPendiente,
       gastos: gastosTotal,
       neto,
-      totalPedidos: pedidos.length,
+      totalPedidos: pedidosUnicos.length,
       pedidosPorEstado,
       ingresosPorMetodo,
       planesPopulares,
       clientesFrecuentes,
-      promedioPorPedido: pedidos.length > 0 ? ingresos / pedidos.length : 0
+      promedioPorPedido: pedidosUnicos.length > 0 ? ingresos / pedidosUnicos.length : 0
     };
   };
 
@@ -372,14 +422,24 @@ const Reportes: React.FC = () => {
     XLSX.utils.book_append_sheet(wb, wsPlanes, 'Análisis de Planes');
     
     // Hoja 3: Clientes con Saldo Pendiente
+    // Filtrar pedidos válidos (sin duplicados, eliminados ni cancelados)
+    const pedidosValidosParaExportacion = pedidos
+      .filter(p => !p.eliminado && p.status !== 'cancelado')
+      .reduce((acc, pedido) => {
+        if (!acc.find(p => p.id === pedido.id)) {
+          acc.push(pedido);
+        }
+        return acc;
+      }, [] as Pedido[]);
+    
     const clientesConSaldo = Object.entries(stats.clientesFrecuentes)
       .map(([clienteName, cantidad]) => {
-        const pedidosCliente = pedidos.filter(p => p.cliente.name === clienteName);
+        const pedidosCliente = pedidosValidosParaExportacion.filter(p => p.cliente.name === clienteName);
         const serviciosTotales = pedidosCliente.reduce((sum, p) => sum + (p.total || 0), 0);
         const abonosRealizados = pedidosCliente.reduce((sum, p) => {
-          return sum + (p.pagosRealizados?.reduce((sumPago, pago) => sumPago + pago.monto, 0) || 0);
+          return sum + (p.pagosRealizados?.reduce((sumPago, pago) => sumPago + (pago.monto || 0), 0) || 0);
         }, 0);
-        const saldoPendiente = serviciosTotales - abonosRealizados;
+        const saldoPendiente = Math.max(0, serviciosTotales - abonosRealizados);
         
         return {
           cliente: clienteName,
@@ -421,8 +481,9 @@ const Reportes: React.FC = () => {
     const pedidosData = [
       ['FECHA', 'CLIENTE', 'PLAN', 'ESTADO', 'TOTAL', 'PAGADO', 'PENDIENTE', 'MÉTODO PAGO'],
       ...pedidos.map(pedido => {
-        const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
-        const saldoPendiente = pedido.total - totalPagado;
+        const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + (pago.monto || 0), 0) || 0;
+        const totalPedido = pedido.total || 0;
+        const saldoPendiente = totalPedido - totalPagado;
         const metodoPago = pedido.pagosRealizados?.map(p => p.medioPago).join(', ') || 'Sin pago';
         
         return [
@@ -430,7 +491,7 @@ const Reportes: React.FC = () => {
           pedido.cliente.name,
           pedido.plan.name,
           pedido.status,
-          pedido.total,
+          totalPedido,
           totalPagado,
           saldoPendiente,
           metodoPago
@@ -477,14 +538,21 @@ const Reportes: React.FC = () => {
   };
 
   const aplicarFiltroRapido = (tipo: 'hoy' | 'ayer' | 'semana' | 'mes') => {
-    const hoy = getCurrentDateColombia();
+    const hoyBase = getCurrentDateColombia();
+    // Crear copias nuevas de las fechas para evitar mutaciones
+    const hoy = new Date(hoyBase);
+    hoy.setHours(0, 0, 0, 0);
+    
     const ayer = new Date(hoy);
     ayer.setDate(ayer.getDate() - 1);
+    ayer.setHours(0, 0, 0, 0);
     
     const inicioSemana = new Date(hoy);
     inicioSemana.setDate(hoy.getDate() - hoy.getDay());
+    inicioSemana.setHours(0, 0, 0, 0);
     
     const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    inicioMes.setHours(0, 0, 0, 0);
 
     switch (tipo) {
       case 'hoy':
@@ -577,11 +645,15 @@ const Reportes: React.FC = () => {
               type="date"
               className="input-field"
               value={filtros.fechaInicio.toISOString().split('T')[0]}
-              onChange={(e) => setFiltros(prev => ({ 
+              onChange={(e) => {
+                const nuevaFecha = new Date(e.target.value);
+                nuevaFecha.setHours(0, 0, 0, 0);
+                setFiltros(prev => ({ 
                 ...prev, 
-                fechaInicio: new Date(e.target.value),
+                  fechaInicio: nuevaFecha,
                 tipoReporte: 'personalizado'
-              }))}
+                }))
+              }}
             />
           </div>
           
@@ -593,11 +665,15 @@ const Reportes: React.FC = () => {
               type="date"
               className="input-field"
               value={filtros.fechaFin.toISOString().split('T')[0]}
-              onChange={(e) => setFiltros(prev => ({ 
+              onChange={(e) => {
+                const nuevaFecha = new Date(e.target.value);
+                nuevaFecha.setHours(0, 0, 0, 0);
+                setFiltros(prev => ({ 
                 ...prev, 
-                fechaFin: new Date(e.target.value),
+                  fechaFin: nuevaFecha,
                 tipoReporte: 'personalizado'
-              }))}
+                }))
+              }}
             />
           </div>
 
@@ -652,14 +728,18 @@ const Reportes: React.FC = () => {
 
           <div className="flex items-end">
             <button
-              onClick={() => setFiltros({
-                fechaInicio: getCurrentDateColombia(),
-                fechaFin: getCurrentDateColombia(),
+              onClick={() => {
+                const fechaHoy = getCurrentDateColombia();
+                fechaHoy.setHours(0, 0, 0, 0);
+                setFiltros({
+                  fechaInicio: fechaHoy,
+                  fechaFin: fechaHoy,
                 estado: 'todos',
                 planId: 'todos',
                 clienteId: 'todos',
                 tipoReporte: 'diario'
-              })}
+                })
+              }}
               className="btn-secondary w-full"
             >
               Limpiar Filtros
@@ -842,15 +922,30 @@ const Reportes: React.FC = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {Object.entries(stats.clientesFrecuentes)
                   .map(([clienteName, cantidad]) => {
-                    // Buscar todos los pedidos de este cliente
-                    const pedidosCliente = pedidos.filter(p => p.cliente.name === clienteName);
+                    // Filtrar pedidos válidos para este cliente (sin duplicados, eliminados ni cancelados)
+                    const pedidosCliente = pedidos
+                      .filter(p => p.cliente.name === clienteName && !p.eliminado && p.status !== 'cancelado')
+                      .reduce((acc, pedido) => {
+                        // Eliminar duplicados por ID
+                        if (!acc.find(p => p.id === pedido.id)) {
+                          acc.push(pedido);
+                        }
+                        return acc;
+                      }, [] as Pedido[]);
                     
                     // Calcular totales
                     const serviciosTotales = pedidosCliente.reduce((sum, p) => sum + (p.total || 0), 0);
                     const abonosRealizados = pedidosCliente.reduce((sum, p) => {
-                      return sum + (p.pagosRealizados?.reduce((sumPago, pago) => sumPago + pago.monto, 0) || 0);
+                      return sum + (p.pagosRealizados?.reduce((sumPago, pago) => sumPago + (pago.monto || 0), 0) || 0);
                     }, 0);
-                    const saldoPendiente = serviciosTotales - abonosRealizados;
+                    const saldoPendiente = Math.max(0, serviciosTotales - abonosRealizados);
+                    
+                    console.log('👤 Cliente:', clienteName, {
+                      pedidos: pedidosCliente.length,
+                      serviciosTotales,
+                      abonosRealizados,
+                      saldoPendiente
+                    });
                     
                     // Solo mostrar si tiene saldo pendiente
                     if (saldoPendiente <= 0) return null;

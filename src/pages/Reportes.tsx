@@ -168,10 +168,21 @@ const Reportes: React.FC = () => {
     try {
       console.log('🔄 Calculando análisis de planes para', pedidosFiltrados.length, 'pedidos');
       
+      // Filtrar pedidos válidos (no eliminados, no cancelados) y únicos
+      const pedidosValidos = pedidosFiltrados.filter(p => !p.eliminado && p.status !== 'cancelado');
+      const pedidosUnicos = pedidosValidos.reduce((acc, pedido) => {
+        if (!acc.find(p => p.id === pedido.id)) {
+          acc.push(pedido);
+        }
+        return acc;
+      }, [] as Pedido[]);
+      
+      console.log('📊 Pedidos válidos para análisis:', pedidosUnicos.length);
+      
       // Agrupar pedidos por plan
       const planesMap = new Map();
       
-      for (const pedido of pedidosFiltrados) {
+      for (const pedido of pedidosUnicos) {
         const planId = pedido.plan.id;
         const planName = pedido.plan.name;
         const planPrice = pedido.plan.price || 0;
@@ -205,8 +216,8 @@ const Reportes: React.FC = () => {
       
       console.log('🔄 Calculando modificaciones...');
       
-      // Obtener todas las modificaciones en paralelo para todos los pedidos
-      const modificacionesPromises = pedidosFiltrados.map(async (pedido) => {
+      // Obtener todas las modificaciones en paralelo para pedidos únicos
+      const modificacionesPromises = pedidosUnicos.map(async (pedido) => {
         try {
           return await modificacionesService.obtenerModificacionPorPedido(pedido.id);
         } catch (error) {
@@ -268,6 +279,12 @@ const Reportes: React.FC = () => {
       daviplata: 0
     };
     
+    const gastosPorMetodo = {
+      efectivo: 0,
+      nequi: 0,
+      daviplata: 0
+    };
+    
     // Filtrar pedidos eliminados y cancelados del cálculo de pendiente
     const pedidosValidos = pedidos.filter(p => !p.eliminado && p.status !== 'cancelado');
     
@@ -302,10 +319,32 @@ const Reportes: React.FC = () => {
       }
     });
     
+    // Calcular gastos por método de pago
+    gastos.forEach(gasto => {
+      const medioPago = gasto.medioPago || 'efectivo';
+      const monto = gasto.amount || 0;
+      if (medioPago === 'efectivo') {
+        gastosPorMetodo.efectivo += monto;
+      } else if (medioPago === 'nequi') {
+        gastosPorMetodo.nequi += monto;
+      } else if (medioPago === 'daviplata') {
+        gastosPorMetodo.daviplata += monto;
+      }
+    });
+    
+    // Calcular saldos por método de pago (ingresos - gastos)
+    const saldosPorMetodo = {
+      efectivo: ingresosPorMetodo.efectivo - gastosPorMetodo.efectivo,
+      nequi: ingresosPorMetodo.nequi - gastosPorMetodo.nequi,
+      daviplata: ingresosPorMetodo.daviplata - gastosPorMetodo.daviplata
+    };
+    
     console.log('💰 Totales calculados:', {
       ingresos,
       totalPendiente,
-      ingresosPorMetodo
+      ingresosPorMetodo,
+      gastosPorMetodo,
+      saldosPorMetodo
     });
     
     const gastosTotal = gastos.reduce((sum, g) => sum + g.amount, 0);
@@ -346,9 +385,162 @@ const Reportes: React.FC = () => {
       totalPedidos: pedidosUnicos.length,
       pedidosPorEstado,
       ingresosPorMetodo,
+      gastosPorMetodo,
+      saldosPorMetodo,
       planesPopulares,
       clientesFrecuentes,
       promedioPorPedido: pedidosUnicos.length > 0 ? ingresos / pedidosUnicos.length : 0
+    };
+  };
+
+  const generarTablaCruzada = () => {
+    // Filtrar pedidos válidos y únicos
+    const pedidosValidos = pedidos.filter(p => !p.eliminado && p.status !== 'cancelado');
+    const pedidosUnicos = pedidosValidos.reduce((acc, pedido) => {
+      if (!acc.find(p => p.id === pedido.id)) {
+        acc.push(pedido);
+      }
+      return acc;
+    }, [] as Pedido[]);
+
+    // Obtener todos los planes únicos
+    const planesUnicos = Array.from(new Set(pedidosUnicos.map(p => p.plan.id)))
+      .map(planId => {
+        const pedido = pedidosUnicos.find(p => p.plan.id === planId);
+        return {
+          id: planId,
+          name: pedido?.plan.name || 'Plan Desconocido',
+          price: pedido?.plan.price || 0
+        };
+      })
+      .sort((a, b) => a.price - b.price);
+
+    // Generar rango de fechas
+    const fechas = [];
+    const fechaActual = new Date(filtros.fechaInicio);
+    fechaActual.setHours(0, 0, 0, 0);
+    const fechaFin = new Date(filtros.fechaFin);
+    fechaFin.setHours(0, 0, 0, 0);
+
+    while (fechaActual <= fechaFin) {
+      fechas.push(new Date(fechaActual));
+      fechaActual.setDate(fechaActual.getDate() + 1);
+    }
+
+    // Crear estructura de datos
+    const tablaCruzada = fechas.map(fecha => {
+      const pedidosDelDia = pedidosUnicos.filter(p => {
+        const fechaPedido = new Date(p.createdAt);
+        fechaPedido.setHours(0, 0, 0, 0);
+        return fechaPedido.getTime() === fecha.getTime();
+      });
+
+      const datosPorPlan = planesUnicos.map(plan => {
+        const pedidosDelPlan = pedidosDelDia.filter(p => p.plan.id === plan.id);
+        
+        let servicios = pedidosDelPlan.length;
+        let valorBase = pedidosDelPlan.reduce((sum, p) => sum + (p.plan.price || 0), 0);
+        let extras = 0;
+        let pagado = 0;
+        let pendiente = 0;
+
+        // Calcular extras, pagado y pendiente para cada pedido
+        pedidosDelPlan.forEach(pedido => {
+          // Calcular modificaciones (extras) - usar el nuevo sistema de modificaciones
+          if (pedido.modificacionesServicio && pedido.modificacionesServicio.length > 0) {
+            const totalModificaciones = pedido.modificacionesServicio.reduce((sum, mod) => {
+              const totalHorasExtras = mod.horasExtras?.reduce((hSum, h) => hSum + h.total, 0) || 0;
+              const totalCobrosAdicionales = mod.cobrosAdicionales?.reduce((cSum, c) => cSum + c.monto, 0) || 0;
+              const totalDescuentos = mod.descuentos?.reduce((dSum, d) => dSum + d.monto, 0) || 0;
+              return sum + totalHorasExtras + totalCobrosAdicionales - totalDescuentos;
+            }, 0);
+            extras += totalModificaciones;
+          }
+
+          // Calcular pagado y pendiente
+          const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + (pago.monto || 0), 0) || 0;
+          const totalPedido = (pedido.total || 0) + (pedido.modificacionesServicio?.reduce((sum, mod) => {
+            const totalHorasExtras = mod.horasExtras?.reduce((hSum, h) => hSum + h.total, 0) || 0;
+            const totalCobrosAdicionales = mod.cobrosAdicionales?.reduce((cSum, c) => cSum + c.monto, 0) || 0;
+            const totalDescuentos = mod.descuentos?.reduce((dSum, d) => dSum + d.monto, 0) || 0;
+            return sum + totalHorasExtras + totalCobrosAdicionales - totalDescuentos;
+          }, 0) || 0);
+          
+          pagado += totalPagado;
+          pendiente += Math.max(0, totalPedido - totalPagado);
+        });
+
+        return {
+          planId: plan.id,
+          planName: plan.name,
+          planPrice: plan.price,
+          servicios,
+          valorBase,
+          extras,
+          total: valorBase + extras,
+          pagado,
+          pendiente
+        };
+      });
+
+      // Calcular totales del día
+      const totalDia = datosPorPlan.reduce((acc, plan) => ({
+        servicios: acc.servicios + plan.servicios,
+        valorBase: acc.valorBase + plan.valorBase,
+        extras: acc.extras + plan.extras,
+        total: acc.total + plan.total,
+        pagado: acc.pagado + plan.pagado,
+        pendiente: acc.pendiente + plan.pendiente
+      }), { servicios: 0, valorBase: 0, extras: 0, total: 0, pagado: 0, pendiente: 0 });
+
+      return {
+        fecha: new Date(fecha),
+        datosPorPlan,
+        totalDia
+      };
+    });
+
+    // Calcular totales por plan (columnas)
+    const totalesPorPlan = planesUnicos.map(plan => {
+      const totalPlan = tablaCruzada.reduce((acc, dia) => {
+        const planData = dia.datosPorPlan.find(p => p.planId === plan.id);
+        if (planData) {
+          return {
+            servicios: acc.servicios + planData.servicios,
+            valorBase: acc.valorBase + planData.valorBase,
+            extras: acc.extras + planData.extras,
+            total: acc.total + planData.total,
+            pagado: acc.pagado + planData.pagado,
+            pendiente: acc.pendiente + planData.pendiente
+          };
+        }
+        return acc;
+      }, { servicios: 0, valorBase: 0, extras: 0, total: 0, pagado: 0, pendiente: 0 });
+
+      return {
+        planId: plan.id,
+        planName: plan.name,
+        planPrice: plan.price,
+        ...totalPlan
+      };
+    });
+
+    // Calcular total general
+    const totalGeneral = totalesPorPlan.reduce((acc, plan) => ({
+      servicios: acc.servicios + plan.servicios,
+      valorBase: acc.valorBase + plan.valorBase,
+      extras: acc.extras + plan.extras,
+      total: acc.total + plan.total,
+      pagado: acc.pagado + plan.pagado,
+      pendiente: acc.pendiente + plan.pendiente
+    }), { servicios: 0, valorBase: 0, extras: 0, total: 0, pagado: 0, pendiente: 0 });
+
+    return {
+      fechas,
+      planesUnicos,
+      tablaCruzada,
+      totalesPorPlan,
+      totalGeneral
     };
   };
 
@@ -377,10 +569,20 @@ const Reportes: React.FC = () => {
       ['Neto', stats.neto],
       ['Promedio por pedido', stats.promedioPorPedido],
       [''],
+      ['SALDOS POR MÉTODO DE PAGO'],
+      ['Efectivo', stats.saldosPorMetodo.efectivo],
+      ['Nequi', stats.saldosPorMetodo.nequi],
+      ['Daviplata', stats.saldosPorMetodo.daviplata],
+      [''],
       ['INGRESOS POR MÉTODO DE PAGO'],
       ['Efectivo', stats.ingresosPorMetodo.efectivo],
       ['Nequi', stats.ingresosPorMetodo.nequi],
       ['Daviplata', stats.ingresosPorMetodo.daviplata],
+      [''],
+      ['GASTOS POR MÉTODO DE PAGO'],
+      ['Efectivo', stats.gastosPorMetodo.efectivo],
+      ['Nequi', stats.gastosPorMetodo.nequi],
+      ['Daviplata', stats.gastosPorMetodo.daviplata],
       [''],
       ['RESUMEN OPERACIONAL'],
       ['Total pedidos', stats.totalPedidos],
@@ -537,6 +739,151 @@ const Reportes: React.FC = () => {
     console.log('✅ Reporte exportado exitosamente:', nombreArchivo);
   };
 
+  const exportarTablaCruzada = () => {
+    const tablaData = generarTablaCruzada();
+    const fechaInicioStr = formatDate(filtros.fechaInicio, 'dd/MM/yyyy');
+    const fechaFinStr = formatDate(filtros.fechaFin, 'dd/MM/yyyy');
+    
+    console.log('📊 Exportando tabla cruzada a Excel...');
+    console.log('📊 Datos de tabla cruzada:', tablaData);
+    
+    // Crear un nuevo workbook
+    const wb = XLSX.utils.book_new();
+    
+    // Preparar datos para Excel
+    const excelData = [];
+    
+    // Encabezados
+    const encabezados = ['Fecha'];
+    tablaData.planesUnicos.forEach(plan => {
+      encabezados.push(`${plan.name} (${formatCurrency(plan.price)})`);
+      encabezados.push(''); // Columna vacía para valor base
+      encabezados.push(''); // Columna vacía para extras
+      encabezados.push(''); // Columna vacía para total
+    });
+    encabezados.push('TOTAL');
+    encabezados.push(''); // Columna vacía para valor base
+    encabezados.push(''); // Columna vacía para extras
+    encabezados.push(''); // Columna vacía para total
+    
+    excelData.push(encabezados);
+    
+    // Sub-encabezados
+    const subEncabezados = [''];
+    tablaData.planesUnicos.forEach(() => {
+      subEncabezados.push('Servicios');
+      subEncabezados.push('Valor Base');
+      subEncabezados.push('Extras');
+      subEncabezados.push('Total');
+    });
+    subEncabezados.push('Servicios');
+    subEncabezados.push('Valor Base');
+    subEncabezados.push('Extras');
+    subEncabezados.push('Total');
+    
+    excelData.push(subEncabezados);
+    
+    // Datos por día
+    tablaData.tablaCruzada.forEach(dia => {
+      const fila = [formatDate(dia.fecha, 'dd/MM/yyyy')];
+      
+      // Datos por plan
+      tablaData.planesUnicos.forEach(plan => {
+        const planData = dia.datosPorPlan.find(p => p.planId === plan.id);
+        if (planData) {
+          fila.push(planData.servicios.toString());
+          fila.push(planData.valorBase.toString());
+          fila.push(planData.extras.toString());
+          fila.push(planData.total.toString());
+        } else {
+          fila.push('0', '0', '0', '0');
+        }
+      });
+      
+      // Total del día
+      fila.push(dia.totalDia.servicios.toString());
+      fila.push(dia.totalDia.valorBase.toString());
+      fila.push(dia.totalDia.extras.toString());
+      fila.push(dia.totalDia.total.toString());
+      
+      excelData.push(fila);
+    });
+    
+    // Fila de totales por plan
+    const filaTotales = ['TOTAL'];
+    tablaData.totalesPorPlan.forEach(plan => {
+      filaTotales.push(plan.servicios.toString());
+      filaTotales.push(plan.valorBase.toString());
+      filaTotales.push(plan.extras.toString());
+      filaTotales.push(plan.total.toString());
+    });
+    
+    // Total general
+    filaTotales.push(tablaData.totalGeneral.servicios.toString());
+    filaTotales.push(tablaData.totalGeneral.valorBase.toString());
+    filaTotales.push(tablaData.totalGeneral.extras.toString());
+    filaTotales.push(tablaData.totalGeneral.total.toString());
+    
+    excelData.push(filaTotales);
+    
+    // Fila de pagado por plan
+    const filaPagado = ['PAGADO'];
+    tablaData.totalesPorPlan.forEach(plan => {
+      filaPagado.push('');
+      filaPagado.push('');
+      filaPagado.push('');
+      filaPagado.push(plan.pagado.toString());
+    });
+    filaPagado.push('');
+    filaPagado.push('');
+    filaPagado.push('');
+    filaPagado.push(tablaData.totalGeneral.pagado.toString());
+    
+    excelData.push(filaPagado);
+    
+    // Fila de pendiente por plan
+    const filaPendiente = ['PENDIENTE'];
+    tablaData.totalesPorPlan.forEach(plan => {
+      filaPendiente.push('');
+      filaPendiente.push('');
+      filaPendiente.push('');
+      filaPendiente.push(plan.pendiente.toString());
+    });
+    filaPendiente.push('');
+    filaPendiente.push('');
+    filaPendiente.push('');
+    filaPendiente.push(tablaData.totalGeneral.pendiente.toString());
+    
+    excelData.push(filaPendiente);
+    
+    // Crear hoja de trabajo
+    const ws = XLSX.utils.aoa_to_sheet(excelData);
+    
+    // Ajustar ancho de columnas
+    const colWidths = [{ wch: 12 }]; // Fecha
+    tablaData.planesUnicos.forEach(() => {
+      colWidths.push({ wch: 10 }); // Servicios
+      colWidths.push({ wch: 12 }); // Valor Base
+      colWidths.push({ wch: 12 }); // Extras
+      colWidths.push({ wch: 12 }); // Total
+    });
+    colWidths.push({ wch: 10 }); // Total Servicios
+    colWidths.push({ wch: 12 }); // Total Valor Base
+    colWidths.push({ wch: 12 }); // Total Extras
+    colWidths.push({ wch: 12 }); // Total Total
+    
+    ws['!cols'] = colWidths;
+    
+    // Agregar hoja al workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Tabla Cruzada');
+    
+    // Generar y descargar el archivo
+    const nombreArchivo = `tabla_cruzada_${fechaInicioStr.replace(/\//g, '-')}_a_${fechaFinStr.replace(/\//g, '-')}.xlsx`;
+    XLSX.writeFile(wb, nombreArchivo);
+    
+    console.log('✅ Tabla cruzada exportada exitosamente:', nombreArchivo);
+  };
+
   const aplicarFiltroRapido = (tipo: 'hoy' | 'ayer' | 'semana' | 'mes') => {
     const hoyBase = getCurrentDateColombia();
     // Crear copias nuevas de las fechas para evitar mutaciones
@@ -592,14 +939,25 @@ const Reportes: React.FC = () => {
             Análisis detallado del negocio con filtros personalizables
           </p>
         </div>
+        <div className="flex space-x-3">
         <button
           onClick={exportarReporte}
           className="btn-primary"
           disabled={pedidos.length === 0}
         >
           <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
-          Exportar Excel
+            Exportar Excel
+          </button>
+          <button
+            onClick={exportarTablaCruzada}
+            className="btn-secondary"
+            disabled={pedidos.length === 0}
+            title="Exportar tabla cruzada de servicios por día y plan"
+          >
+            <ChartBarIcon className="h-5 w-5 mr-2" />
+            Tabla Cruzada
         </button>
+        </div>
       </div>
 
       {/* Filtros rápidos */}
@@ -837,12 +1195,11 @@ const Reportes: React.FC = () => {
             </div>
             <div className="text-right">
               <p className="text-lg font-bold text-green-900">
-                {formatCurrency(stats.ingresosPorMetodo.efectivo)}
+                {formatCurrency(stats.saldosPorMetodo.efectivo)}
               </p>
               <p className="text-xs text-green-600">
-                {stats.ingresos > 0 ? 
-                  `${((stats.ingresosPorMetodo.efectivo / stats.ingresos) * 100).toFixed(1)}%` 
-                  : '0%'}
+                Ingresos: {formatCurrency(stats.ingresosPorMetodo.efectivo)} | 
+                Gastos: {formatCurrency(stats.gastosPorMetodo.efectivo)}
               </p>
             </div>
           </div>
@@ -859,12 +1216,11 @@ const Reportes: React.FC = () => {
             </div>
             <div className="text-right">
               <p className="text-lg font-bold text-blue-900">
-                {formatCurrency(stats.ingresosPorMetodo.nequi)}
+                {formatCurrency(stats.saldosPorMetodo.nequi)}
               </p>
               <p className="text-xs text-blue-600">
-                {stats.ingresos > 0 ? 
-                  `${((stats.ingresosPorMetodo.nequi / stats.ingresos) * 100).toFixed(1)}%` 
-                  : '0%'}
+                Ingresos: {formatCurrency(stats.ingresosPorMetodo.nequi)} | 
+                Gastos: {formatCurrency(stats.gastosPorMetodo.nequi)}
               </p>
             </div>
           </div>
@@ -881,12 +1237,11 @@ const Reportes: React.FC = () => {
             </div>
             <div className="text-right">
               <p className="text-lg font-bold text-purple-900">
-                {formatCurrency(stats.ingresosPorMetodo.daviplata)}
+                {formatCurrency(stats.saldosPorMetodo.daviplata)}
               </p>
               <p className="text-xs text-purple-600">
-                {stats.ingresos > 0 ? 
-                  `${((stats.ingresosPorMetodo.daviplata / stats.ingresos) * 100).toFixed(1)}%` 
-                  : '0%'}
+                Ingresos: {formatCurrency(stats.ingresosPorMetodo.daviplata)} | 
+                Gastos: {formatCurrency(stats.gastosPorMetodo.daviplata)}
               </p>
             </div>
           </div>

@@ -103,10 +103,30 @@ export class MovimientosSaldosService {
       
       gastosSnapshot.forEach(doc => {
         const data = doc.data();
+        
+        // Manejar fechas de manera más robusta
+        let fecha: Date;
+        if (data.fecha?.toDate) {
+          fecha = data.fecha.toDate();
+        } else if (data.fecha instanceof Date) {
+          fecha = data.fecha;
+        } else if (data.fecha && typeof data.fecha === 'string') {
+          fecha = new Date(data.fecha);
+        } else {
+          // Si no hay fecha válida, usar la fecha de creación del documento
+          fecha = new Date(doc.id.substring(0, 8)); // Usar timestamp del ID como fallback
+        }
+        
+        // Validar que la fecha sea válida
+        if (isNaN(fecha.getTime())) {
+          console.warn('⚠️ Fecha inválida para gasto:', doc.id, 'usando fecha actual');
+          fecha = new Date();
+        }
+        
         const movimiento: MovimientoSaldo = {
           id: `gasto-${doc.id}`,
-          fecha: data.fecha?.toDate ? data.fecha.toDate() : new Date(data.fecha),
-          concepto: data.concepto || 'Gasto General',
+          fecha: fecha,
+          concepto: typeof data.concepto === 'object' ? data.concepto?.name || 'Gasto General' : data.concepto || 'Gasto General',
           referencia: `Ref #${doc.id.slice(-6)}`,
           monto: data.amount,
           tipo: 'gasto' as const,
@@ -128,9 +148,29 @@ export class MovimientosSaldosService {
       
       mantenimientosSnapshot.forEach(doc => {
         const data = doc.data();
+        
+        // Manejar fechas de manera más robusta
+        let fecha: Date;
+        if (data.fechaInicio?.toDate) {
+          fecha = data.fechaInicio.toDate();
+        } else if (data.fechaInicio instanceof Date) {
+          fecha = data.fechaInicio;
+        } else if (data.fechaInicio && typeof data.fechaInicio === 'string') {
+          fecha = new Date(data.fechaInicio);
+        } else {
+          // Si no hay fecha válida, usar la fecha de creación del documento
+          fecha = new Date(doc.id.substring(0, 8)); // Usar timestamp del ID como fallback
+        }
+        
+        // Validar que la fecha sea válida
+        if (isNaN(fecha.getTime())) {
+          console.warn('⚠️ Fecha inválida para mantenimiento:', doc.id, 'usando fecha actual');
+          fecha = new Date();
+        }
+        
         const movimiento: MovimientoSaldo = {
           id: `mantenimiento-${doc.id}`,
-          fecha: data.fechaInicio?.toDate ? data.fechaInicio.toDate() : new Date(data.fechaInicio),
+          fecha: fecha,
           concepto: `Mantenimiento - ${data.tipoFalla || 'Reparación'}`,
           referencia: `Mant #${doc.id.slice(-6)}`,
           monto: data.costoReparacion || 0,

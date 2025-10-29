@@ -5,8 +5,7 @@ import {
   ExclamationTriangleIcon,
   ChartBarIcon,
   ArrowPathIcon,
-  WalletIcon,
-  BanknotesIcon
+  WalletIcon
 } from '@heroicons/react/24/outline';
 import { Pedido, PagoRealizado } from '../types';
 import { pedidoService, configService, planService, gastoService, lavadoraService } from '../services/firebaseService';
@@ -73,7 +72,6 @@ const Dashboard: React.FC = () => {
   // Estados de configuración
   const [configuracion, setConfiguracion] = useState<any>(null);
   const [planes, setPlanes] = useState<any[]>([]);
-  const [pagos, setPagos] = useState<any[]>([]);
   const [lavadoras, setLavadoras] = useState<any[]>([]);
 
   // Función para cargar datos simplificados
@@ -270,23 +268,6 @@ const Dashboard: React.FC = () => {
       
       setSaldosPorMedioDePago(saldosCalculados);
       
-      // Preparar pagos para la sección "Pagos Recibidos"
-      const allPagos: any[] = [];
-      pedidosData.forEach(pedido => {
-        pedido.pagosRealizados?.forEach(pago => {
-          allPagos.push({
-            ...pago,
-            clienteName: pedido.cliente.name,
-            pedidoId: pedido.id,
-          });
-        });
-      });
-      setPagos(allPagos.sort((a, b) => {
-        // Manejar tanto Date como Timestamp de Firebase
-        const fechaA = a.fecha instanceof Date ? a.fecha : a.fecha.toDate();
-        const fechaB = b.fecha instanceof Date ? b.fecha : b.fecha.toDate();
-        return fechaB.getTime() - fechaA.getTime();
-      }));
       
       console.log('✅ Datos simplificados cargados correctamente');
       
@@ -569,31 +550,6 @@ const Dashboard: React.FC = () => {
         </div>
             </div>
 
-      {/* Pagos Recibidos */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-          <BanknotesIcon className="h-6 w-6 mr-2 text-yellow-600" />
-          Pagos Recibidos
-        </h2>
-        <div className="space-y-4">
-          {pagos.length === 0 ? (
-            <p className="text-gray-500">No hay pagos registrados.</p>
-          ) : (
-            pagos.map((pago, index) => (
-              <div key={index} className="flex items-center justify-between border-b border-gray-200 pb-2 last:border-b-0 last:pb-0">
-                <div className="flex items-center space-x-3">
-                  <span
-                    className={`h-3 w-3 rounded-full ${pago.medioPago === 'efectivo' ? 'bg-green-500' : pago.medioPago === 'nequi' ? 'bg-blue-500' : 'bg-purple-500'}`}
-                  ></span>
-                  <p className="text-gray-700 font-medium capitalize">{pago.medioPago} {pago.isPartial ? 'Abono' : ''}</p>
-                  <p className="text-sm text-gray-500">{pago.clienteName}</p>
-                  </div>
-                <p className="text-gray-900 font-semibold">{formatCurrency(pago.monto)}</p>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
 
       {/* Pedidos Pendientes */}
       <PedidosPendientes

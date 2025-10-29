@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { XMarkIcon, CalendarIcon, DocumentArrowDownIcon } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../utils/dateUtils';
 import { MovimientoSaldo } from '../services/movimientosSaldosService';
+import { ExportService, DatosExportacion } from '../services/exportService';
 
 interface ModalHistorialSaldosProps {
   isOpen: boolean;
@@ -178,13 +179,41 @@ const ModalHistorialSaldos: React.FC<ModalHistorialSaldosProps> = ({
   };
 
   const exportarPDF = () => {
-    // TODO: Implementar exportación a PDF
-    console.log('Exportar PDF - Pendiente de implementar');
+    try {
+      const datosExportacion: DatosExportacion = {
+        tipoSaldo,
+        saldoActual,
+        saldoInicial,
+        movimientos: movimientosFiltrados,
+        filtroFecha,
+        fechaInicio: filtroFecha === 'personalizado' ? fechaInicio : undefined,
+        fechaFin: filtroFecha === 'personalizado' ? fechaFin : undefined
+      };
+
+      ExportService.exportarPDF(datosExportacion);
+    } catch (error) {
+      console.error('Error al exportar PDF:', error);
+      alert('Error al generar el PDF. Inténtalo de nuevo.');
+    }
   };
 
   const exportarExcel = () => {
-    // TODO: Implementar exportación a Excel
-    console.log('Exportar Excel - Pendiente de implementar');
+    try {
+      const datosExportacion: DatosExportacion = {
+        tipoSaldo,
+        saldoActual,
+        saldoInicial,
+        movimientos: movimientosFiltrados,
+        filtroFecha,
+        fechaInicio: filtroFecha === 'personalizado' ? fechaInicio : undefined,
+        fechaFin: filtroFecha === 'personalizado' ? fechaFin : undefined
+      };
+
+      ExportService.exportarExcel(datosExportacion);
+    } catch (error) {
+      console.error('Error al exportar Excel:', error);
+      alert('Error al generar el Excel. Inténtalo de nuevo.');
+    }
   };
 
   const formatearFecha = (fecha: Date) => {

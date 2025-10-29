@@ -23,26 +23,26 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, logout, tienePermiso } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
-  const navigation = [
-    { name: 'Dashboard', href: '/', icon: HomeIcon },
-    { name: 'Clientes', href: '/clientes', icon: UserGroupIcon },
-    { name: 'Servicios', href: '/pedidos', icon: ClipboardDocumentListIcon },
-    { name: 'Pagos', href: '/pagos', icon: CurrencyDollarIcon },
-    { name: 'Inventario', href: '/inventario', icon: CubeIcon },
-    { name: 'Gastos', href: '/gastos', icon: CurrencyDollarIcon },
-    { name: 'Reportes', href: '/reportes', icon: ChartBarIcon },
-    { name: 'Capital', href: '/capital', icon: CurrencyDollarIcon },
-    { name: 'Auditoría', href: '/auditoria', icon: ClipboardDocumentListIcon },
+  // Construir navegación basada en permisos
+  const allNavigationItems = [
+    { name: 'Dashboard', href: '/', icon: HomeIcon, permiso: 'verDashboard' as const },
+    { name: 'Clientes', href: '/clientes', icon: UserGroupIcon, permiso: 'verClientes' as const },
+    { name: 'Servicios', href: '/pedidos', icon: ClipboardDocumentListIcon, permiso: 'verPedidos' as const },
+    { name: 'Pagos', href: '/pagos', icon: CurrencyDollarIcon, permiso: 'verPagos' as const },
+    { name: 'Inventario', href: '/inventario', icon: CubeIcon, permiso: 'verInventario' as const },
+    { name: 'Gastos', href: '/gastos', icon: CurrencyDollarIcon, permiso: 'verGastos' as const },
+    { name: 'Reportes', href: '/reportes', icon: ChartBarIcon, permiso: 'verReportes' as const },
+    { name: 'Capital', href: '/capital', icon: CurrencyDollarIcon, permiso: 'verCapital' as const },
+    { name: 'Auditoría', href: '/auditoria', icon: ClipboardDocumentListIcon, permiso: 'verAuditoria' as const },
+    { name: 'Configuración', href: '/configuracion', icon: Cog6ToothIcon, permiso: 'verConfiguracion' as const },
   ];
 
-  // Solo mostrar configuración a administradores
-  if (user?.role === 'admin') {
-    navigation.push({ name: 'Configuración', href: '/configuracion', icon: Cog6ToothIcon });
-  }
+  // Filtrar navegación según permisos
+  const navigation = allNavigationItems.filter(item => tienePermiso(item.permiso));
 
   // Función para determinar si un elemento está activo
   const isActive = (href: string) => {

@@ -6,17 +6,23 @@ import {
   onAuthStateChanged,
   createUserWithEmailAndPassword
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
-import { User } from '../types';
+import { User, Permisos } from '../types';
+import { permisosAdmin, permisosPorDefectoOperador, permisosPorDefectoManager } from '../services/usuarioService';
+import { auditoriaService } from '../services/auditoriaService';
 
 interface AuthContextType {
   user: User | null;
   firebaseUser: FirebaseUser | null;
   loading: boolean;
+  permisos: Permisos;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  createUser: (email: string, password: string, name: string, role: 'admin' | 'empleado') => Promise<void>;
+  tienePermiso: (permiso: keyof Permisos) => boolean;
+  esAdmin: () => boolean;
+  esManager: () => boolean;
+  esOperador: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -37,6 +43,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [permisos, setPermisos] = useState<Permisos>(permisosPorDefectoOperador);
+
+  // Función para calcular permisos según el rol del usuario
+  const calcularPermisos = (user: User | null): Permisos => {
+    if (!user || !user.isActive) {
+      return permisosPorDefectoOperador; // Permisos mínimos
+    }
+
+    if (user.role === 'admin') {
+      return permisosAdmin;
+    }
+
+    if (user.role === 'operador') {
+      return permisosPorDefectoOperador;
+    }
+
+    // Manager: usar permisos específicos o por defecto del manager
+    if (user.role === 'manager') {
+      return user.permisos || permisosPorDefectoManager;
+    }
+
+    return permisosPorDefectoOperador;
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -51,19 +80,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (userDoc.exists()) {
           const userData = userDoc.data();
           console.log('Datos del usuario:', userData);
-          setUser({
+          
+          const usuario: User = {
             id: firebaseUser.uid,
             email: firebaseUser.email!,
             name: userData.name,
             role: userData.role,
+            permisos: userData.permisos,
             createdAt: userData.createdAt?.toDate() || new Date(),
-            isActive: userData.isActive
+            isActive: userData.isActive ?? true,
+            updatedAt: userData.updatedAt?.toDate(),
+            updatedBy: userData.updatedBy
+          };
+
+          setUser(usuario);
+          
+          // Calcular y establecer permisos
+          const permisosCalculados = calcularPermisos(usuario);
+          setPermisos(permisosCalculados);
+          
+          // Guardar usuario en localStorage para auditoría
+          auditoriaService.setCurrentUser({
+            id: usuario.id,
+            name: usuario.name,
+            email: usuario.email
           });
         } else {
           console.log('Usuario no encontrado en Firestore');
+          setUser(null);
+          setPermisos(permisosPorDefectoOperador);
+          auditoriaService.setCurrentUser(null);
         }
       } else {
         setUser(null);
+        setPermisos(permisosPorDefectoOperador);
+        auditoriaService.setCurrentUser(null);
       }
       
       setLoading(false);
@@ -86,42 +137,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = async () => {
     try {
       await signOut(auth);
+      auditoriaService.setCurrentUser(null);
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
       throw error;
     }
   };
 
-  const createUser = async (
-    email: string, 
-    password: string, 
-    name: string, 
-    role: 'admin' | 'empleado'
-  ) => {
-    try {
-      const { user: newUser } = await createUserWithEmailAndPassword(auth, email, password);
-      
-      // Crear documento de usuario en Firestore
-      await setDoc(doc(db, 'users', newUser.uid), {
-        email: newUser.email,
-        name,
-        role,
-        isActive: true,
-        createdAt: new Date()
-      });
-    } catch (error) {
-      console.error('Error al crear usuario:', error);
-      throw error;
-    }
+  // Funciones helper para verificar permisos
+  const tienePermiso = (permiso: keyof Permisos): boolean => {
+    return permisos[permiso] === true;
+  };
+
+  const esAdmin = (): boolean => {
+    return user?.role === 'admin';
+  };
+
+  const esManager = (): boolean => {
+    return user?.role === 'manager';
+  };
+
+  const esOperador = (): boolean => {
+    return user?.role === 'operador';
   };
 
   const value: AuthContextType = {
     user,
     firebaseUser,
     loading,
+    permisos,
     login,
     logout,
-    createUser
+    tienePermiso,
+    esAdmin,
+    esManager,
+    esOperador
   };
 
   return (

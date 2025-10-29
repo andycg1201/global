@@ -5,49 +5,46 @@ import {
   EyeIcon,
   CalendarIcon,
   UserIcon,
-  ClipboardDocumentListIcon
+  ClipboardDocumentListIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
-import { Pedido } from '../types';
-import { pedidoService } from '../services/firebaseService';
-import { formatDate, formatCurrency } from '../utils/dateUtils';
+import { Auditoria as AuditoriaType, TipoAccionAuditoria } from '../types';
+import { auditoriaService } from '../services/auditoriaService';
+import { formatDate } from '../utils/dateUtils';
 import { useAuth } from '../contexts/AuthContext';
-import ModalDetallesServicio from '../components/ModalDetallesServicio';
 
 const Auditoria: React.FC = () => {
-  const { firebaseUser } = useAuth();
+  const { firebaseUser, esAdmin } = useAuth();
   
   // Estados
   const [loading, setLoading] = useState(true);
-  const [serviciosEliminados, setServiciosEliminados] = useState<Pedido[]>([]);
-  const [serviciosFiltrados, setServiciosFiltrados] = useState<Pedido[]>([]);
-  const [mostrarModalDetalles, setMostrarModalDetalles] = useState(false);
-  const [servicioSeleccionado, setServicioSeleccionado] = useState<Pedido | null>(null);
+  const [registrosAuditoria, setRegistrosAuditoria] = useState<AuditoriaType[]>([]);
+  const [registrosFiltrados, setRegistrosFiltrados] = useState<AuditoriaType[]>([]);
   
   // Estados de filtros
   const [filtroTexto, setFiltroTexto] = useState('');
   const [filtroFechaInicio, setFiltroFechaInicio] = useState('');
   const [filtroFechaFin, setFiltroFechaFin] = useState('');
-  const [filtroCliente, setFiltroCliente] = useState('');
-  const [filtroEstado, setFiltroEstado] = useState('todos');
+  const [filtroUsuario, setFiltroUsuario] = useState('');
+  const [filtroAccion, setFiltroAccion] = useState<TipoAccionAuditoria | 'todos'>('todos');
+  const [filtroEntidad, setFiltroEntidad] = useState('todos');
 
-  // Cargar servicios eliminados
-  const cargarServiciosEliminados = async () => {
+  // Cargar registros de auditoría
+  const cargarRegistrosAuditoria = async () => {
     try {
       setLoading(true);
-      console.log('🔍 Cargando servicios eliminados...');
+      console.log('🔍 Cargando registros de auditoría...');
       
-      const todosLosPedidos = await pedidoService.getAllPedidosConEliminados();
-      const eliminados = todosLosPedidos.filter(pedido => pedido.eliminado === true);
+      const registros = await auditoriaService.obtenerRegistrosAuditoria();
       
-      console.log('📊 Total pedidos obtenidos:', todosLosPedidos.length);
-      console.log('📊 Servicios eliminados encontrados:', eliminados.length);
-      console.log('📊 Detalles de eliminados:', eliminados);
+      console.log('📊 Total registros obtenidos:', registros.length);
       
-      setServiciosEliminados(eliminados);
-      setServiciosFiltrados(eliminados);
+      setRegistrosAuditoria(registros);
+      setRegistrosFiltrados(registros);
       
     } catch (error) {
-      console.error('❌ Error al cargar servicios eliminados:', error);
+      console.error('❌ Error al cargar registros de auditoría:', error);
+      alert('Error al cargar registros de auditoría: ' + (error instanceof Error ? error.message : 'Error desconocido'));
     } finally {
       setLoading(false);
     }
@@ -55,84 +52,119 @@ const Auditoria: React.FC = () => {
 
   // Aplicar filtros
   const aplicarFiltros = () => {
-    let filtrados = [...serviciosEliminados];
+    let filtrados = [...registrosAuditoria];
 
-    // Filtro por texto (cliente, plan, etc.)
+    // Filtro por texto (busca en detalles, usuario, entidad)
     if (filtroTexto) {
-      filtrados = filtrados.filter(servicio =>
-        servicio.cliente.name.toLowerCase().includes(filtroTexto.toLowerCase()) ||
-        servicio.plan.name.toLowerCase().includes(filtroTexto.toLowerCase()) ||
-        servicio.id.toLowerCase().includes(filtroTexto.toLowerCase())
+      const texto = filtroTexto.toLowerCase();
+      filtrados = filtrados.filter(registro => 
+        registro.detalles.toLowerCase().includes(texto) ||
+        registro.usuarioNombre.toLowerCase().includes(texto) ||
+        registro.entidadTipo.toLowerCase().includes(texto)
       );
     }
 
-    // Filtro por cliente
-    if (filtroCliente) {
-      filtrados = filtrados.filter(servicio =>
-        servicio.cliente.name.toLowerCase().includes(filtroCliente.toLowerCase())
-      );
-    }
-
-    // Filtro por fecha de eliminación
+    // Filtro por fecha
     if (filtroFechaInicio) {
       const fechaInicio = new Date(filtroFechaInicio);
-      filtrados = filtrados.filter(servicio => {
-        const fechaEliminacion = servicio.fechaEliminacion instanceof Date 
-          ? servicio.fechaEliminacion 
-          : (servicio.fechaEliminacion ? new Date(servicio.fechaEliminacion) : new Date());
-        return fechaEliminacion >= fechaInicio;
-      });
+      fechaInicio.setHours(0, 0, 0, 0);
+      filtrados = filtrados.filter(registro => 
+        registro.fecha >= fechaInicio
+      );
     }
 
     if (filtroFechaFin) {
       const fechaFin = new Date(filtroFechaFin);
       fechaFin.setHours(23, 59, 59, 999);
-      filtrados = filtrados.filter(servicio => {
-        const fechaEliminacion = servicio.fechaEliminacion instanceof Date 
-          ? servicio.fechaEliminacion 
-          : (servicio.fechaEliminacion ? new Date(servicio.fechaEliminacion) : new Date());
-        return fechaEliminacion <= fechaFin;
-      });
+      filtrados = filtrados.filter(registro => 
+        registro.fecha <= fechaFin
+      );
     }
 
-    // Filtro por estado original
-    if (filtroEstado !== 'todos') {
-      filtrados = filtrados.filter(servicio => servicio.status === filtroEstado);
+    // Filtro por usuario
+    if (filtroUsuario) {
+      filtrados = filtrados.filter(registro => 
+        registro.usuarioNombre.toLowerCase().includes(filtroUsuario.toLowerCase())
+      );
     }
 
-    setServiciosFiltrados(filtrados);
+    // Filtro por acción
+    if (filtroAccion !== 'todos') {
+      filtrados = filtrados.filter(registro => 
+        registro.tipoAccion === filtroAccion
+      );
+    }
+
+    // Filtro por entidad
+    if (filtroEntidad !== 'todos') {
+      filtrados = filtrados.filter(registro => 
+        registro.entidadTipo === filtroEntidad
+      );
+    }
+
+    // Ordenar por fecha más reciente
+    filtrados.sort((a, b) => b.fecha.getTime() - a.fecha.getTime());
+
+    setRegistrosFiltrados(filtrados);
   };
 
-  // Limpiar filtros
-  const limpiarFiltros = () => {
-    setFiltroTexto('');
-    setFiltroFechaInicio('');
-    setFiltroFechaFin('');
-    setFiltroCliente('');
-    setFiltroEstado('todos');
-    setServiciosFiltrados(serviciosEliminados);
-  };
-
-  // Abrir modal de detalles
-  const abrirDetalles = (servicio: Pedido) => {
-    setServicioSeleccionado(servicio);
-    setMostrarModalDetalles(true);
-  };
-
-  // Cerrar modal
-  const cerrarModal = () => {
-    setMostrarModalDetalles(false);
-    setServicioSeleccionado(null);
-  };
-
-  // Efectos
-  useEffect(() => {
-    cargarServiciosEliminados();
-  }, []);
-
+  // Efecto para aplicar filtros
   useEffect(() => {
     aplicarFiltros();
-  }, [filtroTexto, filtroFechaInicio, filtroFechaFin, filtroCliente, filtroEstado, serviciosEliminados]);
+  }, [filtroTexto, filtroFechaInicio, filtroFechaFin, filtroUsuario, filtroAccion, filtroEntidad, registrosAuditoria]);
+
+  // Cargar datos al montar el componente
+  useEffect(() => {
+    cargarRegistrosAuditoria();
+  }, []);
+
+  // Función para obtener el color del badge según el tipo de acción
+  const getAccionColor = (accion: TipoAccionAuditoria) => {
+    switch (accion) {
+      case 'crear_servicio':
+        return 'bg-green-100 text-green-800';
+      case 'modificar_servicio':
+        return 'bg-blue-100 text-blue-800';
+      case 'entregar_servicio':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'recoger_servicio':
+        return 'bg-purple-100 text-purple-800';
+      case 'eliminar_servicio':
+        return 'bg-red-100 text-red-800';
+      case 'registrar_pago':
+        return 'bg-emerald-100 text-emerald-800';
+      case 'gestionar_inventario':
+        return 'bg-indigo-100 text-indigo-800';
+      case 'gestionar_capital':
+        return 'bg-orange-100 text-orange-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  // Función para obtener el texto legible de la acción
+  const getAccionTexto = (accion: TipoAccionAuditoria) => {
+    switch (accion) {
+      case 'crear_servicio':
+        return 'Crear Servicio';
+      case 'modificar_servicio':
+        return 'Modificar Servicio';
+      case 'entregar_servicio':
+        return 'Entregar Servicio';
+      case 'recoger_servicio':
+        return 'Recoger Servicio';
+      case 'eliminar_servicio':
+        return 'Eliminar Servicio';
+      case 'registrar_pago':
+        return 'Registrar Pago';
+      case 'gestionar_inventario':
+        return 'Gestionar Inventario';
+      case 'gestionar_capital':
+        return 'Gestionar Capital';
+      default:
+        return accion;
+    }
+  };
 
   if (loading) {
     return (
@@ -147,237 +179,231 @@ const Auditoria: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Auditoría de Servicios</h1>
-          <p className="text-gray-600">Historial de servicios eliminados y modificaciones</p>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-3xl font-bold text-primary-800">Auditoría del Sistema</h1>
+          <p className="text-gray-600">Registro completo de todas las acciones realizadas en el sistema</p>
         </div>
+        <button
+          onClick={cargarRegistrosAuditoria}
+          className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
+        >
+          <ArrowPathIcon className="h-5 w-5 mr-2" />
+          Recargar
+        </button>
+      </div>
 
-        {/* Filtros */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-              <FunnelIcon className="h-5 w-5 mr-2 text-primary-600" />
-              Filtros de Búsqueda
-            </h2>
-            <button
-              onClick={limpiarFiltros}
-              className="text-sm text-primary-600 hover:text-primary-700 font-medium"
-            >
-              Limpiar filtros
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Búsqueda general */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Búsqueda general
-              </label>
-              <div className="relative">
-                <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  value={filtroTexto}
-                  onChange={(e) => setFiltroTexto(e.target.value)}
-                  placeholder="Cliente, plan, ID..."
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-            </div>
-
-            {/* Filtro por cliente */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Cliente
-              </label>
-              <div className="relative">
-                <UserIcon className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  value={filtroCliente}
-                  onChange={(e) => setFiltroCliente(e.target.value)}
-                  placeholder="Nombre del cliente"
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-            </div>
-
-            {/* Filtro por fecha inicio */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Fecha eliminación desde
-              </label>
-              <div className="relative">
-                <CalendarIcon className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="date"
-                  value={filtroFechaInicio}
-                  onChange={(e) => setFiltroFechaInicio(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-            </div>
-
-            {/* Filtro por fecha fin */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Fecha eliminación hasta
-              </label>
-              <div className="relative">
-                <CalendarIcon className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="date"
-                  value={filtroFechaFin}
-                  onChange={(e) => setFiltroFechaFin(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Filtro por estado */}
-          <div className="mt-4">
+      {/* Filtros */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="flex items-center mb-4">
+          <FunnelIcon className="h-6 w-6 text-gray-500 mr-2" />
+          <h2 className="text-lg font-semibold text-gray-800">Filtros</h2>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          {/* Búsqueda por texto */}
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Estado original del servicio
+              Búsqueda
+            </label>
+            <div className="relative">
+              <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={filtroTexto}
+                onChange={(e) => setFiltroTexto(e.target.value)}
+                placeholder="Buscar en detalles..."
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+          </div>
+
+          {/* Filtro por fecha inicio */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Fecha Inicio
+            </label>
+            <input
+              type="date"
+              value={filtroFechaInicio}
+              onChange={(e) => setFiltroFechaInicio(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+
+          {/* Filtro por fecha fin */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Fecha Fin
+            </label>
+            <input
+              type="date"
+              value={filtroFechaFin}
+              onChange={(e) => setFiltroFechaFin(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+
+          {/* Filtro por usuario */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Usuario
+            </label>
+            <input
+              type="text"
+              value={filtroUsuario}
+              onChange={(e) => setFiltroUsuario(e.target.value)}
+              placeholder="Nombre del usuario..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
+
+          {/* Filtro por acción */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Acción
             </label>
             <select
-              value={filtroEstado}
-              onChange={(e) => setFiltroEstado(e.target.value)}
-              className="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+              value={filtroAccion}
+              onChange={(e) => setFiltroAccion(e.target.value as TipoAccionAuditoria | 'todos')}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
-              <option value="todos">Todos los estados</option>
-              <option value="pendiente">Pendiente</option>
-              <option value="entregado">Entregado</option>
-              <option value="recogido">Recogido</option>
-              <option value="cancelado">Cancelado</option>
+              <option value="todos">Todas las acciones</option>
+              <option value="crear_servicio">Crear Servicio</option>
+              <option value="modificar_servicio">Modificar Servicio</option>
+              <option value="entregar_servicio">Entregar Servicio</option>
+              <option value="recoger_servicio">Recoger Servicio</option>
+              <option value="eliminar_servicio">Eliminar Servicio</option>
+              <option value="registrar_pago">Registrar Pago</option>
+              <option value="gestionar_inventario">Gestionar Inventario</option>
+              <option value="gestionar_capital">Gestionar Capital</option>
+            </select>
+          </div>
+
+          {/* Filtro por entidad */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Entidad
+            </label>
+            <select
+              value={filtroEntidad}
+              onChange={(e) => setFiltroEntidad(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="todos">Todas las entidades</option>
+              <option value="pedido">Pedido</option>
+              <option value="modificacion">Modificación</option>
+              <option value="cliente">Cliente</option>
+              <option value="lavadora">Lavadora</option>
+              <option value="gasto">Gasto</option>
+              <option value="capital">Capital</option>
             </select>
           </div>
         </div>
+      </div>
 
-        {/* Resumen */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-800">
-                Servicios Eliminados
-              </h3>
-              <p className="text-gray-600">
-                {serviciosFiltrados.length} de {serviciosEliminados.length} servicios
-              </p>
-            </div>
-            <div className="flex items-center text-sm text-gray-500">
-              <ClipboardDocumentListIcon className="h-5 w-5 mr-2" />
-              Historial de auditoría
-            </div>
+      {/* Resumen */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-800">Resumen</h2>
+            <p className="text-gray-600">
+              Mostrando {registrosFiltrados.length} de {registrosAuditoria.length} registros
+            </p>
           </div>
-        </div>
-
-        {/* Tabla de servicios eliminados */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          {serviciosFiltrados.length === 0 ? (
-            <div className="text-center py-12">
-              <ClipboardDocumentListIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {serviciosEliminados.length === 0 ? 'No hay servicios eliminados' : 'No se encontraron servicios'}
-              </h3>
-              <p className="text-gray-500">
-                {serviciosEliminados.length === 0 
-                  ? 'Los servicios eliminados aparecerán aquí para auditoría'
-                  : 'Intenta ajustar los filtros de búsqueda'
-                }
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Cliente
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Plan
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Estado Original
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Fecha Eliminación
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Total
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Acciones
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {serviciosFiltrados.map((servicio) => (
-                    <tr key={servicio.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {servicio.cliente.name}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {servicio.plan.name}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {formatCurrency(servicio.plan.price || 0)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          servicio.status === 'entregado' ? 'bg-green-100 text-green-800' :
-                          servicio.status === 'recogido' ? 'bg-blue-100 text-blue-800' :
-                          servicio.status === 'pendiente' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {servicio.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {servicio.fechaEliminacion ? 
-                          formatDate(servicio.fechaEliminacion instanceof Date ? 
-                            servicio.fechaEliminacion : 
-                            new Date(servicio.fechaEliminacion)
-                          ) : 
-                          'N/A'
-                        }
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatCurrency(servicio.total || 0)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button
-                          onClick={() => abrirDetalles(servicio)}
-                          className="text-primary-600 hover:text-primary-900 flex items-center"
-                        >
-                          <EyeIcon className="h-4 w-4 mr-1" />
-                          Ver detalles
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Modal de detalles */}
-      {mostrarModalDetalles && servicioSeleccionado && (
-        <ModalDetallesServicio
-          isOpen={mostrarModalDetalles}
-          onClose={cerrarModal}
-          pedido={servicioSeleccionado}
-        />
-      )}
+      {/* Lista de registros */}
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        {registrosFiltrados.length === 0 ? (
+          <div className="text-center py-12">
+            <ClipboardDocumentListIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-500 text-lg">No se encontraron registros de auditoría</p>
+            <p className="text-gray-400 text-sm">Ajusta los filtros para ver más resultados</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Fecha y Hora
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Usuario
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Acción
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Entidad
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Detalles
+                  </th>
+                  {esAdmin() && (
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Cambios
+                    </th>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {registrosFiltrados.map((registro, index) => (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <div className="flex items-center">
+                        <CalendarIcon className="h-4 w-4 text-gray-400 mr-2" />
+                        {formatDate(registro.fecha)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <div className="flex items-center">
+                        <UserIcon className="h-4 w-4 text-gray-400 mr-2" />
+                        {registro.usuarioNombre}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getAccionColor(registro.tipoAccion)}`}>
+                        {getAccionTexto(registro.tipoAccion)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {registro.entidadTipo}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 max-w-xs">
+                      <div className="truncate" title={registro.detalles}>
+                        {registro.detalles}
+                      </div>
+                    </td>
+                    {esAdmin() && (
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {registro.valoresAnteriores || registro.valoresNuevos ? (
+                          <div className="text-xs">
+                            {registro.valoresAnteriores && (
+                              <div className="text-red-600 mb-1">
+                                <strong>Antes:</strong> {JSON.stringify(registro.valoresAnteriores, null, 2)}
+                              </div>
+                            )}
+                            {registro.valoresNuevos && (
+                              <div className="text-green-600">
+                                <strong>Después:</strong> {JSON.stringify(registro.valoresNuevos, null, 2)}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

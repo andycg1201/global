@@ -1,11 +1,109 @@
+// Tipos de permisos granulares
+export interface Permisos {
+  // Navegación y secciones principales
+  verDashboard: boolean;
+  verPedidos: boolean;
+  verClientes: boolean;
+  verInventario: boolean;
+  verGastos: boolean;
+  verCapital: boolean;
+  verReportes: boolean;
+  verConfiguracion: boolean;
+  verAuditoria: boolean;
+  verPagos: boolean; // Nueva sección de pagos
+  
+  // Acciones en servicios
+  crearServicios: boolean;
+  modificarServicios: boolean;
+  eliminarServicios: boolean;
+  entregarServicios: boolean;
+  recogerServicios: boolean;
+  
+  // Acciones en clientes
+  crearClientes: boolean;
+  editarClientes: boolean;
+  eliminarClientes: boolean;
+  
+  // Acciones en inventario
+  gestionarInventario: boolean; // crear, editar, eliminar lavadoras
+  
+  // Acciones en gastos
+  crearGastos: boolean;
+  eliminarGastos: boolean; // Solo eliminar, no editar
+  
+  // Acciones en pagos
+  crearPagos: boolean;
+  eliminarPagos: boolean;
+  
+  // Acciones en capital
+  gestionarCapital: boolean; // movimientos, capital inicial
+  
+  // Acciones en reportes
+  exportarReportes: boolean;
+  verFiltrosReportes: boolean; // solo para ver filtros avanzados (operador solo ve "hoy")
+  
+  // Gestión de usuarios
+  gestionarUsuarios: boolean;
+  
+  // Ver indicadores de auditoría
+  verIndicadoresAuditoria: boolean;
+}
+
 // Tipos de usuario
+export type UserRole = 'admin' | 'manager' | 'operador';
+
 export interface User {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'empleado';
+  role: UserRole;
+  permisos?: Permisos; // Solo para manager, admin tiene todos los permisos
   createdAt: Date;
   isActive: boolean;
+  updatedAt?: Date;
+  updatedBy?: string; // ID del usuario que lo actualizó
+}
+
+// Tipo para acciones de auditoría
+export type TipoAccionAuditoria = 
+  | 'crear_servicio'
+  | 'modificar_servicio'
+  | 'eliminar_servicio'
+  | 'entregar_servicio'
+  | 'recoger_servicio'
+  | 'crear_cliente'
+  | 'editar_cliente'
+  | 'eliminar_cliente'
+  | 'crear_gasto'
+  | 'editar_gasto'
+  | 'eliminar_gasto'
+  | 'registrar_pago'
+  | 'modificar_pago'
+  | 'crear_lavadora'
+  | 'editar_lavadora'
+  | 'eliminar_lavadora'
+  | 'gestionar_capital'
+  | 'gestionar_inventario'
+  | 'crear_usuario'
+  | 'editar_usuario'
+  | 'eliminar_usuario'
+  | 'restablecer_contraseña';
+
+// Registro de auditoría
+export interface Auditoria {
+  id: string;
+  usuarioId: string;
+  usuarioNombre: string;
+  usuarioEmail: string;
+  tipoAccion: TipoAccionAuditoria;
+  entidadId: string; // ID de la entidad afectada (pedido, cliente, etc.)
+  entidadTipo: string; // 'pedido', 'cliente', 'gasto', etc.
+  detalles: string; // Descripción detallada de la acción
+  valoresAnteriores?: Record<string, any>; // Valores antes del cambio
+  valoresNuevos?: Record<string, any>; // Valores después del cambio
+  fecha: Date;
+  ip?: string;
+  userAgent?: string;
 }
 
 // Tipos de planes

@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { pedidoService } from '../services/firebaseService';
 import { formatDate, formatCurrency, getCurrentDateColombia } from '../utils/dateUtils';
+import { useAuth } from '../contexts/AuthContext';
 
 interface PagoCompleto {
   id: string;
@@ -34,6 +35,7 @@ interface FiltrosPagos {
 }
 
 const Pagos: React.FC = () => {
+  const { esOperador, tienePermiso } = useAuth();
   const [pagos, setPagos] = useState<PagoCompleto[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtros, setFiltros] = useState<FiltrosPagos>({
@@ -51,6 +53,18 @@ const Pagos: React.FC = () => {
   useEffect(() => {
     cargarPagos();
   }, [filtros]);
+
+  // Asegurar que operadores no puedan usar filtro personalizado
+  useEffect(() => {
+    if (esOperador() && filtros.tipo === 'personalizado') {
+      setFiltros(prev => ({
+        ...prev,
+        tipo: 'hoy',
+        fechaInicio: getCurrentDateColombia(),
+        fechaFin: getCurrentDateColombia()
+      }));
+    }
+  }, [esOperador, filtros.tipo]);
 
   const cargarPagos = async () => {
     setLoading(true);
@@ -367,12 +381,12 @@ const Pagos: React.FC = () => {
               <option value="todos">Todos</option>
               <option value="hoy">Hoy</option>
               <option value="ayer">Ayer</option>
-              <option value="personalizado">Rango Personalizado</option>
+              {!esOperador() && <option value="personalizado">Rango Personalizado</option>}
             </select>
           </div>
 
-          {/* Fechas personalizadas */}
-          {filtros.tipo === 'personalizado' && (
+          {/* Fechas personalizadas - Solo para no operadores */}
+          {filtros.tipo === 'personalizado' && !esOperador() && (
             <div className="flex items-center space-x-2">
               <input
                 type="date"
@@ -476,15 +490,17 @@ const Pagos: React.FC = () => {
                         Saldo: {formatCurrency(pago.saldoAnterior)} → {formatCurrency(pago.saldoNuevo)}
                       </p>
                     </div>
-                    <div className="flex items-center space-x-1">
-                      <button
-                        onClick={() => eliminarPago(pago)}
-                        className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Eliminar pago"
-                      >
-                        <TrashIcon className="h-4 w-4" />
-                      </button>
-                    </div>
+                    {tienePermiso('eliminarPagos') && (
+                      <div className="flex items-center space-x-1">
+                        <button
+                          onClick={() => eliminarPago(pago)}
+                          className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Eliminar pago"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

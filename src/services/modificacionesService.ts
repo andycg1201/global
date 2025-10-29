@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { ModificacionServicio } from '../types';
+import { auditoriaService } from './auditoriaService';
 
 export class ModificacionesService {
   /**
@@ -40,11 +41,45 @@ export class ModificacionesService {
           updatedAt: Timestamp.fromDate(new Date())
         });
         console.log('ModificacionesService - Modificación actualizada exitosamente');
+        
+        // Registrar auditoría
+        await auditoriaService.logAuditoria(
+          'modificar_servicio',
+          'modificacion',
+          modificacionExistente.id,
+          `Modificaciones de servicio actualizadas - Pedido: ${data.pedidoId}`,
+          {
+            horasExtras: modificacionExistente.horasExtras,
+            cobrosAdicionales: modificacionExistente.cobrosAdicionales,
+            descuentos: modificacionExistente.descuentos
+          },
+          {
+            horasExtras: data.horasExtras,
+            cobrosAdicionales: data.cobrosAdicionales,
+            descuentos: data.descuentos
+          }
+        );
+        
         return modificacionExistente.id;
       } else {
         // Crear nueva modificación
         const docRef = await addDoc(collection(db, 'modificacionesServicios'), modificacionData);
         console.log('ModificacionesService - Modificación creada con ID:', docRef.id);
+        
+        // Registrar auditoría
+        await auditoriaService.logAuditoria(
+          'modificar_servicio',
+          'modificacion',
+          docRef.id,
+          `Modificaciones de servicio creadas - Pedido: ${data.pedidoId}`,
+          undefined,
+          {
+            horasExtras: data.horasExtras,
+            cobrosAdicionales: data.cobrosAdicionales,
+            descuentos: data.descuentos
+          }
+        );
+        
         return docRef.id;
       }
     } catch (error) {

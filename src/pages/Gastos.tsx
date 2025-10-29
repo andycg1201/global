@@ -23,7 +23,7 @@ interface FiltrosGastos {
 }
 
 const Gastos: React.FC = () => {
-  const { user } = useAuth();
+  const { user, esOperador, tienePermiso } = useAuth();
   const [gastos, setGastos] = useState<Gasto[]>([]);
   const [gastosMantenimiento, setGastosMantenimiento] = useState<any[]>([]);
   const [conceptos, setConceptos] = useState<ConceptoGasto[]>([]);
@@ -66,6 +66,19 @@ const Gastos: React.FC = () => {
     cargarDatos();
     cargarSaldos();
   }, [filtros]);
+
+  // Asegurar que operadores no puedan usar filtro personalizado
+  useEffect(() => {
+    if (esOperador() && filtros.tipoFiltro === 'personalizado') {
+      const hoy = getCurrentDateColombia();
+      setFiltros(prev => ({
+        ...prev,
+        tipoFiltro: 'hoy',
+        fechaInicio: hoy,
+        fechaFin: hoy
+      }));
+    }
+  }, [esOperador, filtros.tipoFiltro]);
 
   // Actualizar medios disponibles cuando se abra el formulario
   useEffect(() => {
@@ -796,37 +809,41 @@ const Gastos: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Fecha Inicio
-            </label>
-            <input
-              type="date"
-              className="input"
-              value={filtros.fechaInicio.toISOString().split('T')[0]}
-              onChange={(e) => setFiltros(prev => ({ 
-                ...prev, 
-                fechaInicio: new Date(e.target.value),
-                tipoFiltro: 'personalizado'
-              }))}
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Fecha Fin
-            </label>
-            <input
-              type="date"
-              className="input"
-              value={filtros.fechaFin.toISOString().split('T')[0]}
-              onChange={(e) => setFiltros(prev => ({ 
-                ...prev, 
-                fechaFin: new Date(e.target.value),
-                tipoFiltro: 'personalizado'
-              }))}
-            />
-          </div>
+          {!esOperador() && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Fecha Inicio
+                </label>
+                <input
+                  type="date"
+                  className="input"
+                  value={filtros.fechaInicio.toISOString().split('T')[0]}
+                  onChange={(e) => setFiltros(prev => ({ 
+                    ...prev, 
+                    fechaInicio: new Date(e.target.value),
+                    tipoFiltro: 'personalizado'
+                  }))}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Fecha Fin
+                </label>
+                <input
+                  type="date"
+                  className="input"
+                  value={filtros.fechaFin.toISOString().split('T')[0]}
+                  onChange={(e) => setFiltros(prev => ({ 
+                    ...prev, 
+                    fechaFin: new Date(e.target.value),
+                    tipoFiltro: 'personalizado'
+                  }))}
+                />
+              </div>
+            </>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -888,17 +905,19 @@ const Gastos: React.FC = () => {
                 {/* Gastos generales */}
                 {gastosFiltrados.map((gasto) => (
                   <tr key={gasto.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => eliminarGasto(gasto)}
-                        className="inline-flex items-center justify-center w-8 h-8 bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-700 rounded-full transition-colors duration-200"
-                        title="Eliminar gasto"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </td>
+                    {tienePermiso('eliminarGastos') && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button
+                          onClick={() => eliminarGasto(gasto)}
+                          className="inline-flex items-center justify-center w-8 h-8 bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-700 rounded-full transition-colors duration-200"
+                          title="Eliminar gasto"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </td>
+                    )}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
                         {gasto.concepto.name}
@@ -934,17 +953,19 @@ const Gastos: React.FC = () => {
                 {/* Gastos de mantenimiento */}
                 {gastosMantenimientoFiltrados.map((mantenimiento) => (
                   <tr key={`mant-${mantenimiento.id}`} className="hover:bg-gray-50 bg-red-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => eliminarGastoMantenimiento(mantenimiento)}
-                        className="inline-flex items-center justify-center w-8 h-8 bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-700 rounded-full transition-colors duration-200"
-                        title="Eliminar gasto de mantenimiento"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </td>
+                    {tienePermiso('eliminarGastos') && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button
+                          onClick={() => eliminarGastoMantenimiento(mantenimiento)}
+                          className="inline-flex items-center justify-center w-8 h-8 bg-red-100 hover:bg-red-200 text-red-600 hover:text-red-700 rounded-full transition-colors duration-200"
+                          title="Eliminar gasto de mantenimiento"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </td>
+                    )}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-red-800">
                         Mantenimiento - {mantenimiento.tipoFalla}

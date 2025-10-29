@@ -26,6 +26,7 @@ import type {
   ReporteDiario,
   Configuracion
 } from '../types';
+import { auditoriaService } from './auditoriaService';
 
 // ===== SERVICIOS DE PLANES =====
 export const planService = {
@@ -189,6 +190,22 @@ export const pedidoService = {
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now()
     });
+    
+    // Registrar auditoría
+    await auditoriaService.logAuditoria(
+      'crear_servicio',
+      'pedido',
+      docRef.id,
+      `Servicio creado para cliente ${pedido.cliente.name} con plan ${pedido.plan.name}`,
+      undefined,
+      {
+        cliente: pedido.cliente.name,
+        plan: pedido.plan.name,
+        total: pedido.total,
+        status: pedido.status
+      }
+    );
+    
     return docRef.id;
   },
 
@@ -196,6 +213,10 @@ export const pedidoService = {
   async updatePedido(id: string, updates: Partial<Pedido>): Promise<void> {
     console.log('🔥 updatePedido llamado con:', { id, updates });
     const docRef = doc(db, 'pedidos', id);
+    
+    // Obtener datos anteriores para auditoría
+    const docSnapshot = await getDoc(docRef);
+    const datosAnteriores = docSnapshot.exists() ? docSnapshot.data() : null;
     
     // Extraer campos de fecha para manejar por separado
     const { fechaEntrega, fechaRecogida, fechaRecogidaCalculada, ...otrosUpdates } = updates;
@@ -237,6 +258,26 @@ export const pedidoService = {
     console.log('🚀 Enviando a Firebase:', updateData);
     await updateDoc(docRef, updateData);
     console.log('✅ Actualización exitosa');
+    
+    // Registrar auditoría
+    await auditoriaService.logAuditoria(
+      'modificar_servicio',
+      'pedido',
+      id,
+      `Servicio modificado - cambios: ${Object.keys(updates).join(', ')}`,
+      datosAnteriores ? {
+        status: datosAnteriores.status,
+        total: datosAnteriores.total,
+        fechaEntrega: datosAnteriores.fechaEntrega?.toDate?.() || datosAnteriores.fechaEntrega,
+        fechaRecogida: datosAnteriores.fechaRecogida?.toDate?.() || datosAnteriores.fechaRecogida
+      } : undefined,
+      {
+        status: updates.status,
+        total: updates.total,
+        fechaEntrega: updates.fechaEntrega,
+        fechaRecogida: updates.fechaRecogida
+      }
+    );
   },
 
   // Actualizar solo el estado del pedido
@@ -292,12 +333,48 @@ export const pedidoService = {
     }
 
     await updateDoc(docRef, updateData);
+    
+    // Registrar auditoría
+    const accionAuditoria = status === 'entregado' ? 'entregar_servicio' : 
+                           status === 'recogido' ? 'recoger_servicio' : 
+                           'modificar_servicio';
+    
+    await auditoriaService.logAuditoria(
+      accionAuditoria,
+      'pedido',
+      id,
+      `Estado del servicio cambiado a: ${status}`,
+      { status: pedidoData.status },
+      { status: status }
+    );
   },
 
   // Eliminar pedido
   async deletePedido(id: string): Promise<void> {
     const docRef = doc(db, 'pedidos', id);
+    
+    // Obtener datos del pedido antes de eliminar para auditoría
+    const docSnapshot = await getDoc(docRef);
+    const pedidoData = docSnapshot.exists() ? docSnapshot.data() : null;
+    
     await deleteDoc(docRef);
+    
+    // Registrar auditoría
+    if (pedidoData) {
+      await auditoriaService.logAuditoria(
+        'eliminar_servicio',
+        'pedido',
+        id,
+        `Servicio eliminado - Cliente: ${pedidoData.cliente?.name || 'N/A'}`,
+        {
+          cliente: pedidoData.cliente?.name,
+          plan: pedidoData.plan?.name,
+          total: pedidoData.total,
+          status: pedidoData.status
+        },
+        undefined
+      );
+    }
   },
 
   // Marcar pedido como eliminado (para auditoría)

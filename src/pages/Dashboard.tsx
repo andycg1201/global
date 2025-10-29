@@ -25,7 +25,7 @@ import { entregaOperativaService } from '../services/entregaOperativaService';
 import PedidosPendientes from '../components/PedidosPendientes';
 
 const Dashboard: React.FC = () => {
-  const { firebaseUser } = useAuth();
+  const { firebaseUser, esOperador } = useAuth();
 
   // Estados básicos
   const [loading, setLoading] = useState(true);
@@ -420,7 +420,12 @@ const Dashboard: React.FC = () => {
       <div className="flex justify-between items-center mb-6">
       <div>
           <h1 className="text-3xl font-bold text-primary-800">Dashboard</h1>
-          <p className="text-gray-600">Resumen histórico completo - Todos los datos registrados</p>
+          <p className="text-gray-600">
+            {esOperador() 
+              ? 'Servicios pendientes y completados con saldo' 
+              : 'Resumen histórico completo - Todos los datos registrados'
+            }
+          </p>
         </div>
         <button
           onClick={cargarDatosSimplificados}
@@ -431,8 +436,9 @@ const Dashboard: React.FC = () => {
         </button>
       </div>
 
-      {/* Tarjetas de Resumen Financiero - Diseño Compacto */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
+      {/* Tarjetas de Resumen Financiero - Diseño Compacto (solo para admin/manager) */}
+      {!esOperador() && (
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
         {/* Capital */}
         <div className="bg-white rounded-lg shadow-md p-4 flex flex-col items-center text-center">
           <div className="flex-shrink-0 bg-purple-100 p-2 rounded-full mb-2">
@@ -491,14 +497,16 @@ const Dashboard: React.FC = () => {
         <div className="bg-white rounded-lg shadow-md p-4 flex flex-col items-center text-center">
           <div className="flex-shrink-0 bg-indigo-100 p-2 rounded-full mb-2">
             <ChartBarIcon className="h-5 w-5 text-indigo-600" />
-              </div>
+          </div>
           <p className="text-gray-500 text-xs font-medium">Cuentas por Cobrar</p>
           <p className="text-lg font-semibold text-gray-900">{formatCurrency(cuentasPorCobrar)}</p>
-            </div>
-          </div>
+        </div>
+      </div>
+      )}
 
-      {/* Saldos por Medio de Pago */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+      {/* Saldos por Medio de Pago (solo para admin/manager) */}
+      {!esOperador() && (
+        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
         <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
           <WalletIcon className="h-6 w-6 mr-2 text-primary-600" />
           Saldos por Medio de Pago
@@ -527,12 +535,12 @@ const Dashboard: React.FC = () => {
               <p className="text-purple-700 font-medium">Nequi</p>
               <p className="text-sm text-gray-600">Ingresos: {formatCurrency(saldosPorMedioDePago.nequi.ingresos)}</p>
               <p className="text-sm text-gray-600">Gastos: {formatCurrency(saldosPorMedioDePago.nequi.gastos)}</p>
-        </div>
+            </div>
             <div className="text-right">
               <p className="text-2xl font-bold text-purple-800">{formatCurrency(saldosPorMedioDePago.nequi.saldo)}</p>
               <span className="text-xs text-purple-600">Saldo positivo</span>
-        </div>
-      </div>
+            </div>
+          </div>
           <div 
             className="bg-indigo-50 p-4 rounded-lg flex items-center justify-between cursor-pointer hover:bg-indigo-100 transition-colors"
             onClick={() => handleAbrirHistorialSaldos('daviplata')}
@@ -545,11 +553,11 @@ const Dashboard: React.FC = () => {
             <div className="text-right">
               <p className="text-2xl font-bold text-indigo-800">{formatCurrency(saldosPorMedioDePago.daviplata.saldo)}</p>
               <span className="text-xs text-indigo-600">Saldo positivo</span>
-        </div>
+            </div>
           </div>
         </div>
-            </div>
-
+      </div>
+      )}
 
       {/* Pedidos Pendientes */}
       <PedidosPendientes
@@ -621,15 +629,17 @@ const Dashboard: React.FC = () => {
         />
       )}
 
-      {/* Modal de Historial de Saldos */}
-      <ModalHistorialSaldos
-        isOpen={mostrarModalHistorialSaldos}
-        onClose={() => setMostrarModalHistorialSaldos(false)}
-        tipoSaldo={tipoSaldoSeleccionado}
-        saldoActual={saldosPorMedioDePago[tipoSaldoSeleccionado].saldo}
-        movimientos={movimientosSaldos}
-        cargando={cargandoMovimientos}
-      />
+      {/* Modal de Historial de Saldos (solo para admin/manager) */}
+      {!esOperador() && (
+        <ModalHistorialSaldos
+          isOpen={mostrarModalHistorialSaldos}
+          onClose={() => setMostrarModalHistorialSaldos(false)}
+          tipoSaldo={tipoSaldoSeleccionado}
+          saldoActual={saldosPorMedioDePago[tipoSaldoSeleccionado].saldo}
+          movimientos={movimientosSaldos}
+          cargando={cargandoMovimientos}
+        />
+      )}
     </div>
   );
 };

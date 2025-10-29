@@ -12,8 +12,11 @@ import { configService, planService, resetService } from '../services/firebaseSe
 import { storageService, ejecutarLimpiezaAutomatica } from '../services/storageService';
 import { Configuracion, Plan } from '../types';
 import { formatCurrency } from '../utils/dateUtils';
+import GestorUsuarios from '../components/GestorUsuarios';
+import { useAuth } from '../contexts/AuthContext';
 
 const Configuracion: React.FC = () => {
+  const { esAdmin } = useAuth();
   const [configuracion, setConfiguracion] = useState<Configuracion | null>(null);
   const [planes, setPlanes] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -315,6 +318,13 @@ const Configuracion: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Gestión de Usuarios */}
+      {esAdmin() && (
+        <div>
+          <GestorUsuarios />
+        </div>
+      )}
 
       {/* Gestión de planes */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">

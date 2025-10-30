@@ -30,22 +30,19 @@ const LoginForm: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <div className="flex justify-center mb-6">
+          <div className="flex justify-center mb-8">
             <img 
               src="/logo-global.png" 
               alt="Logo Global" 
-              className="max-h-40 w-auto object-contain"
+              className="max-h-64 w-auto object-contain"
             />
           </div>
-          <h2 className="text-center text-3xl font-extrabold text-gray-900">
-            Alquiler de Lavadoras Global
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <p className="text-center text-sm text-gray-600">
             Inicia sesión en tu cuenta
           </p>
         </div>
         
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form className="space-y-6" onSubmit={handleSubmit}>
           {error && (
             <div className="bg-danger-50 border border-danger-200 text-danger-700 px-4 py-3 rounded-lg">
               {error}

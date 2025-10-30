@@ -155,25 +155,70 @@ export const clienteService = {
       ...cliente,
       createdAt: Timestamp.now()
     });
+    
+    // Registrar auditoría
+    await auditoriaService.logAuditoria(
+      'crear_cliente',
+      'cliente',
+      docRef.id,
+      `Cliente ${cliente.name} creado - Teléfono: ${cliente.phone}`,
+      undefined,
+      {
+        name: cliente.name,
+        phone: cliente.phone,
+        address: cliente.address
+      }
+    );
+    
     return docRef.id;
   },
 
   // Actualizar cliente
   async updateCliente(id: string, updates: Partial<Cliente>): Promise<void> {
     const docRef = doc(db, 'clientes', id);
+    
+    // Obtener datos anteriores para auditoría
+    const clienteDoc = await getDoc(docRef);
+    const valoresAnteriores = clienteDoc.data();
+    
     await updateDoc(docRef, {
       ...updates,
       updatedAt: Timestamp.now()
     });
+    
+    // Registrar auditoría
+    await auditoriaService.logAuditoria(
+      'editar_cliente',
+      'cliente',
+      id,
+      `Cliente ${valoresAnteriores?.name || 'Actualizado'} modificado`,
+      valoresAnteriores,
+      updates
+    );
   },
 
   // Eliminar cliente (soft delete)
   async deleteCliente(id: string): Promise<void> {
     const docRef = doc(db, 'clientes', id);
+    
+    // Obtener datos del cliente para auditoría
+    const clienteDoc = await getDoc(docRef);
+    const clienteData = clienteDoc.data();
+    
     await updateDoc(docRef, {
       isActive: false,
       deletedAt: Timestamp.now()
     });
+    
+    // Registrar auditoría
+    await auditoriaService.logAuditoria(
+      'eliminar_cliente',
+      'cliente',
+      id,
+      `Cliente ${clienteData?.name || 'Desconocido'} eliminado`,
+      clienteData,
+      { isActive: false, deletedAt: new Date() }
+    );
   }
 };
 
@@ -181,6 +226,8 @@ export const clienteService = {
 export const pedidoService = {
   // Crear nuevo pedido
   async createPedido(pedido: Omit<Pedido, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+    console.log('📋 pedidoService.createPedido llamado');
+    
     const docRef = await addDoc(collection(db, 'pedidos'), {
       ...pedido,
       fechaAsignacion: Timestamp.fromDate(pedido.fechaAsignacion),
@@ -190,6 +237,9 @@ export const pedidoService = {
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now()
     });
+    
+    console.log('✅ Pedido creado con ID:', docRef.id);
+    console.log('🔍 Llamando auditoriaService.logAuditoria...');
     
     // Registrar auditoría
     await auditoriaService.logAuditoria(
@@ -206,6 +256,7 @@ export const pedidoService = {
       }
     );
     
+    console.log('✅ Auditoría registrada');
     return docRef.id;
   },
 
@@ -259,25 +310,48 @@ export const pedidoService = {
     await updateDoc(docRef, updateData);
     console.log('✅ Actualización exitosa');
     
-    // Registrar auditoría
-    await auditoriaService.logAuditoria(
-      'modificar_servicio',
-      'pedido',
-      id,
-      `Servicio modificado - cambios: ${Object.keys(updates).join(', ')}`,
-      datosAnteriores ? {
-        status: datosAnteriores.status,
-        total: datosAnteriores.total,
-        fechaEntrega: datosAnteriores.fechaEntrega?.toDate?.() || datosAnteriores.fechaEntrega,
-        fechaRecogida: datosAnteriores.fechaRecogida?.toDate?.() || datosAnteriores.fechaRecogida
-      } : undefined,
-      {
-        status: updates.status,
-        total: updates.total,
-        fechaEntrega: updates.fechaEntrega,
-        fechaRecogida: updates.fechaRecogida
+    // Detectar si hay un nuevo pago para registrar auditoría específica
+    if (updates.pagosRealizados && Array.isArray(updates.pagosRealizados)) {
+      const pagosAnteriores = datosAnteriores?.pagosRealizados || [];
+      const nuevosPagos = updates.pagosRealizados;
+      
+      // Si hay un nuevo pago
+      if (nuevosPagos.length > pagosAnteriores.length) {
+        const ultimoPago = nuevosPagos[nuevosPagos.length - 1];
+        await auditoriaService.logAuditoria(
+          'registrar_pago',
+          'pedido',
+          id,
+          `Pago registrado: $${ultimoPago.monto?.toLocaleString() || 0} por ${ultimoPago.medioPago} ${ultimoPago.isPartial ? '(Parcial)' : '(Total)'}`,
+          undefined,
+          {
+            monto: ultimoPago.monto,
+            medioPago: ultimoPago.medioPago,
+            isPartial: ultimoPago.isPartial
+          }
+        );
       }
-    );
+    } else {
+      // Registrar auditoría genérica para otras modificaciones
+      await auditoriaService.logAuditoria(
+        'modificar_servicio',
+        'pedido',
+        id,
+        `Servicio modificado - cambios: ${Object.keys(updates).join(', ')}`,
+        datosAnteriores ? {
+          status: datosAnteriores.status,
+          total: datosAnteriores.total,
+          fechaEntrega: datosAnteriores.fechaEntrega?.toDate?.() || datosAnteriores.fechaEntrega,
+          fechaRecogida: datosAnteriores.fechaRecogida?.toDate?.() || datosAnteriores.fechaRecogida
+        } : undefined,
+        {
+          status: updates.status,
+          total: updates.total,
+          fechaEntrega: updates.fechaEntrega,
+          fechaRecogida: updates.fechaRecogida
+        }
+      );
+    }
   },
 
   // Actualizar solo el estado del pedido
@@ -380,6 +454,11 @@ export const pedidoService = {
   // Marcar pedido como eliminado (para auditoría)
   async marcarComoEliminado(id: string, eliminadoPor: string, motivo?: string): Promise<void> {
     const docRef = doc(db, 'pedidos', id);
+    
+    // Obtener datos del pedido antes de marcar como eliminado
+    const docSnapshot = await getDoc(docRef);
+    const pedidoData = docSnapshot.exists() ? docSnapshot.data() : null;
+    
     await updateDoc(docRef, {
       eliminado: true,
       fechaEliminacion: Timestamp.fromDate(new Date()),
@@ -387,6 +466,23 @@ export const pedidoService = {
       motivoEliminacion: motivo || '',
       updatedAt: Timestamp.fromDate(new Date())
     });
+    
+    // Registrar auditoría
+    if (pedidoData) {
+      await auditoriaService.logAuditoria(
+        'eliminar_servicio',
+        'pedido',
+        id,
+        `Servicio eliminado - Cliente: ${pedidoData.cliente?.name || 'N/A'}${motivo ? ` - Motivo: ${motivo}` : ''}`,
+        {
+          cliente: pedidoData.cliente?.name,
+          plan: pedidoData.plan?.name,
+          total: pedidoData.total,
+          status: pedidoData.status
+        },
+        undefined
+      );
+    }
   },
 
   // Obtener pedidos del día
@@ -656,6 +752,22 @@ export const gastoService = {
       date: Timestamp.fromDate(gasto.date),
       createdAt: Timestamp.now()
     });
+    
+    // Registrar auditoría
+    await auditoriaService.logAuditoria(
+      'crear_gasto',
+      'gasto',
+      docRef.id,
+      `Gasto de $${gasto.amount.toLocaleString()} por concepto: ${gasto.concepto.name}`,
+      undefined,
+      {
+        concepto: gasto.concepto.name,
+        amount: gasto.amount,
+        medioPago: gasto.medioPago,
+        description: gasto.description
+      }
+    );
+    
     return docRef.id;
   },
 
@@ -688,7 +800,21 @@ export const gastoService = {
 
   // Eliminar gasto
   async deleteGasto(id: string): Promise<void> {
+    // Obtener datos del gasto para auditoría antes de eliminarlo
+    const gastoDoc = await getDoc(doc(db, 'gastos', id));
+    const gastoData = gastoDoc.data();
+    
     await deleteDoc(doc(db, 'gastos', id));
+    
+    // Registrar auditoría
+    await auditoriaService.logAuditoria(
+      'eliminar_gasto',
+      'gasto',
+      id,
+      `Gasto eliminado: ${gastoData?.concepto?.name || 'Concepto desconocido'} - $${gastoData?.amount?.toLocaleString() || 0}`,
+      gastoData,
+      undefined
+    );
   }
 };
 

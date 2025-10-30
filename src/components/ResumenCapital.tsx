@@ -129,3 +129,4 @@ const ResumenCapital: React.FC<ResumenCapitalProps> = ({
 
 export default ResumenCapital;
 
+

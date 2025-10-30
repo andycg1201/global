@@ -87,7 +87,13 @@ export type TipoAccionAuditoria =
   | 'crear_usuario'
   | 'editar_usuario'
   | 'eliminar_usuario'
-  | 'restablecer_contraseña';
+  | 'restablecer_contraseña'
+  | 'crear_capital_inicial'
+  | 'crear_movimiento_capital'
+  | 'eliminar_movimiento_capital'
+  | 'crear_mantenimiento'
+  | 'finalizar_mantenimiento'
+  | 'eliminar_mantenimiento';
 
 // Registro de auditoría
 export interface Auditoria {

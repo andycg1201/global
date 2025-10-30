@@ -21,10 +21,13 @@ const Auditoria: React.FC = () => {
   const [registrosAuditoria, setRegistrosAuditoria] = useState<AuditoriaType[]>([]);
   const [registrosFiltrados, setRegistrosFiltrados] = useState<AuditoriaType[]>([]);
   
-  // Estados de filtros
+  // Estados de filtros con fecha de hoy por defecto
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0]; // formato YYYY-MM-DD
+  
   const [filtroTexto, setFiltroTexto] = useState('');
-  const [filtroFechaInicio, setFiltroFechaInicio] = useState('');
-  const [filtroFechaFin, setFiltroFechaFin] = useState('');
+  const [filtroFechaInicio, setFiltroFechaInicio] = useState(todayStr);
+  const [filtroFechaFin, setFiltroFechaFin] = useState(todayStr);
   const [filtroUsuario, setFiltroUsuario] = useState('');
   const [filtroAccion, setFiltroAccion] = useState<TipoAccionAuditoria | 'todos'>('todos');
   const [filtroEntidad, setFiltroEntidad] = useState('todos');
@@ -64,18 +67,16 @@ const Auditoria: React.FC = () => {
       );
     }
 
-    // Filtro por fecha
+    // Filtro por fecha (manejar zona horaria correctamente)
     if (filtroFechaInicio) {
-      const fechaInicio = new Date(filtroFechaInicio);
-      fechaInicio.setHours(0, 0, 0, 0);
+      const fechaInicio = new Date(filtroFechaInicio + 'T00:00:00');
       filtrados = filtrados.filter(registro => 
         registro.fecha >= fechaInicio
       );
     }
 
     if (filtroFechaFin) {
-      const fechaFin = new Date(filtroFechaFin);
-      fechaFin.setHours(23, 59, 59, 999);
+      const fechaFin = new Date(filtroFechaFin + 'T23:59:59.999');
       filtrados = filtrados.filter(registro => 
         registro.fecha <= fechaFin
       );

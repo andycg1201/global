@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Mantenimiento, Lavadora } from '../types';
+import { auditoriaService } from './auditoriaService';
 
 const MANTENIMIENTOS_COLLECTION = 'mantenimientos';
 const LAVADORAS_COLLECTION = 'lavadoras';
@@ -78,6 +79,23 @@ export const crearMantenimiento = async (
     
     await actualizarEstadoLavadora(lavadoraId, 'mantenimiento', mantenimientoInfo);
 
+    // Registrar auditoría
+    await auditoriaService.logAuditoria(
+      'crear_mantenimiento',
+      'mantenimiento',
+      docRef.id,
+      `Mantenimiento creado - Tipo: ${tipoFalla}, Costo: $${costoReparacion.toLocaleString()}, Técnico: ${servicioTecnico}`,
+      undefined,
+      {
+        lavadoraId,
+        tipoFalla,
+        descripcion,
+        costoReparacion,
+        servicioTecnico,
+        medioPago: medioPago || 'efectivo'
+      }
+    );
+
     return docRef.id;
   } catch (error) {
     console.error('Error creando mantenimiento:', error);
@@ -92,6 +110,10 @@ export const finalizarMantenimiento = async (
   observaciones?: string
 ): Promise<void> => {
   try {
+    // Obtener datos del mantenimiento antes de finalizarlo
+    const mantenimientoDoc = await getDoc(doc(db, MANTENIMIENTOS_COLLECTION, mantenimientoId));
+    const mantenimientoData = mantenimientoDoc.exists() ? mantenimientoDoc.data() : null;
+
     // Actualizar el mantenimiento
     const mantenimientoRef = doc(db, MANTENIMIENTOS_COLLECTION, mantenimientoId);
     await updateDoc(mantenimientoRef, {
@@ -102,6 +124,29 @@ export const finalizarMantenimiento = async (
 
     // Actualizar estado de la lavadora
     await actualizarEstadoLavadora(lavadoraId, 'disponible');
+
+    // Registrar auditoría
+    await auditoriaService.logAuditoria(
+      'finalizar_mantenimiento',
+      'mantenimiento',
+      mantenimientoId,
+      `Mantenimiento finalizado - Tipo: ${mantenimientoData?.tipoFalla || 'N/A'}, Costo: $${mantenimientoData?.costoReparacion?.toLocaleString() || 0}`,
+      {
+        tipoFalla: mantenimientoData?.tipoFalla,
+        descripcion: mantenimientoData?.descripcion,
+        costoReparacion: mantenimientoData?.costoReparacion,
+        servicioTecnico: mantenimientoData?.servicioTecnico,
+        fechaFin: null
+      },
+      {
+        tipoFalla: mantenimientoData?.tipoFalla,
+        descripcion: mantenimientoData?.descripcion,
+        costoReparacion: mantenimientoData?.costoReparacion,
+        servicioTecnico: mantenimientoData?.servicioTecnico,
+        fechaFin: new Date(),
+        observaciones: observaciones || ''
+      }
+    );
   } catch (error) {
     console.error('Error finalizando mantenimiento:', error);
     throw error;
@@ -373,8 +418,30 @@ export const obtenerEstadisticasMantenimiento = async (): Promise<{
 // Eliminar mantenimiento
 export const eliminarMantenimiento = async (mantenimientoId: string): Promise<void> => {
   try {
+    // Obtener datos del mantenimiento antes de eliminarlo
+    const mantenimientoDoc = await getDoc(doc(db, MANTENIMIENTOS_COLLECTION, mantenimientoId));
+    const mantenimientoData = mantenimientoDoc.exists() ? mantenimientoDoc.data() : null;
+
     const { deleteDoc } = await import('firebase/firestore');
     await deleteDoc(doc(db, MANTENIMIENTOS_COLLECTION, mantenimientoId));
+
+    // Registrar auditoría
+    if (mantenimientoData) {
+      await auditoriaService.logAuditoria(
+        'eliminar_mantenimiento',
+        'mantenimiento',
+        mantenimientoId,
+        `Mantenimiento eliminado - Tipo: ${mantenimientoData.tipoFalla || 'N/A'}, Costo: $${mantenimientoData.costoReparacion?.toLocaleString() || 0}`,
+        {
+          lavadoraId: mantenimientoData.lavadoraId,
+          tipoFalla: mantenimientoData.tipoFalla,
+          descripcion: mantenimientoData.descripcion,
+          costoReparacion: mantenimientoData.costoReparacion,
+          servicioTecnico: mantenimientoData.servicioTecnico
+        },
+        undefined
+      );
+    }
   } catch (error) {
     console.error('Error eliminando mantenimiento:', error);
     throw error;

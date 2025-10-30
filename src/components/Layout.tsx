@@ -71,7 +71,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Sidebar móvil */}
       <div className={`fixed inset-0 flex z-40 md:hidden ${sidebarOpen ? '' : 'hidden'}`}>
         <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
-        <div className="relative flex-1 flex flex-col max-w-xs w-full bg-gradient-to-b from-white to-blue-50 shadow-2xl">
+        <div className="relative flex-1 flex flex-col max-w-[14rem] w-full bg-gradient-to-b from-white to-blue-50 shadow-2xl">
           <div className="absolute top-0 right-0 -mr-12 pt-2">
             <button
               type="button"
@@ -81,19 +81,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <XMarkIcon className="h-6 w-6 text-white" />
             </button>
           </div>
-          <div className="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
-            <div className="flex-shrink-0 flex items-center px-4">
-              <div className="h-8 w-8 rounded-lg flex items-center justify-center shadow-lg">
-                <div className="grid grid-cols-2 gap-0.5 w-4 h-4">
-                  <div className="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-sm"></div>
-                  <div className="bg-gradient-to-br from-pink-400 to-red-500 rounded-sm"></div>
-                  <div className="bg-gradient-to-br from-blue-400 to-purple-500 rounded-sm"></div>
-                  <div className="bg-gradient-to-br from-green-400 to-teal-500 rounded-sm"></div>
-                </div>
-              </div>
-              <span className="ml-2 text-xl font-bold bg-gradient-to-r from-primary-700 to-primary-800 bg-clip-text text-transparent">Alquiler Global</span>
-            </div>
-            <nav className="mt-5 px-2 space-y-1">
+          <div className="flex-1 h-0 pt-3 pb-4 overflow-y-auto">
+            <nav className="mt-2 px-2 space-y-1">
               {navigation.map((item) => {
                 const active = isActive(item.href);
                 return (
@@ -116,6 +105,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 );
               })}
             </nav>
+            {/* Logo debajo del menú (móvil) */}
+            <div className="px-4 pt-2 pb-4">
+              <div className="p-1">
+                <img
+                  src="/logo-global.png"
+                  alt="Alquiler de Lavadoras Global"
+                  className="w-full max-h-36 object-contain"
+                  loading="lazy"
+                />
+              </div>
+            </div>
           </div>
           <div className="flex-shrink-0 flex border-t border-gray-200 p-4">
             <div className="flex items-center">
@@ -135,19 +135,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <div className="hidden md:flex md:flex-shrink-0">
         <div className="flex flex-col w-56">
           <div className="flex flex-col h-0 flex-1 border-r border-blue-200 bg-gradient-to-b from-white to-blue-50 shadow-xl">
-            <div className="flex-1 flex flex-col pt-4 pb-4 overflow-y-auto">
-              <div className="flex items-center flex-shrink-0 px-3">
-                <div className="h-8 w-8 rounded-lg flex items-center justify-center shadow-lg">
-                  <div className="grid grid-cols-2 gap-0.5 w-4 h-4">
-                    <div className="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-sm"></div>
-                    <div className="bg-gradient-to-br from-pink-400 to-red-500 rounded-sm"></div>
-                    <div className="bg-gradient-to-br from-blue-400 to-purple-500 rounded-sm"></div>
-                    <div className="bg-gradient-to-br from-green-400 to-teal-500 rounded-sm"></div>
-                  </div>
-                </div>
-                <span className="ml-2 text-xl font-bold bg-gradient-to-r from-primary-700 to-primary-800 bg-clip-text text-transparent">Alquiler Global</span>
-              </div>
-              <nav className="mt-4 flex-1 px-2 bg-white space-y-1">
+            <div className="flex-1 flex flex-col pt-2 pb-4 overflow-y-auto">
+              <nav className="mt-2 flex-1 px-2 bg-white space-y-1">
                 {navigation.map((item) => {
                   const active = isActive(item.href);
                   return (
@@ -170,6 +159,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   );
                 })}
               </nav>
+              {/* Logo debajo del menú (desktop) */}
+              <div className="px-3 pt-2 pb-3">
+                <div className="p-1">
+                  <img
+                    src="/logo-global.png"
+                    alt="Alquiler de Lavadoras Global"
+                    className="w-full max-h-40 object-contain"
+                    loading="lazy"
+                  />
+                </div>
+              </div>
             </div>
             <div className="flex-shrink-0 flex border-t border-gray-200 p-3">
               <div className="flex items-center w-full">

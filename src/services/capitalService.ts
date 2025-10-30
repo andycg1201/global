@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { CapitalInicial, MovimientoCapital } from '../types';
+import { auditoriaService } from './auditoriaService';
 
 const CAPITAL_INICIAL_COLLECTION = 'capitalInicial';
 const MOVIMIENTOS_CAPITAL_COLLECTION = 'movimientosCapital';
@@ -65,6 +66,20 @@ export const capitalService = {
         createdAt: Timestamp.now()
       });
 
+      // Registrar auditoría
+      await auditoriaService.logAuditoria(
+        'crear_capital_inicial',
+        'capital',
+        docRef.id,
+        `Capital inicial creado - Efectivo: $${capital.efectivo.toLocaleString()}, Nequi: $${capital.nequi.toLocaleString()}, Daviplata: $${capital.daviplata.toLocaleString()}`,
+        undefined,
+        {
+          efectivo: capital.efectivo,
+          nequi: capital.nequi,
+          daviplata: capital.daviplata
+        }
+      );
+
       return docRef.id;
     } catch (error) {
       console.error('Error al crear capital inicial:', error);
@@ -110,6 +125,23 @@ export const capitalService = {
         createdAt: Timestamp.now()
       });
 
+      // Registrar auditoría
+      await auditoriaService.logAuditoria(
+        'crear_movimiento_capital',
+        'capital',
+        docRef.id,
+        `${movimiento.tipo === 'inyeccion' ? 'Inyección' : 'Retiro'} de capital - Efectivo: $${movimiento.efectivo.toLocaleString()}, Nequi: $${movimiento.nequi.toLocaleString()}, Daviplata: $${movimiento.daviplata.toLocaleString()}`,
+        undefined,
+        {
+          tipo: movimiento.tipo,
+          concepto: movimiento.concepto,
+          efectivo: movimiento.efectivo,
+          nequi: movimiento.nequi,
+          daviplata: movimiento.daviplata,
+          observaciones: movimiento.observaciones
+        }
+      );
+
       return docRef.id;
     } catch (error) {
       console.error('Error al crear movimiento de capital:', error);
@@ -119,7 +151,27 @@ export const capitalService = {
 
   async deleteMovimientoCapital(id: string): Promise<void> {
     try {
+      // Obtener datos del movimiento antes de eliminarlo
+      const movimientoDoc = await getDoc(doc(db, MOVIMIENTOS_CAPITAL_COLLECTION, id));
+      const movimientoData = movimientoDoc.data();
+      
       await deleteDoc(doc(db, MOVIMIENTOS_CAPITAL_COLLECTION, id));
+
+      // Registrar auditoría
+      await auditoriaService.logAuditoria(
+        'eliminar_movimiento_capital',
+        'capital',
+        id,
+        `Movimiento de capital eliminado - ${movimientoData?.tipo === 'inyeccion' ? 'Inyección' : 'Retiro'} de $${(movimientoData?.efectivo || 0) + (movimientoData?.nequi || 0) + (movimientoData?.daviplata || 0)}`,
+        {
+          tipo: movimientoData?.tipo,
+          concepto: movimientoData?.concepto,
+          efectivo: movimientoData?.efectivo,
+          nequi: movimientoData?.nequi,
+          daviplata: movimientoData?.daviplata
+        },
+        undefined
+      );
     } catch (error) {
       console.error('Error al eliminar movimiento de capital:', error);
       throw error;
@@ -175,5 +227,6 @@ export const capitalService = {
     }
   }
 };
+
 
 

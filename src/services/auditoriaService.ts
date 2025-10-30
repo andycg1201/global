@@ -46,14 +46,31 @@ class AuditoriaService {
   // Registrar una acción en auditoría
   async registrarAccion(params: RegistrarAccionParams): Promise<string> {
     try {
+      console.log('🔍 auditoriaService.registrarAccion llamada:', params);
+      
       // Obtener información del usuario actual desde localStorage o contexto
       // Por ahora usaremos una función helper que se puede pasar desde el contexto
       const userInfo = this.getCurrentUserInfo();
       
       if (!userInfo) {
-        console.warn('No se pudo obtener información del usuario para auditoría');
+        console.warn('⚠️ No se pudo obtener información del usuario para auditoría');
+        console.log('localStorage.getItem("currentUser"):', localStorage.getItem('currentUser'));
         return '';
       }
+      
+      console.log('✅ Usuario obtenido para auditoría:', userInfo);
+
+      // Limpiar valores undefined para evitar errores de Firebase
+      const limpiarValores = (obj?: Record<string, any>): Record<string, any> | undefined => {
+        if (!obj) return undefined;
+        const limpio: Record<string, any> = {};
+        for (const [key, value] of Object.entries(obj)) {
+          if (value !== undefined && value !== null) {
+            limpio[key] = value;
+          }
+        }
+        return Object.keys(limpio).length > 0 ? limpio : undefined;
+      };
 
       const auditoriaData: Omit<Auditoria, 'id'> = {
         usuarioId: userInfo.id,
@@ -63,21 +80,53 @@ class AuditoriaService {
         entidadId: params.entidadId,
         entidadTipo: params.entidadTipo,
         detalles: params.detalles,
-        valoresAnteriores: params.valoresAnteriores,
-        valoresNuevos: params.valoresNuevos,
+        valoresAnteriores: limpiarValores(params.valoresAnteriores),
+        valoresNuevos: limpiarValores(params.valoresNuevos),
         fecha: new Date(),
         ip: await this.getClientIP(),
         userAgent: navigator.userAgent
       };
 
-      const docRef = await addDoc(collection(db, this.collectionName), {
-        ...auditoriaData,
-        fecha: Timestamp.fromDate(auditoriaData.fecha)
-      });
+      console.log('📝 auditoriaData preparado:', auditoriaData);
+      
+      // Construir objeto sin valores undefined para Firebase
+      const dataToSave: any = {
+        usuarioId: auditoriaData.usuarioId,
+        usuarioNombre: auditoriaData.usuarioNombre,
+        usuarioEmail: auditoriaData.usuarioEmail,
+        tipoAccion: auditoriaData.tipoAccion,
+        entidadId: auditoriaData.entidadId,
+        entidadTipo: auditoriaData.entidadTipo,
+        detalles: auditoriaData.detalles,
+        fecha: Timestamp.fromDate(auditoriaData.fecha),
+        userAgent: auditoriaData.userAgent
+      };
+      
+      // Solo agregar si no son undefined
+      if (auditoriaData.valoresAnteriores !== undefined) {
+        dataToSave.valoresAnteriores = auditoriaData.valoresAnteriores;
+      }
+      if (auditoriaData.valoresNuevos !== undefined) {
+        dataToSave.valoresNuevos = auditoriaData.valoresNuevos;
+      }
+      if (auditoriaData.ip !== undefined) {
+        dataToSave.ip = auditoriaData.ip;
+      }
+      
+      console.log('📤 Datos a guardar en Firebase:', dataToSave);
+      
+      const docRef = await addDoc(collection(db, this.collectionName), dataToSave);
+      
+      console.log('✅ Documento de auditoría guardado con ID:', docRef.id);
 
       return docRef.id;
     } catch (error) {
-      console.error('Error al registrar acción en auditoría:', error);
+      console.error('❌ Error al registrar acción en auditoría:', error);
+      console.error('❌ Error detallado:', JSON.stringify(error, null, 2));
+      if (error instanceof Error) {
+        console.error('❌ Error message:', error.message);
+        console.error('❌ Error stack:', error.stack);
+      }
       // No lanzar error para no interrumpir el flujo principal
       return '';
     }

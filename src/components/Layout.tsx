@@ -118,14 +118,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
           </div>
           <div className="flex-shrink-0 flex border-t border-gray-200 p-4">
-            <div className="flex items-center">
+            <div className="flex items-center w-full">
               <div className="flex-shrink-0">
                 <UserIcon className="h-8 w-8 text-gray-400" />
               </div>
-              <div className="ml-3">
+              <div className="ml-3 flex-1">
                 <p className="text-base font-medium text-gray-700">{user?.name}</p>
-                <p className="text-sm font-medium text-gray-500">{user?.role}</p>
+                <p className="text-sm font-medium text-gray-500 capitalize">{user?.role}</p>
               </div>
+              <button
+                onClick={handleLogout}
+                className="ml-2 p-1 rounded-md text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                title="Cerrar sesión"
+              >
+                <ArrowRightOnRectangleIcon className="h-5 w-5" />
+              </button>
             </div>
           </div>
         </div>

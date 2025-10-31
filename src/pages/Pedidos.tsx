@@ -8,7 +8,10 @@ import {
   XMarkIcon,
   CameraIcon,
   CheckCircleIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  TruckIcon,
+  HomeIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline';
 import { pedidoService, configService, lavadoraService } from '../services/firebaseService';
 import { entregaOperativaService } from '../services/entregaOperativaService';
@@ -39,7 +42,7 @@ interface FiltrosPedidos {
 }
 
 const Pedidos: React.FC = () => {
-  const { firebaseUser, tienePermiso } = useAuth();
+  const { firebaseUser, user, tienePermiso } = useAuth();
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
@@ -92,18 +95,14 @@ const Pedidos: React.FC = () => {
   const [filtros, setFiltros] = useState<FiltrosPedidos>({
     fechaInicio: (() => {
       const hoy = getCurrentDateColombia();
-      const inicioSemana = new Date(hoy);
-      inicioSemana.setDate(hoy.getDate() - hoy.getDay()); // Lunes de esta semana
-      return inicioSemana;
+      return hoy;
     })(),
     fechaFin: (() => {
       const hoy = getCurrentDateColombia();
-      const finSemana = new Date(hoy);
-      finSemana.setDate(hoy.getDate() + (6 - hoy.getDay())); // Domingo de esta semana
-      return finSemana;
+      return hoy;
     })(),
     estado: 'todos',
-    tipoFiltro: 'semana'
+    tipoFiltro: 'hoy'
   });
 
   useEffect(() => {
@@ -298,13 +297,18 @@ const Pedidos: React.FC = () => {
 
   // Usar useMemo para optimizar el filtrado
   const pedidosFiltrados = useMemo(() => {
-    return pedidos.filter(pedido => {
+    const filtrados = pedidos.filter(pedido => {
       const cumpleFiltro = filtros.estado === 'todos' || pedido.status === filtros.estado;
       const cumpleBusqueda = busqueda === '' || 
         pedido.cliente.name.toLowerCase().includes(busqueda.toLowerCase()) ||
         pedido.cliente.phone.includes(busqueda);
       
       return cumpleFiltro && cumpleBusqueda;
+    });
+    
+    // Ordenar por fechaAsignacion (más recientes primero)
+    return filtrados.sort((a, b) => {
+      return b.fechaAsignacion.getTime() - a.fechaAsignacion.getTime();
     });
   }, [pedidos, filtros, busqueda]);
 
@@ -517,6 +521,20 @@ const Pedidos: React.FC = () => {
     }
 
     try {
+      // Obtener nombre del usuario actual
+      const getCurrentUserName = (): string => {
+        try {
+          const userStr = localStorage.getItem('currentUser');
+          if (userStr) {
+            const user = JSON.parse(userStr);
+            return user.name || 'Usuario desconocido';
+          }
+        } catch (error) {
+          console.error('Error al obtener nombre del usuario:', error);
+        }
+        return 'Usuario desconocido';
+      };
+
       const fechaActual = new Date();
       let updateData: Partial<Pedido> = {
         status: nuevoEstado,
@@ -529,9 +547,12 @@ const Pedidos: React.FC = () => {
         updateData.fechaEntrega = undefined;
         updateData.fechaRecogida = undefined;
         updateData.fechaRecogidaCalculada = undefined;
+        updateData.entregadoPor = undefined;
+        updateData.recogidoPor = undefined;
       } else if (nuevoEstado === 'entregado') {
         updateData.fechaEntrega = fechaActual;
         updateData.fechaRecogida = undefined;
+        updateData.entregadoPor = getCurrentUserName(); // ✅ Nombre del usuario que realizó la entrega
         // Calcular fecha de recogida según el plan
         updateData.fechaRecogidaCalculada = calculatePickupDate(fechaActual, pedido.plan, pedido.horasAdicionales);
         // Recalcular total con horas adicionales y descuentos
@@ -539,6 +560,7 @@ const Pedidos: React.FC = () => {
       } else if (nuevoEstado === 'recogido') {
         // Solo establecer fecha de recogida (la entrega ya debe existir por validación)
         updateData.fechaRecogida = fechaActual;
+        updateData.recogidoPor = getCurrentUserName(); // ✅ Nombre del usuario que realizó la recogida
       } else if (nuevoEstado === 'cancelado') {
         // Para cancelado, mantenemos las fechas existentes
       }
@@ -922,11 +944,26 @@ const Pedidos: React.FC = () => {
     if (!pedidoALiquidar) return;
 
     try {
+      // Obtener nombre del usuario actual
+      const getCurrentUserName = (): string => {
+        try {
+          const userStr = localStorage.getItem('currentUser');
+          if (userStr) {
+            const user = JSON.parse(userStr);
+            return user.name || 'Usuario desconocido';
+          }
+        } catch (error) {
+          console.error('Error al obtener nombre del usuario:', error);
+        }
+        return 'Usuario desconocido';
+      };
+
       const nuevoPago: any = {
         monto: paymentData.amount,
         medioPago: paymentData.medioPago,
         fecha: new Date(),
         isPartial: paymentData.isPartial,
+        registradoPor: getCurrentUserName(), // ✅ Nombre del usuario que registró el pago
         ...(paymentData.reference && { referencia: paymentData.reference })
       };
 
@@ -1234,7 +1271,7 @@ const Pedidos: React.FC = () => {
         </div>
       </div>
 
-        {/* Lista de pedidos mejorada */}
+        {/* Lista de pedidos en formato cards/tags */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
           <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
@@ -1245,7 +1282,7 @@ const Pedidos: React.FC = () => {
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900">
                     Lista de Servicios
-        </h3>
+                  </h3>
                   <p className="text-sm text-gray-600">
                     {pedidosFiltrados.length} servicio{pedidosFiltrados.length !== 1 ? 's' : ''} encontrado{pedidosFiltrados.length !== 1 ? 's' : ''}
                   </p>
@@ -1269,181 +1306,177 @@ const Pedidos: React.FC = () => {
               </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
-                <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Acciones
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Cliente
-                  </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Plan
-                  </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Total
-                  </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Pedido
-                  </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Entrega
-                  </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Recogida
-                  </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Evidencia
-                  </th>
-                    {tienePermiso('eliminarServicios') && (
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                        Eliminar
-                      </th>
-                    )}
-                </tr>
-              </thead>
-                <tbody className="bg-white divide-y divide-gray-100">
-                  {pedidosFiltrados.map((pedido, index) => (
-                    <tr key={pedido.id} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-200 group">
-                      {/* Acciones */}
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center space-x-2">
-                          {/* Botón progresivo de estado */}
-                          {getProgresoButton(pedido)}
-                          
-                          </div>
-                        </td>
-                        {/* Cliente */}
-                        <td className="px-3 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
-                          <div className="flex items-center space-x-2">
-                            <div className="flex-shrink-0">
-                              <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
-                                <span className="text-sm font-bold text-white">
-                                  {pedido.cliente.name.charAt(0).toUpperCase()}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center space-x-2">
-                                <div className="text-sm font-semibold text-gray-900 truncate">
-                                  {pedido.cliente.name}
-                                </div>
-                                {detectarInconsistencias(pedido).length > 0 && (
-                                  <div className="flex items-center" title={`Inconsistencias: ${detectarInconsistencias(pedido).join(', ')}`}>
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">
-                                      ⚠️ Inconsistente
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                              <div className="text-sm text-gray-500 truncate">
-                                {pedido.cliente.phone}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        {/* Plan */}
-                        <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
-                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg px-3 py-2">
-                            <div className="flex items-center justify-between">
-                              <div className="text-sm font-semibold text-green-800">
-                                {pedido.plan.name}
-                              </div>
-                              {pedido.recogidaPrioritaria && (
-                                <div className="flex items-center space-x-1">
-                                  <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full font-medium">
-                                    ⏰ Recogida Prioritaria
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                            <div className="text-xs text-green-600">
-                              {formatCurrency(pedido.plan.price)}
-                            </div>
-                            {pedido.recogidaPrioritaria && pedido.horaRecogida && (
-                              <div className="text-xs text-orange-600 font-medium mt-1">
-                                Hora: {pedido.horaRecogida}
-                              </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+              {pedidosFiltrados.map((pedido) => {
+                const inconsistencias = detectarInconsistencias(pedido);
+                const tieneFoto = pedido.validacionQR?.fotoInstalacion || 
+                                 (pedido as any).validacionQR_fotoInstalacion ||
+                                 pedido.lavadoraAsignada?.fotoInstalacion;
+                const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
+                const saldoPendiente = Math.max(0, (pedido.total || 0) - totalPagado);
+                
+                return (
+                  <div 
+                    key={pedido.id} 
+                    className="p-4 rounded-lg border border-gray-200 bg-white hover:shadow-md transition-all duration-200 cursor-pointer"
+                    onClick={() => verDetallesPedido(pedido)}
+                  >
+                    {/* Header con cliente y badge de inconsistente */}
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center space-x-3 flex-1">
+                        <div className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center shadow-md flex-shrink-0">
+                          <span className="text-sm font-bold text-white">
+                            {pedido.cliente.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center space-x-2 flex-wrap">
+                            <h4 className="font-medium text-gray-900 truncate">
+                              {pedido.cliente.name}
+                            </h4>
+                            {inconsistencias.length > 0 && (
+                              <span 
+                                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200 flex-shrink-0"
+                                title={`Inconsistencias: ${inconsistencias.join(', ')}`}
+                              >
+                                ⚠️ Inconsistente
+                              </span>
                             )}
                           </div>
-                        </td>
-                        {/* Total */}
-                        <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
-                          <div className="text-lg font-bold text-gray-900">
-                            {formatCurrency(pedido.total)}
+                          <p className="text-sm text-gray-500 truncate">{pedido.cliente.phone}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Badges de estado */}
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        pedido.status === 'pendiente' ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' :
+                        pedido.status === 'entregado' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                        pedido.status === 'recogido' ? 'bg-green-100 text-green-800 border border-green-200' :
+                        'bg-red-100 text-red-800 border border-red-200'
+                      }`}>
+                        {pedido.status === 'pendiente' ? 'Pendiente' :
+                         pedido.status === 'entregado' ? 'Entregado' :
+                         pedido.status === 'recogido' ? 'Recogido' :
+                         'Cancelado'}
+                      </span>
+                      {pedido.recogidaPrioritaria && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200">
+                          ⏰ Recogida Prioritaria
+                        </span>
+                      )}
+                      {pedido.isPrioritario && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">
+                          🔴 Prioritario
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Plan y Total */}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg px-3 py-2">
+                        <div className="text-sm font-semibold text-green-800">
+                          {pedido.plan.name}
+                        </div>
+                        <div className="text-xs text-green-600">
+                          {formatCurrency(pedido.plan.price)}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-gray-900">
+                          {formatCurrency(pedido.total)}
+                        </div>
+                        {saldoPendiente > 0 && (
+                          <div className="text-xs font-medium text-red-600">
+                            Saldo: {formatCurrency(saldoPendiente)}
                           </div>
-                        </td>
-                        {/* Pedido */}
-                        <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
-                          <div className="text-sm text-gray-900">
-                            {formatDate(pedido.createdAt, 'dd/MM/yyyy')}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {formatDate(pedido.createdAt, 'HH:mm')}
-                          </div>
-                        </td>
-                        {/* Entrega */}
-                        <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
-                          <div className="text-sm text-gray-900">
-                            {pedido.status === 'entregado' && pedido.fechaEntrega ? formatDate(pedido.fechaEntrega, 'dd/MM HH:mm') : (
-                              <span className="text-gray-400 italic">Pendiente</span>
-                            )}
-                          </div>
-                        </td>
-                        {/* Recogida */}
-                        <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => verDetallesPedido(pedido)}>
-                          <div className="text-sm text-gray-900">
-                            {pedido.status === 'recogido' && pedido.fechaRecogida ? (
-                              formatDate(pedido.fechaRecogida, 'dd/MM HH:mm')
-                            ) : (
-                              <span className="text-gray-400 italic">Pendiente</span>
-                            )}
-                          </div>
-                        </td>
-                        {/* Evidencia */}
-                        <td className="px-3 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
-                          {(pedido.validacionQR?.fotoInstalacion || 
-                            (pedido as any).validacionQR_fotoInstalacion ||
-                            pedido.lavadoraAsignada?.fotoInstalacion) ? (
-                            <button 
-                              type="button"
-                              onClick={() => verFotoInstalacion(pedido)}
-                              className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-all duration-200"
-                              title="Ver foto de instalación"
-                            >
-                              <CameraIcon className="h-4 w-4" />
-                            </button>
-                          ) : (
-                            <div className="p-2 text-gray-300">
-                              <CameraIcon className="h-4 w-4" />
-                            </div>
-                          )}
-                        </td>
-                        {/* Eliminar - Solo si tiene permiso */}
-                        {tienePermiso('eliminarServicios') && (
-                          <td className="px-3 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (confirm('¿Estás seguro de que quieres eliminar este pedido?')) {
-                                  eliminarPedido(pedido);
-                                }
-                              }}
-                              className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200"
-                              title="Eliminar"
-                            >
-                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          </td>
                         )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </div>
+                    </div>
+
+                    {/* Fechas */}
+                    <div className="space-y-1 mb-3 text-xs text-gray-600">
+                      <div className="flex items-center space-x-2">
+                        <ClockIcon className="h-3 w-3 text-gray-400" />
+                        <span>
+                          <strong>Pedido:</strong> {formatDate(pedido.fechaAsignacion, 'dd/MM/yyyy HH:mm')}
+                          {user && firebaseUser?.uid === pedido.createdBy && (
+                            <span className="text-gray-500"> - {user.name}</span>
+                          )}
+                        </span>
+                      </div>
+                      {pedido.fechaEntrega ? (
+                        <div className="flex items-center space-x-2">
+                          <TruckIcon className="h-3 w-3 text-blue-500" />
+                          <span>
+                            <strong>Entrega:</strong> {formatDate(pedido.fechaEntrega, 'dd/MM/yyyy HH:mm')}
+                            {pedido.entregadoPor && <span className="text-gray-500"> - {pedido.entregadoPor}</span>}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-2 text-gray-400 italic">
+                          <TruckIcon className="h-3 w-3" />
+                          <span>Entrega: Pendiente</span>
+                        </div>
+                      )}
+                      {pedido.fechaRecogida ? (
+                        <div className="flex items-center space-x-2">
+                          <HomeIcon className="h-3 w-3 text-green-500" />
+                          <span>
+                            <strong>Recogida:</strong> {formatDate(pedido.fechaRecogida, 'dd/MM/yyyy HH:mm')}
+                            {pedido.recogidoPor && <span className="text-gray-500"> - {pedido.recogidoPor}</span>}
+                          </span>
+                        </div>
+                      ) : (
+                        pedido.status === 'entregado' && (
+                          <div className="flex items-center space-x-2 text-gray-400 italic">
+                            <HomeIcon className="h-3 w-3" />
+                            <span>Recogida: Pendiente</span>
+                          </div>
+                        )
+                      )}
+                    </div>
+
+                    {/* Botones de acción */}
+                    <div className="flex items-center justify-between pt-3 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center space-x-2">
+                        {getProgresoButton(pedido)}
+                        {tieneFoto && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              verFotoInstalacion(pedido);
+                            }}
+                            className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-all duration-200"
+                            title="Ver foto de instalación"
+                          >
+                            <CameraIcon className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      {tienePermiso('eliminarServicios') && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm('¿Estás seguro de que quieres eliminar este pedido?')) {
+                              eliminarPedido(pedido);
+                            }
+                          }}
+                          className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200"
+                          title="Eliminar"
+                        >
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
           </div>
@@ -1646,85 +1679,148 @@ const Pedidos: React.FC = () => {
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h4 className="font-medium text-gray-900 mb-3">Cronología del Pedido</h4>
                 <div className="space-y-3">
-                  {/* Paso 1: Asignación */}
-                  <div className="flex items-center space-x-3">
-                    <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">1</span>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium text-gray-900">Pedido Asignado</span>
-                        <span className="text-sm text-gray-500">{pedidoSeleccionado.fechaAsignacion ? formatDate(pedidoSeleccionado.fechaAsignacion, 'dd/MM/yyyy HH:mm') : 'Sin fecha'}</span>
+                  {(() => {
+                    let pasoNum = 1;
+                    const eventos: React.ReactNode[] = [];
+                    
+                    // Paso 1: Asignación
+                    eventos.push(
+                      <div key="asignacion" className="flex items-center space-x-3">
+                        <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                          <span className="text-white text-xs font-bold">{pasoNum}</span>
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium text-gray-900">Pedido Asignado</span>
+                            <div className="text-right">
+                              <span className="text-sm text-gray-500">{pedidoSeleccionado.fechaAsignacion ? formatDate(pedidoSeleccionado.fechaAsignacion, 'dd/MM/yyyy HH:mm') : 'Sin fecha'}</span>
+                              {user && firebaseUser?.uid === pedidoSeleccionado.createdBy && (
+                                <div className="text-xs text-gray-600 font-medium">{user.name}</div>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-500">Se creó el pedido y se asignó al cliente</p>
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-500">Se creó el pedido y se asignó al cliente</p>
-                    </div>
-                  </div>
+                    );
+                    pasoNum++;
 
-                  {/* Paso 2: Entrega */}
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                      pedidoSeleccionado.status === 'pendiente' ? 'bg-gray-300' : 'bg-green-500'
-                    }`}>
-                      <span className={`text-xs font-bold ${
-                        pedidoSeleccionado.status === 'pendiente' ? 'text-gray-600' : 'text-white'
-                      }`}>2</span>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium text-gray-900">
-                          {pedidoSeleccionado.status === 'pendiente' ? 'Entrega Pendiente' : 'Lavadora Entregada'}
-                        </span>
-                        <span className="text-sm text-gray-500">
-                          {pedidoSeleccionado.status === 'pendiente' 
-                            ? (pedidoSeleccionado.fechaEntrega ? formatDate(pedidoSeleccionado.fechaEntrega, 'dd/MM/yyyy HH:mm') : 'Pendiente')
-                            : (pedidoSeleccionado.fechaEntrega ? formatDate(pedidoSeleccionado.fechaEntrega, 'dd/MM/yyyy HH:mm') : '-')
-                          }
-                        </span>
+                    // Paso 2: Entrega
+                    eventos.push(
+                      <div key="entrega" className="flex items-center space-x-3">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                          pedidoSeleccionado.status === 'pendiente' ? 'bg-gray-300' : 'bg-green-500'
+                        }`}>
+                          <span className={`text-xs font-bold ${
+                            pedidoSeleccionado.status === 'pendiente' ? 'text-gray-600' : 'text-white'
+                          }`}>{pasoNum}</span>
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium text-gray-900">
+                              {pedidoSeleccionado.status === 'pendiente' ? 'Entrega Pendiente' : 'Lavadora Entregada'}
+                            </span>
+                            <div className="text-right">
+                              <span className="text-sm text-gray-500">
+                                {pedidoSeleccionado.status === 'pendiente' 
+                                  ? (pedidoSeleccionado.fechaEntrega ? formatDate(pedidoSeleccionado.fechaEntrega, 'dd/MM/yyyy HH:mm') : 'Pendiente')
+                                  : (pedidoSeleccionado.fechaEntrega ? formatDate(pedidoSeleccionado.fechaEntrega, 'dd/MM/yyyy HH:mm') : '-')
+                                }
+                              </span>
+                              {pedidoSeleccionado.entregadoPor && (
+                                <div className="text-xs text-gray-600 font-medium">{pedidoSeleccionado.entregadoPor}</div>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            {pedidoSeleccionado.status === 'pendiente' 
+                              ? 'Se entregará la lavadora al cliente'
+                              : 'Lavadora entregada al cliente'
+                            }
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-500">
-                        {pedidoSeleccionado.status === 'pendiente' 
-                          ? 'Se entregará la lavadora al cliente'
-                          : 'Lavadora entregada al cliente'
-                        }
-                      </p>
-                    </div>
-                  </div>
+                    );
+                    pasoNum++;
 
-                  {/* Paso 3: Recogida */}
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                      pedidoSeleccionado.status === 'recogido' ? 'bg-purple-500' : 
-                      pedidoSeleccionado.status === 'entregado' ? 'bg-yellow-500' : 'bg-gray-300'
-                    }`}>
-                      <span className={`text-xs font-bold ${
-                        pedidoSeleccionado.status === 'recogido' || pedidoSeleccionado.status === 'entregado' ? 'text-white' : 'text-gray-600'
-                      }`}>3</span>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium text-gray-900">
-                          {pedidoSeleccionado.status === 'recogido' ? 'Lavadora Recogida' :
-                           pedidoSeleccionado.status === 'entregado' ? 'Recogida Programada' : 'Recogida Pendiente'}
-                        </span>
-                        <span className="text-sm text-gray-500">
-                          {pedidoSeleccionado.status === 'recogido' 
-                            ? (pedidoSeleccionado.fechaRecogida ? formatDate(pedidoSeleccionado.fechaRecogida, 'dd/MM/yyyy HH:mm') : '-')
-                            : pedidoSeleccionado.status === 'entregado' && pedidoSeleccionado.fechaRecogidaCalculada
-                            ? (pedidoSeleccionado.fechaRecogidaCalculada ? formatDate(pedidoSeleccionado.fechaRecogidaCalculada, 'dd/MM/yyyy HH:mm') : 'No calculable')
-                            : 'Pendiente'
-                          }
-                        </span>
+                    // Pasos de Modificaciones (solo si hay entregado y hay modificaciones)
+                    if (pedidoSeleccionado.status !== 'pendiente' && pedidoSeleccionado.modificacionesServicio && pedidoSeleccionado.modificacionesServicio.length > 0) {
+                      pedidoSeleccionado.modificacionesServicio.forEach((mod, index) => {
+                        eventos.push(
+                          <div key={`modificacion-${index}`} className="flex items-center space-x-3">
+                            <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
+                              <span className="text-white text-xs font-bold">{pasoNum}</span>
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm font-medium text-gray-900">Modificación #{index + 1}</span>
+                                <div className="text-right">
+                                  <span className="text-sm text-gray-500">
+                                    {mod.fecha ? formatDate(mod.fecha, 'dd/MM/yyyy HH:mm') : 'Sin fecha'}
+                                  </span>
+                                  {mod.aplicadoPor && (
+                                    <div className="text-xs text-gray-600 font-medium">{mod.aplicadoPor}</div>
+                                  )}
+                                </div>
+                              </div>
+                              <p className="text-xs text-gray-500">
+                                {mod.totalModificaciones !== 0 
+                                  ? `Ajuste: ${mod.totalModificaciones > 0 ? '+' : ''}${formatCurrency(mod.totalModificaciones)}`
+                                  : 'Sin cambios financieros'
+                                }
+                              </p>
+                            </div>
+                          </div>
+                        );
+                        pasoNum++;
+                      });
+                    }
+
+                    // Último paso: Recogida
+                    eventos.push(
+                      <div key="recogida" className="flex items-center space-x-3">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                          pedidoSeleccionado.status === 'recogido' ? 'bg-purple-500' : 
+                          pedidoSeleccionado.status === 'entregado' ? 'bg-yellow-500' : 'bg-gray-300'
+                        }`}>
+                          <span className={`text-xs font-bold ${
+                            pedidoSeleccionado.status === 'recogido' || pedidoSeleccionado.status === 'entregado' ? 'text-white' : 'text-gray-600'
+                          }`}>{pasoNum}</span>
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium text-gray-900">
+                              {pedidoSeleccionado.status === 'recogido' ? 'Lavadora Recogida' :
+                               pedidoSeleccionado.status === 'entregado' ? 'Recogida Programada' : 'Recogida Pendiente'}
+                            </span>
+                            <div className="text-right">
+                              <span className="text-sm text-gray-500">
+                                {pedidoSeleccionado.status === 'recogido' 
+                                  ? (pedidoSeleccionado.fechaRecogida ? formatDate(pedidoSeleccionado.fechaRecogida, 'dd/MM/yyyy HH:mm') : '-')
+                                  : pedidoSeleccionado.status === 'entregado' && pedidoSeleccionado.fechaRecogidaCalculada
+                                  ? (pedidoSeleccionado.fechaRecogidaCalculada ? formatDate(pedidoSeleccionado.fechaRecogidaCalculada, 'dd/MM/yyyy HH:mm') : 'No calculable')
+                                  : 'Pendiente'
+                                }
+                              </span>
+                              {pedidoSeleccionado.recogidoPor && (
+                                <div className="text-xs text-gray-600 font-medium">{pedidoSeleccionado.recogidoPor}</div>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            {pedidoSeleccionado.status === 'recogido' 
+                              ? 'Lavadora recogida del cliente'
+                              : pedidoSeleccionado.status === 'entregado'
+                              ? 'Lavadora será recogida según el plan'
+                              : 'Se recogerá después de entregar'
+                            }
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-500">
-                        {pedidoSeleccionado.status === 'recogido' 
-                          ? 'Lavadora recogida del cliente'
-                          : pedidoSeleccionado.status === 'entregado'
-                          ? 'Lavadora será recogida según el plan'
-                          : 'Se recogerá después de entregar'
-                        }
-                      </p>
-                    </div>
-                  </div>
+                    );
+
+                    return eventos;
+                  })()}
                 </div>
               </div>
 
@@ -1848,9 +1944,16 @@ const Pedidos: React.FC = () => {
                             <span className="font-medium text-gray-900">
                               Modificación #{index + 1}
                             </span>
-                            <span className="text-xs text-gray-500">
-                              {mod.fecha ? formatDate(mod.fecha, 'dd/MM HH:mm') : 'Sin fecha'}
-                            </span>
+                            <div className="text-right">
+                              <div className="text-xs text-gray-500">
+                                {mod.fecha ? formatDate(mod.fecha, 'dd/MM HH:mm') : 'Sin fecha'}
+                              </div>
+                              {mod.aplicadoPor && (
+                                <div className="text-xs text-gray-600 font-medium">
+                                  {mod.aplicadoPor}
+                                </div>
+                              )}
+                            </div>
                           </div>
                           
                           {/* Horas Extras */}
@@ -1952,6 +2055,9 @@ const Pedidos: React.FC = () => {
                                   ? formatDate(pago.fecha, 'dd/MM HH:mm') 
                                   : 'Sin fecha'
                                 }
+                                {pago.registradoPor && (
+                                  <span className="text-gray-600"> • {pago.registradoPor}</span>
+                                )}
                                 {pago.referencia && ` • Ref: ${pago.referencia}`}
                               </div>
                             </div>
@@ -2019,7 +2125,13 @@ const Pedidos: React.FC = () => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
                             <h5 className="text-sm font-medium text-gray-900">{evento.titulo}</h5>
-                            <span className="text-xs text-gray-500">{formatearFechaTimeline(evento.fecha)}</span>
+                            <div className="text-right">
+                              <span className="text-xs text-gray-500">{formatearFechaTimeline(evento.fecha)}</span>
+                              {/* Mostrar usuario si está disponible en el evento */}
+                              {evento.usuario && (
+                                <div className="text-xs text-gray-600 font-medium">{evento.usuario}</div>
+                              )}
+                            </div>
                           </div>
                           
                           <p className="text-sm text-gray-600 mt-1">{evento.descripcion}</p>

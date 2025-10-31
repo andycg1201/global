@@ -29,12 +29,27 @@ class RecogidaOperativaService {
         data
       });
 
+      // Obtener nombre del usuario actual
+      const getCurrentUserName = (): string => {
+        try {
+          const userStr = localStorage.getItem('currentUser');
+          if (userStr) {
+            const user = JSON.parse(userStr);
+            return user.name || 'Usuario desconocido';
+          }
+        } catch (error) {
+          console.error('Error al obtener nombre del usuario:', error);
+        }
+        return 'Usuario desconocido';
+      };
+
       // Actualizar el pedido con la información de recogida
       const pedidoActualizado = await pedidoService.updatePedido(pedidoId, {
         status: 'recogido',
         fechaRecogida: data.fechaRecogida,
         horaRecogida: data.horaRecogida,
         observacionRecogida: data.observaciones,
+        recogidoPor: getCurrentUserName(), // ✅ Nombre del usuario que realizó la recogida
         updatedAt: new Date()
       });
 

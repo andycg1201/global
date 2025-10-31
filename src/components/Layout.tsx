@@ -37,7 +37,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Gastos', href: '/gastos', icon: CurrencyDollarIcon, permiso: 'verGastos' as const },
     { name: 'Reportes', href: '/reportes', icon: ChartBarIcon, permiso: 'verReportes' as const },
     { name: 'Capital', href: '/capital', icon: CurrencyDollarIcon, permiso: 'verCapital' as const },
-    { name: 'Auditoría', href: '/auditoria', icon: ClipboardDocumentListIcon, permiso: 'verAuditoria' as const },
+    // { name: 'Auditoría', href: '/auditoria', icon: ClipboardDocumentListIcon, permiso: 'verAuditoria' as const }, // Ocultado temporalmente
     { name: 'Configuración', href: '/configuracion', icon: Cog6ToothIcon, permiso: 'verConfiguracion' as const },
   ];
 

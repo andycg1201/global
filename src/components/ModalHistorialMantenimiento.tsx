@@ -214,6 +214,11 @@ export const ModalHistorialMantenimiento: React.FC<ModalHistorialMantenimientoPr
                             <p className="text-sm font-medium">
                               {formatDate(mantenimiento.fechaInicio, 'dd/MM/yyyy HH:mm')}
                             </p>
+                            {mantenimiento.registradoPor && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                Registrado por: {mantenimiento.registradoPor}
+                              </p>
+                            )}
                           </div>
                           <div>
                             <p className="text-xs text-gray-500">Fecha Estimada</p>
@@ -240,6 +245,11 @@ export const ModalHistorialMantenimiento: React.FC<ModalHistorialMantenimientoPr
                             <p className="text-sm font-medium text-green-600">
                               {formatDate(mantenimiento.fechaFin, 'dd/MM/yyyy HH:mm')}
                             </p>
+                            {mantenimiento.finalizadoPor && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                Finalizado por: {mantenimiento.finalizadoPor}
+                              </p>
+                            )}
                           </div>
                         )}
 

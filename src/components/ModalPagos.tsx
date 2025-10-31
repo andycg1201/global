@@ -56,12 +56,27 @@ const ModalPagos: React.FC<ModalPagosProps> = ({
       const { pedidoService } = await import('../services/firebaseService');
       const { capitalService } = await import('../services/capitalService');
 
+      // Obtener nombre del usuario actual
+      const getCurrentUserName = (): string => {
+        try {
+          const userStr = localStorage.getItem('currentUser');
+          if (userStr) {
+            const user = JSON.parse(userStr);
+            return user.name || 'Usuario desconocido';
+          }
+        } catch (error) {
+          console.error('Error al obtener nombre del usuario:', error);
+        }
+        return 'Usuario desconocido';
+      };
+
       // Crear el pago
       const nuevoPago = {
         monto: montoFinal,
         medioPago: medioPago,
         fecha: new Date(),
-        isPartial: montoFinal < saldoPendiente
+        isPartial: montoFinal < saldoPendiente,
+        registradoPor: getCurrentUserName() // ✅ Nombre del usuario que registró el pago
       };
 
       console.log('🔍 ModalPagos - Nuevo pago creado:', nuevoPago);

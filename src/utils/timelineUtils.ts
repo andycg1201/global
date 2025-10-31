@@ -11,6 +11,7 @@ export interface TimelineEvent {
   montoNuevo?: number;
   icono: string;
   color: string;
+  usuario?: string; // Nombre del usuario que realizó la acción (solo para pedidos nuevos)
 }
 
 // Función auxiliar para convertir fechas a Date
@@ -62,7 +63,8 @@ export const generarTimelineServicio = (pedido: Pedido, planes: Plan[]): Timelin
           montoNuevo: planNuevo?.price || 0,
           monto: modificacion.cambioPlan.diferencia,
           icono: '🔄',
-          color: modificacion.cambioPlan.diferencia > 0 ? 'green' : 'red'
+          color: modificacion.cambioPlan.diferencia > 0 ? 'green' : 'red',
+          usuario: modificacion.aplicadoPor // ✅ Nombre del usuario que aplicó la modificación
         });
       }
 
@@ -77,7 +79,8 @@ export const generarTimelineServicio = (pedido: Pedido, planes: Plan[]): Timelin
             fecha: fechaModificacion,
             monto: hora.total,
             icono: '⏰',
-            color: 'orange'
+            color: 'orange',
+            usuario: modificacion.aplicadoPor // ✅ Nombre del usuario que aplicó la modificación
           });
         });
       }
@@ -93,7 +96,8 @@ export const generarTimelineServicio = (pedido: Pedido, planes: Plan[]): Timelin
             fecha: fechaModificacion,
             monto: cobro.monto,
             icono: '💰',
-            color: 'green'
+            color: 'green',
+            usuario: modificacion.aplicadoPor // ✅ Nombre del usuario que aplicó la modificación
           });
         });
       }
@@ -109,7 +113,8 @@ export const generarTimelineServicio = (pedido: Pedido, planes: Plan[]): Timelin
             fecha: fechaModificacion,
             monto: descuento.monto,
             icono: '🎯',
-            color: 'red'
+            color: 'red',
+            usuario: modificacion.aplicadoPor // ✅ Nombre del usuario que aplicó la modificación
           });
         });
       }
@@ -125,7 +130,8 @@ export const generarTimelineServicio = (pedido: Pedido, planes: Plan[]): Timelin
       descripcion: `Lavadora ${pedido.lavadoraAsignada?.codigoQR || 'N/A'} instalada`,
       fecha: convertirFecha(pedido.fechaEntrega),
       icono: '✅',
-      color: 'green'
+      color: 'green',
+      usuario: pedido.entregadoPor // ✅ Nombre del usuario que realizó la entrega
     });
   }
 
@@ -140,7 +146,8 @@ export const generarTimelineServicio = (pedido: Pedido, planes: Plan[]): Timelin
         fecha: convertirFecha(pago.fecha),
         monto: pago.monto,
         icono: '💳',
-        color: 'blue'
+        color: 'blue',
+        usuario: pago.registradoPor // ✅ Nombre del usuario que registró el pago
       });
     });
   }
@@ -154,7 +161,8 @@ export const generarTimelineServicio = (pedido: Pedido, planes: Plan[]): Timelin
       descripcion: 'Servicio completado',
       fecha: convertirFecha(pedido.fechaRecogida),
       icono: '🏁',
-      color: 'purple'
+      color: 'purple',
+      usuario: pedido.recogidoPor // ✅ Nombre del usuario que realizó la recogida
     });
   }
 

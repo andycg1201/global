@@ -51,6 +51,20 @@ export const crearMantenimiento = async (
       throw new Error('Usuario no autenticado. No se puede crear el mantenimiento.');
     }
 
+    // Obtener nombre del usuario actual
+    const getCurrentUserName = (): string => {
+      try {
+        const userStr = localStorage.getItem('currentUser');
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          return user.name || 'Usuario desconocido';
+        }
+      } catch (error) {
+        console.error('Error al obtener nombre del usuario:', error);
+      }
+      return 'Usuario desconocido';
+    };
+
     const mantenimientoData = {
       lavadoraId,
       tipoFalla,
@@ -63,6 +77,7 @@ export const crearMantenimiento = async (
       observaciones: observaciones || '',
       medioPago: medioPago || 'efectivo',
       createdBy,
+      registradoPor: getCurrentUserName(), // ✅ Nombre del usuario que registró el mantenimiento
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };
@@ -114,11 +129,26 @@ export const finalizarMantenimiento = async (
     const mantenimientoDoc = await getDoc(doc(db, MANTENIMIENTOS_COLLECTION, mantenimientoId));
     const mantenimientoData = mantenimientoDoc.exists() ? mantenimientoDoc.data() : null;
 
+    // Obtener nombre del usuario actual
+    const getCurrentUserName = (): string => {
+      try {
+        const userStr = localStorage.getItem('currentUser');
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          return user.name || 'Usuario desconocido';
+        }
+      } catch (error) {
+        console.error('Error al obtener nombre del usuario:', error);
+      }
+      return 'Usuario desconocido';
+    };
+
     // Actualizar el mantenimiento
     const mantenimientoRef = doc(db, MANTENIMIENTOS_COLLECTION, mantenimientoId);
     await updateDoc(mantenimientoRef, {
       fechaFin: serverTimestamp(),
       observaciones: observaciones || '',
+      finalizadoPor: getCurrentUserName(), // ✅ Nombre del usuario que finalizó el mantenimiento
       updatedAt: serverTimestamp()
     });
 
@@ -203,7 +233,10 @@ export const obtenerMantenimientoPorId = async (mantenimientoId: string): Promis
       fechaFin: data.fechaFin?.toDate(),
       fotos: data.fotos || [],
       observaciones: data.observaciones || '',
+      medioPago: data.medioPago || 'efectivo',
       createdBy: data.createdBy,
+      registradoPor: data.registradoPor || undefined, // ✅ Nombre del usuario que registró el mantenimiento
+      finalizadoPor: data.finalizadoPor || undefined, // ✅ Nombre del usuario que finalizó el mantenimiento
       createdAt: data.createdAt?.toDate() || new Date(),
       updatedAt: data.updatedAt?.toDate() || new Date()
     };
@@ -238,7 +271,10 @@ export const obtenerHistorialMantenimiento = async (lavadoraId: string): Promise
         fechaFin: data.fechaFin?.toDate(),
         fotos: data.fotos || [],
         observaciones: data.observaciones || '',
+        medioPago: data.medioPago || 'efectivo',
         createdBy: data.createdBy,
+        registradoPor: data.registradoPor || undefined, // ✅ Nombre del usuario que registró el mantenimiento
+        finalizadoPor: data.finalizadoPor || undefined, // ✅ Nombre del usuario que finalizó el mantenimiento
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date()
       });
@@ -282,6 +318,8 @@ export const obtenerTodosLosMantenimientos = async (): Promise<Mantenimiento[]> 
         observaciones: data.observaciones || '',
         medioPago: data.medioPago || 'efectivo',
         createdBy: data.createdBy,
+        registradoPor: data.registradoPor || undefined, // ✅ Nombre del usuario que registró el mantenimiento
+        finalizadoPor: data.finalizadoPor || undefined, // ✅ Nombre del usuario que finalizó el mantenimiento
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date()
       });
@@ -332,6 +370,8 @@ export const obtenerMantenimientosActivos = async (): Promise<Mantenimiento[]> =
           observaciones: data.observaciones || '',
           medioPago: data.medioPago || 'efectivo',
           createdBy: data.createdBy,
+          registradoPor: data.registradoPor || undefined, // ✅ Nombre del usuario que registró el mantenimiento
+          finalizadoPor: data.finalizadoPor || undefined, // ✅ Nombre del usuario que finalizó el mantenimiento
           createdAt: data.createdAt?.toDate() || new Date(),
           updatedAt: data.updatedAt?.toDate() || new Date()
         });
@@ -378,7 +418,10 @@ export const obtenerEstadisticasMantenimiento = async (): Promise<{
         fechaFin: data.fechaFin?.toDate(),
         fotos: data.fotos || [],
         observaciones: data.observaciones || '',
+        medioPago: data.medioPago || 'efectivo',
         createdBy: data.createdBy,
+        registradoPor: data.registradoPor || undefined, // ✅ Nombre del usuario que registró el mantenimiento
+        finalizadoPor: data.finalizadoPor || undefined, // ✅ Nombre del usuario que finalizó el mantenimiento
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date()
       });

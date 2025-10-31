@@ -554,6 +554,8 @@ export const pedidoService = {
           fechaRecogida: data.fechaRecogida?.toDate() || undefined,
           fechaRecogidaCalculada: data.fechaRecogidaCalculada?.toDate() || new Date(),
           fechaEliminacion: data.fechaEliminacion?.toDate() || undefined,
+          entregadoPor: data.entregadoPor || undefined, // ✅ Nombre del usuario que realizó la entrega
+          recogidoPor: data.recogidoPor || undefined, // ✅ Nombre del usuario que realizó la recogida
           createdAt: data.createdAt?.toDate() || new Date(),
           updatedAt: data.updatedAt?.toDate() || new Date()
         } as Pedido;
@@ -740,6 +742,7 @@ export const gastoService = {
         id: doc.id,
         ...data,
         date: data.date?.toDate() || new Date(),
+        registradoPor: data.registradoPor || undefined, // ✅ Nombre del usuario que registró el gasto
         createdAt: data.createdAt?.toDate() || new Date()
       } as Gasto;
     });
@@ -793,6 +796,7 @@ export const gastoService = {
         id: doc.id,
         ...data,
         date: data.date?.toDate() || new Date(),
+        registradoPor: data.registradoPor || undefined, // ✅ Nombre del usuario que registró el gasto
         createdAt: data.createdAt?.toDate() || new Date()
       } as Gasto;
     });

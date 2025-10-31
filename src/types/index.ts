@@ -213,7 +213,7 @@ export interface ModificacionServicio {
   totalModificaciones: number; // horas + cobros - descuentos + diferencia plan
   
   // Metadatos
-  aplicadoPor: string;
+  aplicadoPor: string; // Nombre del usuario que aplicó la modificación (cambiar de ID a nombre para pedidos nuevos)
   fecha: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -272,6 +272,10 @@ export interface Pedido {
   fechaAsignacion: Date;
   fechaEntrega?: Date;
   fechaRecogida?: Date;
+  
+  // Usuarios que realizaron las acciones (solo para pedidos nuevos)
+  entregadoPor?: string; // Nombre del usuario que realizó la entrega
+  recogidoPor?: string; // Nombre del usuario que realizó la recogida
   
   // Cálculos automáticos (solo se calculan cuando se entrega)
   fechaRecogidaCalculada?: Date; // opcional hasta que se entregue
@@ -348,6 +352,7 @@ export interface PagoRealizado {
   referencia?: string;
   fecha: Date;
   isPartial: boolean;
+  registradoPor?: string; // Nombre del usuario que registró el pago (solo para pedidos nuevos)
 }
 
 // Tipos de mantenimiento
@@ -365,6 +370,8 @@ export interface Mantenimiento {
   observaciones?: string;
   medioPago?: 'efectivo' | 'nequi' | 'daviplata'; // medio de pago para el mantenimiento
   createdBy: string;
+  registradoPor?: string; // Nombre del usuario que registró el mantenimiento (solo para mantenimientos nuevos)
+  finalizadoPor?: string; // Nombre del usuario que finalizó el mantenimiento (solo para mantenimientos nuevos)
   createdAt: Date;
   updatedAt: Date;
 }
@@ -419,6 +426,7 @@ export interface Gasto {
   date: Date;
   medioPago: 'efectivo' | 'nequi' | 'daviplata';
   createdBy: string;
+  registradoPor?: string; // Nombre del usuario que registró el gasto (solo para gastos nuevos)
   createdAt: Date;
 }
 

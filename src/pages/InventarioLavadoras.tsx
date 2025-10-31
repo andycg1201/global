@@ -301,10 +301,10 @@ const InventarioLavadoras: React.FC = () => {
     try {
       setLoading(true);
       await exportAllLavadorasToWord(lavadoras);
-      alert('Documento Word generado exitosamente');
+      alert('PDF descargado exitosamente');
     } catch (error) {
       console.error('Error al exportar:', error);
-      alert('Error al generar el documento Word');
+      alert('Error al descargar el PDF');
     } finally {
       setLoading(false);
     }

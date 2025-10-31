@@ -226,6 +226,20 @@ const Gastos: React.FC = () => {
       // Usar la fecha actual en el momento exacto de crear el gasto
       const fechaActual = new Date();
       
+      // Obtener nombre del usuario actual
+      const getCurrentUserName = (): string => {
+        try {
+          const userStr = localStorage.getItem('currentUser');
+          if (userStr) {
+            const user = JSON.parse(userStr);
+            return user.name || 'Usuario desconocido';
+          }
+        } catch (error) {
+          console.error('Error al obtener nombre del usuario:', error);
+        }
+        return user?.name || 'Usuario desconocido';
+      };
+      
       await gastoService.createGasto({
         conceptoId: nuevoGasto.conceptoId,
         concepto,
@@ -233,7 +247,8 @@ const Gastos: React.FC = () => {
         description: nuevoGasto.description,
         date: fechaActual, // Fecha actual real
         medioPago: nuevoGasto.medioPago,
-        createdBy: user.id
+        createdBy: user.id,
+        registradoPor: getCurrentUserName() // ✅ Nombre del usuario que registró el gasto
       });
       
       setNuevoGasto({
@@ -945,7 +960,14 @@ const Gastos: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatDate(gasto.date, 'dd/MM/yyyy HH:mm')}
+                      <div>
+                        {formatDate(gasto.date, 'dd/MM/yyyy HH:mm')}
+                        {gasto.registradoPor && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            {gasto.registradoPor}
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

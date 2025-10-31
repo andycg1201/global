@@ -287,7 +287,18 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
         totalCobrosAdicionales: modificacion.totalCobrosAdicionales || 0,
         totalDescuentos: modificacion.totalDescuentos || 0,
         totalModificaciones: totalModificaciones,
-        aplicadoPor: 'admin', // TODO: usar usuario autenticado
+        aplicadoPor: (() => {
+          try {
+            const userStr = localStorage.getItem('currentUser');
+            if (userStr) {
+              const user = JSON.parse(userStr);
+              return user.name || 'Usuario desconocido';
+            }
+          } catch (error) {
+            console.error('Error al obtener nombre del usuario:', error);
+          }
+          return 'Usuario desconocido';
+        })(), // ✅ Nombre del usuario que aplicó la modificación
         fecha: new Date(),
         createdAt: new Date(),
         updatedAt: new Date()

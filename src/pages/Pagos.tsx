@@ -24,6 +24,7 @@ interface PagoCompleto {
   isPartial: boolean;
   saldoAnterior: number;
   saldoNuevo: number;
+  registradoPor?: string; // Nombre del usuario que registró el pago (solo para pagos nuevos)
 }
 
 interface FiltrosPagos {
@@ -170,7 +171,8 @@ const Pagos: React.FC = () => {
                 fecha: fechaPago,
                 isPartial: pago.isPartial,
                 saldoAnterior,
-                saldoNuevo
+                saldoNuevo,
+                registradoPor: pago.registradoPor // ✅ Nombre del usuario que registró el pago
               });
             }
           });
@@ -467,6 +469,9 @@ const Pagos: React.FC = () => {
                       </p>
                       <p className="text-sm text-gray-600">
                         Servicio #{pago.servicioId} • {formatDate(pago.fecha, 'dd/MM/yyyy HH:mm')}
+                        {pago.registradoPor && (
+                          <span className="text-gray-500"> • {pago.registradoPor}</span>
+                        )}
                       </p>
                       {pago.referencia && (
                         <p className="text-xs text-gray-500">Ref: {pago.referencia}</p>

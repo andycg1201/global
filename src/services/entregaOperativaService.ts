@@ -76,6 +76,20 @@ export class EntregaOperativaService {
         fechaRecogidaCalculada: fechaRecogidaCalculada.toISOString()
       });
 
+      // Obtener nombre del usuario actual
+      const getCurrentUserName = (): string => {
+        try {
+          const userStr = localStorage.getItem('currentUser');
+          if (userStr) {
+            const user = JSON.parse(userStr);
+            return user.name || 'Usuario desconocido';
+          }
+        } catch (error) {
+          console.error('Error al obtener nombre del usuario:', error);
+        }
+        return 'Usuario desconocido';
+      };
+
       // Actualizar el pedido SOLO con información operativa
       const updateData: any = {
         // Información de validación QR (operativa)
@@ -95,6 +109,7 @@ export class EntregaOperativaService {
         status: 'entregado',
         fechaEntrega: fechaEntrega,
         fechaRecogidaCalculada: fechaRecogidaCalculada, // ✅ AGREGADO: Calcular fecha de recogida
+        entregadoPor: getCurrentUserName(), // ✅ Nombre del usuario que realizó la entrega
         updatedAt: new Date()
       };
 

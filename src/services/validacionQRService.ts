@@ -67,6 +67,20 @@ export class ValidacionQRService {
       const totalHorasAdicionales = validacionData.horasAdicionales * (configuracion?.horaAdicional || 2000);
       const nuevoTotal = subtotal + totalCobrosAdicionales + totalHorasAdicionales;
 
+      // Obtener nombre del usuario actual
+      const getCurrentUserName = (): string => {
+        try {
+          const userStr = localStorage.getItem('currentUser');
+          if (userStr) {
+            const user = JSON.parse(userStr);
+            return user.name || 'Usuario desconocido';
+          }
+        } catch (error) {
+          console.error('Error al obtener nombre del usuario:', error);
+        }
+        return 'Usuario desconocido';
+      };
+
       // Actualizar el pedido con la información de validación QR y facturación
       const updateData: any = {
         validacionQR_lavadoraEscaneada: validacionData.lavadoraEscaneada,
@@ -90,7 +104,8 @@ export class ValidacionQRService {
         saldoPendiente: nuevoTotal - (pedido.pagosRealizados?.reduce((sum, p) => sum + p.monto, 0) || 0),
         updatedAt: new Date(),
         status: 'entregado', // Cambiar estado a entregado
-        fechaEntrega: new Date() // Agregar fecha de entrega
+        fechaEntrega: new Date(), // Agregar fecha de entrega
+        entregadoPor: getCurrentUserName() // ✅ Nombre del usuario que realizó la entrega
       };
 
       // Actualizar estado de pago

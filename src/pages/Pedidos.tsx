@@ -27,6 +27,7 @@ import ModalCancelacion from '../components/ModalCancelacion';
 import ModalLiquidacion from '../components/ModalLiquidacion';
 import ModalLiquidacionUniversal from '../components/ModalLiquidacionUniversal';
 import ModalEntregaOperativa from '../components/ModalEntregaOperativa';
+import ModalRecogidaOperativa from '../components/ModalRecogidaOperativa';
 import ModalFotoInstalacion from '../components/ModalFotoInstalacion';
 import ModalWhatsApp from '../components/ModalWhatsApp';
 import ModalModificacionesServicio from '../components/ModalModificacionesServicio';
@@ -66,6 +67,10 @@ const Pedidos: React.FC = () => {
   const [mostrarModalEntregaOperativa, setMostrarModalEntregaOperativa] = useState(false);
   const [pedidoAValidar, setPedidoAValidar] = useState<Pedido | null>(null);
   const [lavadoras, setLavadoras] = useState<any[]>([]);
+  
+  // Estados para recogida operativa
+  const [mostrarModalRecogidaOperativa, setMostrarModalRecogidaOperativa] = useState(false);
+  const [pedidoParaRecogida, setPedidoParaRecogida] = useState<Pedido | null>(null);
   
   // Estados para calendario de horarios
   const [mostrarCalendarioHorarios, setMostrarCalendarioHorarios] = useState(false);
@@ -777,8 +782,8 @@ const Pedidos: React.FC = () => {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              setPedidoAFacturar(pedido);
-              setMostrarModalLiquidacion(true);
+              setPedidoParaRecogida(pedido);
+              setMostrarModalRecogidaOperativa(true);
             }}
             className="px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 rounded-lg shadow-sm transition-all duration-200"
             title="Liquidar y recoger"
@@ -1112,32 +1117,35 @@ const Pedidos: React.FC = () => {
 
   // Función para procesar recogida operativa (solo liberar lavadora + cambio estado)
   const handleRecogidaOperativa = async (recogidaData: any) => {
-    if (!pedidoAValidar) return;
+    if (!pedidoParaRecogida) return;
 
     try {
       const result = await recogidaOperativaService.procesarRecogidaOperativa(
-        pedidoAValidar.id,
+        pedidoParaRecogida.id,
         recogidaData
       );
       
       console.log('Pedidos - Recogida operativa exitosa');
       
-      // Cerrar modal de entrega operativa
-      setMostrarModalEntregaOperativa(false);
-      
-      // Mostrar resumen final del servicio
-      if (result.pedidoActualizado) {
-        setPedidoParaModificar(result.pedidoActualizado);
-        setMostrarResumenFinal(true);
+      // Si tiene lavadora asignada, liberar la lavadora
+      if (pedidoParaRecogida.lavadoraAsignada) {
+        await lavadoraService.updateLavadora(pedidoParaRecogida.lavadoraAsignada.lavadoraId, {
+          estado: 'disponible'
+        });
+        console.log('✅ Lavadora liberada');
       }
-  
+      
+      // Cerrar modal de recogida operativa
+      setMostrarModalRecogidaOperativa(false);
+      
       // Limpiar estado
-      setPedidoAValidar(null);
+      setPedidoParaRecogida(null);
       
       // Recargar datos
       cargarPedidos();
       cargarLavadoras();
       window.dispatchEvent(new CustomEvent('pagoRealizado')); // Notificar al dashboard
+      alert('Servicio marcado como recogido exitosamente');
     } catch (error: any) {
       alert(error.message || 'Error al procesar la recogida');
     }
@@ -2343,6 +2351,19 @@ const Pedidos: React.FC = () => {
           onConfirm={handleEntregaOperativa}
           pedido={pedidoAValidar}
           lavadoras={lavadoras}
+        />
+      )}
+
+      {/* Modal de Recogida Operativa */}
+      {mostrarModalRecogidaOperativa && pedidoParaRecogida && (
+        <ModalRecogidaOperativa
+          isOpen={mostrarModalRecogidaOperativa}
+          onClose={() => {
+            setMostrarModalRecogidaOperativa(false);
+            setPedidoParaRecogida(null);
+          }}
+          onConfirm={handleRecogidaOperativa}
+          pedido={pedidoParaRecogida}
         />
       )}
 

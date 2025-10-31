@@ -174,7 +174,7 @@ const ModalRecogidaOperativa: React.FC<ModalRecogidaOperativaProps> = ({
               {pedido.lavadoraAsignada && (
                 <div className="flex items-center space-x-2 sm:col-span-2">
                   <span className="text-xs sm:text-sm text-blue-800">
-                    <strong>Lavadora:</strong> {pedido.lavadoraAsignada.lavadoraId}
+                    <strong>Lavadora:</strong> {pedido.lavadoraAsignada.codigoQR}
                   </span>
                 </div>
               )}

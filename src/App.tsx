@@ -11,6 +11,7 @@ import Pagos from './pages/Pagos';
 import InventarioLavadoras from './pages/InventarioLavadoras';
 import Gastos from './pages/Gastos';
 import Reportes from './pages/Reportes';
+import Operadores from './pages/Operadores';
 import Capital from './pages/Capital';
 import Auditoria from './pages/Auditoria';
 import Configuracion from './pages/Configuracion';
@@ -116,6 +117,14 @@ const AppContent: React.FC = () => {
           element={
             <ProtectedRoute>
               <Reportes />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/operadores" 
+          element={
+            <ProtectedRoute>
+              <Operadores />
             </ProtectedRoute>
           } 
         />

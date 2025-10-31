@@ -20,6 +20,7 @@ export interface MovimientoSaldo {
   pedidoId?: string;
   clienteName?: string;
   planName?: string;
+  registradoPor?: string; // Nombre del usuario que registró el movimiento (pago, gasto o mantenimiento)
 }
 
 export class MovimientosSaldosService {
@@ -56,7 +57,8 @@ export class MovimientosSaldosService {
               medioPago: pago.medioPago,
               pedidoId: doc.id,
               clienteName: pedidoData.cliente?.name,
-              planName: pedidoData.plan?.name
+              planName: pedidoData.plan?.name,
+              registradoPor: pago.registradoPor || undefined // Nombre del usuario que registró el pago
             };
             console.log('💰 Pago agregado:', movimiento);
             movimientos.push(movimiento);
@@ -131,7 +133,8 @@ export class MovimientosSaldosService {
           monto: data.amount,
           tipo: 'gasto' as const,
           descripcion: data.descripcion,
-          medioPago: data.medioPago
+          medioPago: data.medioPago,
+          registradoPor: data.registradoPor || undefined // Nombre del usuario que registró el gasto
         };
         console.log('💸 Gasto agregado:', movimiento);
         movimientos.push(movimiento);
@@ -176,7 +179,8 @@ export class MovimientosSaldosService {
           monto: data.costoReparacion || 0,
           tipo: 'gasto' as const,
           descripcion: data.descripcion,
-          medioPago: data.medioPago
+          medioPago: data.medioPago,
+          registradoPor: data.registradoPor || undefined // Nombre del usuario que registró el mantenimiento
         };
         console.log('🔧 Mantenimiento agregado:', movimiento);
         movimientos.push(movimiento);

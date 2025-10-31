@@ -14,6 +14,7 @@ import {
   ClockIcon
 } from '@heroicons/react/24/outline';
 import { pedidoService, configService, lavadoraService } from '../services/firebaseService';
+import { usuarioService } from '../services/usuarioService';
 import { entregaOperativaService } from '../services/entregaOperativaService';
 import { recogidaOperativaService } from '../services/recogidaOperativaService';
 import { modificacionesService } from '../services/modificacionesService';
@@ -48,6 +49,7 @@ const Pedidos: React.FC = () => {
   const [busqueda, setBusqueda] = useState('');
   const [mostrarNuevoPedido, setMostrarNuevoPedido] = useState(false);
   const [pedidoSeleccionado, setPedidoSeleccionado] = useState<Pedido | null>(null);
+  const [nombreCreadorPedido, setNombreCreadorPedido] = useState<string | null>(null);
   const [mostrarModalDetalles, setMostrarModalDetalles] = useState(false);
   const [mostrarModalCancelacion, setMostrarModalCancelacion] = useState(false);
   const [pedidoACancelar, setPedidoACancelar] = useState<Pedido | null>(null);
@@ -111,6 +113,35 @@ const Pedidos: React.FC = () => {
     cargarLavadoras();
     cargarPlanes();
   }, [filtros]);
+
+  // Obtener nombre del creador del pedido cuando se selecciona
+  useEffect(() => {
+    const obtenerNombreCreador = async () => {
+      if (pedidoSeleccionado && pedidoSeleccionado.createdBy) {
+        // Si el usuario actual es el creador, usar su nombre directamente
+        if (user && firebaseUser?.uid === pedidoSeleccionado.createdBy) {
+          setNombreCreadorPedido(user.name);
+        } else {
+          // Buscar el usuario desde su ID
+          try {
+            const usuarioCreador = await usuarioService.getUsuarioById(pedidoSeleccionado.createdBy);
+            if (usuarioCreador) {
+              setNombreCreadorPedido(usuarioCreador.name);
+            } else {
+              setNombreCreadorPedido(null);
+            }
+          } catch (error) {
+            console.error('Error al obtener nombre del creador:', error);
+            setNombreCreadorPedido(null);
+          }
+        }
+      } else {
+        setNombreCreadorPedido(null);
+      }
+    };
+
+    obtenerNombreCreador();
+  }, [pedidoSeleccionado, user, firebaseUser]);
 
   const cargarPedidos = async () => {
     setLoading(true);
@@ -1694,8 +1725,8 @@ const Pedidos: React.FC = () => {
                             <span className="text-sm font-medium text-gray-900">Pedido Asignado</span>
                             <div className="text-right">
                               <span className="text-sm text-gray-500">{pedidoSeleccionado.fechaAsignacion ? formatDate(pedidoSeleccionado.fechaAsignacion, 'dd/MM/yyyy HH:mm') : 'Sin fecha'}</span>
-                              {user && firebaseUser?.uid === pedidoSeleccionado.createdBy && (
-                                <div className="text-xs text-gray-600 font-medium">{user.name}</div>
+                              {nombreCreadorPedido && (
+                                <div className="text-xs text-gray-600 font-medium">{nombreCreadorPedido}</div>
                               )}
                             </div>
                           </div>

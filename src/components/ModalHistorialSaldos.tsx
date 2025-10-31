@@ -344,7 +344,12 @@ const ModalHistorialSaldos: React.FC<ModalHistorialSaldosProps> = ({
                           {movimiento.descripcion && (
                             <div className="text-xs text-gray-500 mt-1">{movimiento.descripcion}</div>
                           )}
-                          <div className="text-xs text-gray-400 mt-1">{formatearFecha(movimiento.fecha)}</div>
+                          <div className="text-xs text-gray-400 mt-1">
+                            {formatearFecha(movimiento.fecha)}
+                            {movimiento.registradoPor && (
+                              <span className="text-gray-500 ml-2">• {movimiento.registradoPor}</span>
+                            )}
+                          </div>
                         </div>
                         <div className={`font-semibold ${
                           movimiento.tipo === 'ingreso' ? 'text-green-600' : 'text-red-600'

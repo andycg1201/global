@@ -13,7 +13,8 @@ import {
   ChartBarIcon,
   Cog6ToothIcon,
   ClockIcon,
-  CubeIcon
+  CubeIcon,
+  UsersIcon
 } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../utils/dateUtils';
 
@@ -35,6 +36,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Pagos', href: '/pagos', icon: CurrencyDollarIcon, permiso: 'verPagos' as const },
     { name: 'Inventario', href: '/inventario', icon: CubeIcon, permiso: 'verInventario' as const },
     { name: 'Gastos', href: '/gastos', icon: CurrencyDollarIcon, permiso: 'verGastos' as const },
+    { name: 'Operadores', href: '/operadores', icon: UsersIcon, permiso: 'verReportes' as const },
     { name: 'Reportes', href: '/reportes', icon: ChartBarIcon, permiso: 'verReportes' as const },
     { name: 'Capital', href: '/capital', icon: CurrencyDollarIcon, permiso: 'verCapital' as const },
     // { name: 'Auditoría', href: '/auditoria', icon: ClipboardDocumentListIcon, permiso: 'verAuditoria' as const }, // Ocultado temporalmente

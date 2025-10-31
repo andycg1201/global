@@ -42,15 +42,15 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({
       const canvas = canvasRef.current;
       if (!canvas) return;
 
-      // Generar QR con opciones personalizadas
+      // Generar QR con opciones personalizadas y MÁXIMA tolerancia a errores
       await QRCode.toCanvas(canvas, codigoQR, {
         width: 128,
-        margin: 1,
+        margin: 2, // Mayor margen para zona tranquila
         color: {
-          dark: '#1f2937', // gray-800
-          light: '#ffffff'
+          dark: '#000000', // Negro más puro para mejor contraste
+          light: '#ffffff' // Blanco más puro
         },
-        errorCorrectionLevel: 'M'
+        errorCorrectionLevel: 'H' // Nivel H: corrige hasta 30% de errores (máximo)
       });
 
       // Convertir canvas a data URL para descarga

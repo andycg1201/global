@@ -14,7 +14,7 @@ import {
   ArrowDownTrayIcon,
   DocumentTextIcon
 } from '@heroicons/react/24/outline';
-import { lavadoraService } from '../services/firebaseService';
+import { lavadoraService, pedidoService } from '../services/firebaseService';
 import { deleteField } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { Lavadora, Mantenimiento } from '../types';
@@ -73,11 +73,84 @@ const InventarioLavadoras: React.FC = () => {
       setLoading(true);
       const lavadorasData = await lavadoraService.getAllLavadoras();
       setLavadoras(lavadorasData);
+      // Sincronizar lavadoras huérfanas (marcadas como alquiladas sin pedido activo)
+      await sincronizarLavadorasHuerfanas(lavadorasData);
+      // Recargar después de sincronizar
+      const lavadorasActualizadas = await lavadoraService.getAllLavadoras();
+      setLavadoras(lavadorasActualizadas);
     } catch (error) {
       console.error('Error al cargar lavadoras:', error);
       alert('Error al cargar las lavadoras');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const sincronizarLavadorasHuerfanas = async (lavadorasData: Lavadora[]) => {
+    try {
+      console.log('🔄 Sincronizando lavadoras huérfanas...');
+      
+      // Cargar TODOS los pedidos para la verificación
+      const todosLosPedidos = await pedidoService.getAllPedidos();
+      console.log('🔍 Total pedidos para sincronización:', todosLosPedidos.length);
+      
+      let lavadorasCorregidasMsg: string[] = [];
+      
+      for (const lavadora of lavadorasData) {
+        if (lavadora.estado === 'alquilada') {
+          // Buscar si realmente hay un pedido ACTIVO (no recogido ni cancelado) asociado
+          const pedidoAsociado = todosLosPedidos.find(p => {
+            // Solo considerar pedidos que NO estén completados o cancelados
+            if (p.status === 'recogido' || p.status === 'cancelado') {
+              return false;
+            }
+            
+            // Verificar si la lavadora está asignada a este pedido activo
+            return p.lavadoraAsignada?.lavadoraId === lavadora.id || 
+                   p.lavadoraAsignada?.codigoQR === lavadora.codigoQR ||
+                   (p as any).lavadoraAsignada_lavadoraId === lavadora.id ||
+                   (p as any).lavadoraAsignada_codigoQR === lavadora.codigoQR;
+          });
+          
+          if (!pedidoAsociado) {
+            console.log(`🔧 Liberando lavadora huérfana: ${lavadora.codigoQR}`);
+            console.log(`🔍 Lavadora ${lavadora.codigoQR} no tiene pedido activo asociado - liberando`);
+            
+            lavadorasCorregidasMsg.push(lavadora.codigoQR);
+            
+            // Crear objeto de actualización solo con los campos que queremos cambiar
+            const updates: any = {
+              estado: 'disponible'
+            };
+            
+            // Solo agregar campos si existen en la lavadora
+            if (lavadora.pedidoId !== undefined) {
+              updates.pedidoId = null;
+            }
+            if (lavadora.fechaInstalacion !== undefined) {
+              updates.fechaInstalacion = null;
+            }
+            if (lavadora.fotoInstalacion !== undefined) {
+              updates.fotoInstalacion = null;
+            }
+            if (lavadora.observacionesInstalacion !== undefined) {
+              updates.observacionesInstalacion = null;
+            }
+            
+            await lavadoraService.updateLavadora(lavadora.id, updates);
+          } else {
+            console.log(`✅ Lavadora ${lavadora.codigoQR} tiene pedido activo asociado: ${pedidoAsociado.id} - manteniendo alquilada`);
+          }
+        }
+      }
+      
+      if (lavadorasCorregidasMsg.length > 0) {
+        console.log(`✅ ${lavadorasCorregidasMsg.length} lavadora(s) corregida(s): ${lavadorasCorregidasMsg.join(', ')}`);
+      } else {
+        console.log('✅ Todas las lavadoras están sincronizadas correctamente');
+      }
+    } catch (error) {
+      console.error('❌ Error al sincronizar lavadoras huérfanas:', error);
     }
   };
 

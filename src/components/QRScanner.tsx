@@ -41,15 +41,29 @@ const QRScanner: React.FC<QRScannerProps> = ({
 
       const qrScanner = new QrScanner(
         videoRef.current,
-        (result) => {
-          console.log('QR Code detected:', result);
-          onScan(result.data);
+        (result: any) => {
+          const code = typeof result === 'string' ? result : result.data;
+          console.log('QR Code detected:', code);
+          onScan(code);
           stopScanning();
           onClose();
         },
         {
           highlightScanRegion: true,
           highlightCodeOutline: true,
+          maxScansPerSecond: 60, // MÁXIMA frecuencia de escaneo
+          preferredCamera: 'environment',
+          returnDetailedScanResult: true,
+          // Configuración mejorada para QR dañados o sucios
+          calculateScanRegion: (video: HTMLVideoElement) => {
+            // Escanear TODA la pantalla para máximo área de detección
+            return {
+              x: 0,
+              y: 0,
+              width: video.videoWidth,
+              height: video.videoHeight,
+            };
+          },
         }
       );
 

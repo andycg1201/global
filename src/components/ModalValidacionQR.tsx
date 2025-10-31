@@ -110,9 +110,34 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
       await instance.start(
         { facingMode: 'environment' },
         { 
-          fps: 10, 
-          qrbox: { width: 250, height: 250 },
-          aspectRatio: 1.0
+          fps: 60, // Aumentar a 60 fps para MÁXIMA frecuencia de lectura
+          qrbox: function(viewfinderWidth: number, viewfinderHeight: number) {
+            // Área MÁS GRANDE: usar 90% del viewfinder para máximo área de captura
+            const minEdgePercentage = 0.9;
+            const minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
+            const qrboxSize = Math.floor(minEdgeSize * minEdgePercentage);
+            return {
+              width: qrboxSize,
+              height: qrboxSize
+            };
+          },
+          aspectRatio: 1.0,
+          // Configuración MEJORADA para QR dañados o sucios
+          verbose: false,
+          disableFlip: false,
+          // Máxima resolución disponible
+          videoConstraints: {
+            facingMode: 'environment',
+            width: { ideal: 1920, min: 640 }, // Resolución máxima
+            height: { ideal: 1080, min: 480 }
+          },
+          // Configuraciones adicionales para mejor tolerancia
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: false
+          },
+          // Intentar múltiples métodos de decodificación
+          rememberLastUsedCamera: true,
+          supportedScanTypes: [1, 2] // Suportar ambos tipos de scan
         },
         (decodedText: string) => {
           const code = decodedText.trim();
@@ -147,11 +172,31 @@ const ModalValidacionQR: React.FC<ModalValidacionQRProps> = ({
       try {
         console.log('Intentando configuración alternativa para móviles...');
         await html5QrCodeRef.current.start(
-          { facingMode: 'user' }, // Cámara frontal como alternativa
+          { facingMode: 'user' },
           { 
-            fps: 5, 
-            qrbox: { width: 200, height: 200 },
-            aspectRatio: 1.0
+            fps: 60,
+            qrbox: function(viewfinderWidth: number, viewfinderHeight: number) {
+              const minEdgePercentage = 0.9;
+              const minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
+              const qrboxSize = Math.floor(minEdgeSize * minEdgePercentage);
+              return {
+                width: qrboxSize,
+                height: qrboxSize
+              };
+            },
+            aspectRatio: 1.0,
+            verbose: false,
+            disableFlip: false,
+            videoConstraints: {
+              facingMode: 'user',
+              width: { ideal: 1920, min: 640 },
+              height: { ideal: 1080, min: 480 }
+            },
+            experimentalFeatures: {
+              useBarCodeDetectorIfSupported: false
+            },
+            rememberLastUsedCamera: true,
+            supportedScanTypes: [1, 2]
           },
           (decodedText: string) => {
             const code = decodedText.trim();

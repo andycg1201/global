@@ -101,8 +101,30 @@ const ModalEntregaOperativa: React.FC<ModalEntregaOperativaProps> = ({
       await html5QrCode.start(
         { facingMode: "environment" },
         {
-          fps: 10,
-          qrbox: { width: 250, height: 250 }
+          fps: 60, // Aumentar a 60 fps para MÁXIMA frecuencia de lectura
+          qrbox: function(viewfinderWidth: number, viewfinderHeight: number) {
+            // Área MÁS GRANDE: usar 90% del viewfinder
+            const minEdgePercentage = 0.9;
+            const minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
+            const qrboxSize = Math.floor(minEdgeSize * minEdgePercentage);
+            return {
+              width: qrboxSize,
+              height: qrboxSize
+            };
+          },
+          aspectRatio: 1.0,
+          verbose: false,
+          disableFlip: false,
+          videoConstraints: {
+            facingMode: 'environment',
+            width: { ideal: 1920, min: 640 },
+            height: { ideal: 1080, min: 480 }
+          },
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: false
+          },
+          rememberLastUsedCamera: true,
+          supportedScanTypes: [1, 2]
         },
         (decodedText: string) => {
           // VALIDAR INMEDIATAMENTE cuando se escanea el QR

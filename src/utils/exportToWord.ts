@@ -15,11 +15,12 @@ export const exportAllLavadorasToWord = async (lavadoras: Lavadora[]) => {
     try {
       return await QRCode.toDataURL(codigo, {
         width: 120,
-        margin: 1,
+        margin: 2, // Mayor margen para zona tranquila
         color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        }
+          dark: '#000000', // Negro puro para máximo contraste
+          light: '#FFFFFF' // Blanco puro
+        },
+        errorCorrectionLevel: 'H' // Nivel H: corrige hasta 30% de errores (máximo)
       });
     } catch (error) {
       console.error('Error generando QR:', error);

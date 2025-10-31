@@ -83,8 +83,12 @@ const Gastos: React.FC = () => {
   // Actualizar medios disponibles cuando se abra el formulario
   useEffect(() => {
     if (mostrarFormulario) {
-      // Cuando se abre el formulario, mostrar todos los medios disponibles (sin restricción de monto)
-      setMediosDisponibles(['efectivo', 'nequi', 'daviplata']);
+      // Cuando se abre el formulario, mostrar medios según el rol del usuario
+      if (esOperador()) {
+        setMediosDisponibles(['efectivo']);
+      } else {
+        setMediosDisponibles(['efectivo', 'nequi', 'daviplata']);
+      }
       
       // También llamar validarMontoYMedios para asegurar que se ejecute
       validarMontoYMedios('');
@@ -96,7 +100,7 @@ const Gastos: React.FC = () => {
     } else {
       setFormularioListo(false);
     }
-  }, [mostrarFormulario, saldosActuales]);
+  }, [mostrarFormulario, saldosActuales, esOperador]);
 
   const cargarSaldos = async () => {
     try {
@@ -144,15 +148,28 @@ const Gastos: React.FC = () => {
     const montoNumerico = parseFloat(monto) || 0;
     
     if (montoNumerico > 0) {
-      const mediosDisponibles = obtenerMediosDisponibles(saldosActuales, montoNumerico);
-      setMediosDisponibles(mediosDisponibles);
+      const mediosDisponiblesCalculados = obtenerMediosDisponibles(saldosActuales, montoNumerico);
       
-      // Si el medio de pago actual no está disponible, cambiar a uno disponible
-      if (mediosDisponibles.length > 0 && !mediosDisponibles.includes(nuevoGasto.medioPago)) {
-        setNuevoGasto(prev => ({ ...prev, medioPago: mediosDisponibles[0] }));
+      // Si es operador, solo permitir efectivo
+      if (esOperador()) {
+        setMediosDisponibles(mediosDisponiblesCalculados.filter(m => m === 'efectivo'));
+        if (nuevoGasto.medioPago !== 'efectivo') {
+          setNuevoGasto(prev => ({ ...prev, medioPago: 'efectivo' }));
+        }
+      } else {
+        setMediosDisponibles(mediosDisponiblesCalculados);
+        // Si el medio de pago actual no está disponible, cambiar a uno disponible
+        if (mediosDisponiblesCalculados.length > 0 && !mediosDisponiblesCalculados.includes(nuevoGasto.medioPago)) {
+          setNuevoGasto(prev => ({ ...prev, medioPago: mediosDisponiblesCalculados[0] }));
+        }
       }
     } else {
-      setMediosDisponibles(['efectivo', 'nequi', 'daviplata']);
+      // Si no hay monto, todos los medios disponibles según el rol
+      if (esOperador()) {
+        setMediosDisponibles(['efectivo']);
+      } else {
+        setMediosDisponibles(['efectivo', 'nequi', 'daviplata']);
+      }
     }
   };
 

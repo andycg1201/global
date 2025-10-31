@@ -22,7 +22,7 @@ export const ModalMantenimiento: React.FC<ModalMantenimientoProps> = ({
   modo,
   mantenimiento
 }) => {
-  const { user, firebaseUser } = useAuth();
+  const { user, firebaseUser, esOperador } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,15 +67,28 @@ export const ModalMantenimiento: React.FC<ModalMantenimientoProps> = ({
   const validarMontoYMedios = (monto: string) => {
     const montoNumerico = parseFloat(monto) || 0;
     if (montoNumerico > 0) {
-      const mediosDisponibles = obtenerMediosDisponibles(saldosActuales, montoNumerico);
-      setMediosDisponibles(mediosDisponibles);
+      const mediosDisponiblesCalculados = obtenerMediosDisponibles(saldosActuales, montoNumerico);
       
-      // Si el medio de pago actual no está disponible, cambiar a uno disponible
-      if (mediosDisponibles.length > 0 && !mediosDisponibles.includes(medioPago)) {
-        setMedioPago(mediosDisponibles[0]);
+      // Si es operador, solo permitir efectivo
+      if (esOperador()) {
+        setMediosDisponibles(mediosDisponiblesCalculados.filter(m => m === 'efectivo'));
+        if (medioPago !== 'efectivo') {
+          setMedioPago('efectivo');
+        }
+      } else {
+        setMediosDisponibles(mediosDisponiblesCalculados);
+        // Si el medio de pago actual no está disponible, cambiar a uno disponible
+        if (mediosDisponiblesCalculados.length > 0 && !mediosDisponiblesCalculados.includes(medioPago)) {
+          setMedioPago(mediosDisponiblesCalculados[0]);
+        }
       }
     } else {
-      setMediosDisponibles(['efectivo', 'nequi', 'daviplata']);
+      // Si no hay monto, todos los medios disponibles según el rol
+      if (esOperador()) {
+        setMediosDisponibles(['efectivo']);
+      } else {
+        setMediosDisponibles(['efectivo', 'nequi', 'daviplata']);
+      }
     }
   };
 
@@ -156,7 +169,12 @@ export const ModalMantenimiento: React.FC<ModalMantenimientoProps> = ({
     setMedioPago('efectivo');
     setObservacionesFinalizacion('');
     setError(null);
-    setMediosDisponibles(['efectivo', 'nequi', 'daviplata']);
+    // Reset según el rol del usuario
+    if (esOperador()) {
+      setMediosDisponibles(['efectivo']);
+    } else {
+      setMediosDisponibles(['efectivo', 'nequi', 'daviplata']);
+    }
   };
 
   const handleClose = () => {

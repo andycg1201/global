@@ -130,7 +130,10 @@ const Operadores: React.FC = () => {
               });
             }
             const resumen = resumenes.get(pago.registradoPor)!;
-            resumen.ingresos += pago.monto || 0;
+            // Solo contar efectivo para el arqueo
+            if (pago.medioPago === 'efectivo') {
+              resumen.ingresos += pago.monto || 0;
+            }
             resumen.totalPagos++;
           }
         });
@@ -155,7 +158,10 @@ const Operadores: React.FC = () => {
             });
           }
           const resumen = resumenes.get(gasto.registradoPor)!;
-          resumen.gastos += gasto.amount;
+          // Solo contar efectivo para el arqueo
+          if (gasto.medioPago === 'efectivo') {
+            resumen.gastos += gasto.amount;
+          }
           resumen.totalGastos++;
         }
       }
@@ -179,8 +185,11 @@ const Operadores: React.FC = () => {
             });
           }
           const resumen = resumenes.get(mant.registradoPor)!;
-          resumen.mantenimientos += mant.costoReparacion;
-          resumen.gastos += mant.costoReparacion;
+          // Solo contar efectivo para el arqueo
+          if (mant.medioPago === 'efectivo') {
+            resumen.mantenimientos += mant.costoReparacion;
+            resumen.gastos += mant.costoReparacion;
+          }
           resumen.totalMantenimientos++;
         }
       }
@@ -780,9 +789,12 @@ const Operadores: React.FC = () => {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Resumen Financiero</h3>
               {(() => {
                 // Calcular totales según el tipo de acción seleccionado
-                const totalIngresos = (datosFiltrados.pagos as any)?.reduce((sum: number, item: any) => sum + item.pago.monto, 0) || 0;
-                const totalGastos = datosFiltrados.gastos.reduce((sum, g) => sum + g.amount, 0);
-                const totalMantenimientos = datosFiltrados.mantenimientos.reduce((sum, m) => sum + m.costoReparacion, 0);
+                // Solo contar efectivo para el arqueo
+                const totalIngresos = (datosFiltrados.pagos as any)?.reduce((sum: number, item: any) => {
+                  return sum + (item.pago.medioPago === 'efectivo' ? item.pago.monto : 0);
+                }, 0) || 0;
+                const totalGastos = datosFiltrados.gastos.reduce((sum, g) => sum + (g.medioPago === 'efectivo' ? g.amount : 0), 0);
+                const totalMantenimientos = datosFiltrados.mantenimientos.reduce((sum, m) => sum + (m.medioPago === 'efectivo' ? m.costoReparacion : 0), 0);
                 const totalGastosTotal = totalGastos + totalMantenimientos;
                 const saldoFinal = totalIngresos - totalGastosTotal;
                 

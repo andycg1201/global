@@ -1,7 +1,7 @@
 # Notas del Proyecto - Sistema de Gestión de Lavadoras
 
 ## Estado Actual del Proyecto
-Última actualización: 2025-01-27 (Después de implementar modal detallado en Operadores)
+Última actualización: 2025-01-27 (Después de implementar filtro de arqueo solo efectivo en Operadores)
 
 ## Cambios Recientes Implementados
 
@@ -58,6 +58,12 @@
   - Cards visuales con: Ingresos, Gastos (gastos + mantenimientos), Saldo Final
   - Se actualiza dinámicamente según filtros aplicados
   - Muestra conteo de acciones en cada categoría
+- ✅ **Regla de Negocio: Arqueo solo en efectivo**
+  - **IMPORTANTE:** Los pagos de clientes por Nequi o Daviplata van directo a la cuenta del administrador
+  - **Para el arqueo del operador:** Se cuenta SOLO el efectivo en ingresos, gastos y mantenimientos
+  - **Los pagos/detalles:** Se muestran TODOS (efectivo, nequi, daviplata) con su medio de pago para información
+  - **Los resúmenes financieros:** Calculan solo efectivo para el balance final del operador
+  - Aplica tanto en las cards iniciales como en el modal detallado
 - ✅ **Detalles completos por tipo de acción:**
   - **Pedidos (creados/entregados/recogidos):** Cliente, teléfono, plan, total, fecha/hora
   - **Modificaciones:** Desglose completo de horas extras, cobros adicionales, descuentos, cambio de plan, total
@@ -69,11 +75,22 @@
   - Filtrado combinado: operador + fecha + tipo de acción
   - Cálculo correcto de fechas normalizadas para comparaciones
   - Manejo correcto de fechas tipo Timestamp de Firebase
+  - Filtrado de cálculos por `medioPago === 'efectivo'` en todos los resúmenes
 - ✅ Ruta: `/operadores`
 - ✅ Opción agregada al menú principal (requiere permiso `verReportes`)
 - ✅ El reporte de arqueo fue completamente removido de la página "Reportes"
 
-### 5. Funcionalidades Implementadas Previamente
+### 5. Restricciones de Medios de Pago
+- ✅ **Operadores solo pueden registrar Gastos y Mantenimientos en efectivo**
+  - En `Gastos`: Si el usuario es operador, el selector de medios de pago solo muestra "efectivo"
+  - En `Inventario/Mantenimientos`: Si el usuario es operador, el selector de medios de pago solo muestra "efectivo"
+  - **Administradores:** Tienen acceso a los 3 medios (efectivo, nequi, daviplata)
+  - **No aplica a pagos de clientes:** Los clientes pueden pagar por cualquier medio de pago
+- ✅ Implementado en:
+  - `src/pages/Gastos.tsx` - Lógica de validación y filtrado de medios
+  - `src/components/ModalMantenimiento.tsx` - Lógica de validación y filtrado de medios
+
+### 6. Funcionalidades Implementadas Previamente
 
 #### Registro de Usuarios en Acciones
 - ✅ Nombres de usuarios registrados en:
@@ -117,11 +134,12 @@
 ### Páginas
 - `src/pages/InventarioLavadoras.tsx` - Restricciones de UI basadas en permisos
 - `src/pages/Pedidos.tsx` - UI de cards, cronología mejorada, nombres de usuarios
-- `src/pages/Gastos.tsx` - Registro de usuario en gastos
+- `src/pages/Gastos.tsx` - Registro de usuario en gastos, restricción de medios de pago para operadores
 - `src/pages/Pagos.tsx` - Registro de usuario en pagos
-- `src/pages/Operadores.tsx` - **NUEVA:** Página completa con cards de operadores, modal detallado, filtros avanzados (fecha y tipo de acción), resumen financiero destacado y visualización detallada por tipo de acción
+- `src/pages/Operadores.tsx` - **NUEVA:** Página completa con cards de operadores, modal detallado, filtros avanzados (fecha y tipo de acción), resumen financiero destacado y visualización detallada por tipo de acción, **arqueo solo efectivo**
 - `src/pages/Reportes.tsx` - Reporte de arqueo removido (movido a Operadores)
 - `src/components/ModalHistorialMantenimiento.tsx` - Registro de usuarios en mantenimientos
+- `src/components/ModalMantenimiento.tsx` - Restricción de medios de pago para operadores
 
 ### Layout y Routing
 - `src/components/Layout.tsx` - Opción "Auditoría" oculta del menú (comentada), nueva opción "Operadores" agregada
@@ -151,8 +169,8 @@
 ## Deployment
 - URL de producción: https://global-da5ac.web.app
 - Firebase Console: https://console.firebase.google.com/project/global-da5ac/overview
-- Último deploy: 2025-01-27 (Página Operadores con modal detallado y filtros avanzados)
-- Último commit: b5393d3 - "feat: Implementar página Operadores con filtros avanzados y modal detallado"
+- Último deploy: 2025-01-27 (Arqueo solo efectivo en Operadores + restricción de medios de pago para operadores en Gastos/Mantenimientos)
+- Último commit: Pendiente - "feat: Implementar arqueo solo efectivo en Operadores y restricción de medios de pago"
 
 ---
 

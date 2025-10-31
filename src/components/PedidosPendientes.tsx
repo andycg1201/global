@@ -17,6 +17,7 @@ interface PedidosPendientesProps {
   pedidosPendientesEntregar: Pedido[];
   pedidosPendientesRecoger: Pedido[];
   pedidosCompletadosConSaldo?: Pedido[];
+  nombresUsuarios?: Map<string, string>;
   onMarcarEntregado?: (pedidoId: string) => void;
   onMarcarRecogido?: (pedidoId: string) => void;
   onModificarServicio?: (pedido: Pedido) => void;
@@ -27,6 +28,7 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
   pedidosPendientesEntregar,
   pedidosPendientesRecoger,
   pedidosCompletadosConSaldo = [],
+  nombresUsuarios = new Map(),
   onMarcarEntregado,
   onMarcarRecogido,
   onModificarServicio,
@@ -193,8 +195,9 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
                 </span>
               )}
             </h4>
-            {tipo === 'recoger' || tipo === 'completado' ? (
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2">
+            {/* Información de contacto y plan */}
+            <div className="mb-3 space-y-2">
+              <div className="flex items-center gap-2">
                 <a
                   href={generateWhatsAppLink(pedido.cliente.phone, pedido.cliente.name)}
                   target="_blank"
@@ -204,62 +207,99 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
                   <ChatBubbleLeftRightIcon className="h-4 w-4" />
                   {pedido.cliente.phone}
                 </a>
-                <span className="text-sm font-medium text-blue-600">{pedido.plan.name}</span>
-                <span className="text-sm font-medium text-gray-900">{formatCurrency(pedido.total)}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                  {pedido.plan.name}
+                </span>
+                <span className="text-sm font-semibold text-gray-900">
+                  Total: {formatCurrency(pedido.total)}
+                </span>
                 {saldoPendiente > 0 && (
-                  <span className="text-sm font-medium text-red-600">
-                    Saldo: {formatCurrency(saldoPendiente)}
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-semibold bg-red-50 text-red-700 border border-red-200">
+                    Saldo Pendiente: {formatCurrency(saldoPendiente)}
                   </span>
                 )}
               </div>
-            ) : (
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2">
-                <p className="text-sm text-gray-600">{pedido.cliente.phone}</p>
-                <span className="text-sm font-medium text-blue-600">{pedido.plan.name}</span>
-                <span className="text-sm font-medium text-gray-900">{formatCurrency(pedido.total)}</span>
-              </div>
-            )}
+            </div>
             
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs text-gray-500">
-              {tipo === 'entregar' && (
-                <div className="flex items-center gap-1">
-                  <TruckIcon className="h-3 w-3" />
-                  <span className="font-medium">Entrega:</span>
-                  {formatDate(pedido.fechaEntrega!, 'dd/MM HH:mm')}
-                </div>
-              )}
-              {tipo === 'recoger' && (
-                <>
-                  <div className="flex items-center gap-1">
-                    <TruckIcon className="h-3 w-3" />
-                    <span className="font-medium">Entregado:</span>
-                    {formatDate(pedido.fechaEntrega!, 'dd/MM HH:mm')}
+            {/* Fechas y usuarios */}
+            <div className="mt-4 pt-3 border-t border-gray-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {tipo === 'entregar' && (
+                  <div className="flex items-start gap-3 p-2 bg-yellow-50 rounded-lg">
+                    <ClockIcon className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mb-1">Pedido Asignado</div>
+                      <div className="text-sm font-medium text-gray-900 mb-1">{formatDate(pedido.fechaAsignacion, 'dd/MM/yyyy HH:mm')}</div>
+                      {pedido.createdBy && nombresUsuarios.has(pedido.createdBy) && (
+                        <div className="text-xs text-yellow-600 font-medium flex items-center gap-1 mt-1">
+                          <span>👤</span>
+                          <span>{nombresUsuarios.get(pedido.createdBy)}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <HomeIcon className="h-3 w-3" />
-                    <span className="font-medium">Recogida:</span>
-                    {formatDate(
-                      pedido.fechaRecogidaCalculada || 
-                      (pedido.fechaEntrega ? calculatePickupDate(pedido.fechaEntrega, pedido.plan, pedido.horasAdicionales || 0) : new Date()), 
-                      'dd/MM HH:mm'
-                    )}
-                  </div>
-                </>
-              )}
-              {tipo === 'completado' && (
-                <>
-                  <div className="flex items-center gap-1">
-                    <TruckIcon className="h-3 w-3" />
-                    <span className="font-medium">Entregado:</span>
-                    {formatDate(pedido.fechaEntrega!, 'dd/MM HH:mm')}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <HomeIcon className="h-3 w-3" />
-                    <span className="font-medium">Recogido:</span>
-                    {formatDate(pedido.fechaRecogida!, 'dd/MM HH:mm')}
-                  </div>
-                </>
-              )}
+                )}
+                {tipo === 'recoger' && (
+                  <>
+                    <div className="flex items-start gap-3 p-2 bg-blue-50 rounded-lg">
+                      <TruckIcon className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">Entregado</div>
+                        <div className="text-sm font-medium text-gray-900 mb-1">{formatDate(pedido.fechaEntrega!, 'dd/MM/yyyy HH:mm')}</div>
+                        {pedido.entregadoPor && (
+                          <div className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                            <span>👤</span>
+                            <span>{pedido.entregadoPor}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-2 bg-green-50 rounded-lg">
+                      <HomeIcon className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-1">Recogida Programada</div>
+                        <div className="text-sm font-medium text-gray-900">{formatDate(
+                          pedido.fechaRecogidaCalculada || 
+                          (pedido.fechaEntrega ? calculatePickupDate(pedido.fechaEntrega, pedido.plan, pedido.horasAdicionales || 0) : new Date()), 
+                          'dd/MM/yyyy HH:mm'
+                        )}</div>
+                      </div>
+                    </div>
+                  </>
+                )}
+                {tipo === 'completado' && (
+                  <>
+                    <div className="flex items-start gap-3 p-2 bg-blue-50 rounded-lg">
+                      <TruckIcon className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">Entregado</div>
+                        <div className="text-sm font-medium text-gray-900 mb-1">{formatDate(pedido.fechaEntrega!, 'dd/MM/yyyy HH:mm')}</div>
+                        {pedido.entregadoPor && (
+                          <div className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                            <span>👤</span>
+                            <span>{pedido.entregadoPor}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-2 bg-purple-50 rounded-lg">
+                      <HomeIcon className="h-5 w-5 text-purple-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold text-purple-700 uppercase tracking-wide mb-1">Recogido</div>
+                        <div className="text-sm font-medium text-gray-900 mb-1">{formatDate(pedido.fechaRecogida!, 'dd/MM/yyyy HH:mm')}</div>
+                        {pedido.recogidoPor && (
+                          <div className="text-xs text-purple-600 font-medium flex items-center gap-1">
+                            <span>👤</span>
+                            <span>{pedido.recogidoPor}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
             
             {pedido.isPrioritario && pedido.motivoPrioridad && (

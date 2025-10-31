@@ -14,6 +14,7 @@ import { obtenerTodosLosMantenimientos } from '../services/mantenimientoService'
 import { movimientosSaldosService, MovimientoSaldo, MovimientosSaldosService } from '../services/movimientosSaldosService';
 import { formatCurrency } from '../utils/dateUtils';
 import { useAuth } from '../contexts/AuthContext';
+import { usuarioService } from '../services/usuarioService';
 import ModalModificacionesServicio from '../components/ModalModificacionesServicio';
 import ModalPagos from '../components/ModalPagos';
 import ModalRecogidaOperativa from '../components/ModalRecogidaOperativa';
@@ -25,7 +26,7 @@ import { entregaOperativaService } from '../services/entregaOperativaService';
 import PedidosPendientes from '../components/PedidosPendientes';
 
 const Dashboard: React.FC = () => {
-  const { firebaseUser, esOperador } = useAuth();
+  const { firebaseUser, user, esOperador } = useAuth();
 
   // Estados básicos
   const [loading, setLoading] = useState(true);
@@ -49,6 +50,7 @@ const Dashboard: React.FC = () => {
   const [pedidosPendientesEntregar, setPedidosPendientesEntregar] = useState<Pedido[]>([]);
   const [pedidosPendientesRecoger, setPedidosPendientesRecoger] = useState<Pedido[]>([]);
   const [pedidosCompletadosConSaldo, setPedidosCompletadosConSaldo] = useState<Pedido[]>([]);
+  const [nombresUsuarios, setNombresUsuarios] = useState<Map<string, string>>(new Map());
 
   // Estados de modales
   const [mostrarModalModificaciones, setMostrarModalModificaciones] = useState<boolean>(false);
@@ -122,6 +124,37 @@ const Dashboard: React.FC = () => {
       setPedidosPendientesEntregar(pedidosPendientes);
       setPedidosPendientesRecoger(pedidosEntregados);
       setPedidosCompletadosConSaldo(completadosConSaldo);
+
+      // Cargar nombres de usuarios únicos de los pedidos
+      const uidsUnicos = new Set<string>();
+      [...pedidosPendientes, ...pedidosEntregados, ...completadosConSaldo].forEach(pedido => {
+        if (pedido.createdBy) {
+          uidsUnicos.add(pedido.createdBy);
+        }
+      });
+
+      // Si el usuario actual está en la lista, usar su nombre directamente
+      const nombresMap = new Map<string, string>();
+      if (user && firebaseUser?.uid) {
+        nombresMap.set(firebaseUser.uid, user.name);
+      }
+
+      // Cargar nombres de los demás usuarios
+      const promesasUsuarios = Array.from(uidsUnicos)
+        .filter(uid => uid !== firebaseUser?.uid)
+        .map(async (uid) => {
+          try {
+            const usuario = await usuarioService.getUsuarioById(uid);
+            if (usuario) {
+              nombresMap.set(uid, usuario.name);
+            }
+          } catch (error) {
+            console.error(`Error cargando usuario ${uid}:`, error);
+          }
+        });
+
+      await Promise.all(promesasUsuarios);
+      setNombresUsuarios(nombresMap);
       
       // Calcular datos financieros básicos
       // Ingresos de servicios (pagos de pedidos)
@@ -564,6 +597,7 @@ const Dashboard: React.FC = () => {
         pedidosPendientesEntregar={pedidosPendientesEntregar}
         pedidosPendientesRecoger={pedidosPendientesRecoger}
         pedidosCompletadosConSaldo={pedidosCompletadosConSaldo}
+        nombresUsuarios={nombresUsuarios}
         onMarcarEntregado={(pedidoId: string) => {
           const pedido = pedidosPendientesEntregar.find(p => p.id === pedidoId);
           if (pedido) handleMarcarEntregado(pedido);

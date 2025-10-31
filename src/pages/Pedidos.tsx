@@ -50,6 +50,7 @@ const Pedidos: React.FC = () => {
   const [mostrarNuevoPedido, setMostrarNuevoPedido] = useState(false);
   const [pedidoSeleccionado, setPedidoSeleccionado] = useState<Pedido | null>(null);
   const [nombreCreadorPedido, setNombreCreadorPedido] = useState<string | null>(null);
+  const [nombresUsuarios, setNombresUsuarios] = useState<Map<string, string>>(new Map());
   const [mostrarModalDetalles, setMostrarModalDetalles] = useState(false);
   const [mostrarModalCancelacion, setMostrarModalCancelacion] = useState(false);
   const [pedidoACancelar, setPedidoACancelar] = useState<Pedido | null>(null);
@@ -194,6 +195,37 @@ const Pedidos: React.FC = () => {
       
       console.log('📊 Pedidos después del filtro de fecha:', pedidosFiltradosPorFecha.length);
       setPedidos(pedidosFiltradosPorFecha);
+
+      // Cargar nombres de usuarios únicos de los pedidos
+      const uidsUnicos = new Set<string>();
+      pedidosFiltradosPorFecha.forEach(pedido => {
+        if (pedido.createdBy) {
+          uidsUnicos.add(pedido.createdBy);
+        }
+      });
+
+      // Si el usuario actual está en la lista, usar su nombre directamente
+      const nombresMap = new Map<string, string>();
+      if (user && firebaseUser?.uid) {
+        nombresMap.set(firebaseUser.uid, user.name);
+      }
+
+      // Cargar nombres de los demás usuarios
+      const promesasUsuarios = Array.from(uidsUnicos)
+        .filter(uid => uid !== firebaseUser?.uid)
+        .map(async (uid) => {
+          try {
+            const usuario = await usuarioService.getUsuarioById(uid);
+            if (usuario) {
+              nombresMap.set(uid, usuario.name);
+            }
+          } catch (error) {
+            console.error(`Error cargando usuario ${uid}:`, error);
+          }
+        });
+
+      await Promise.all(promesasUsuarios);
+      setNombresUsuarios(nombresMap);
     } catch (error) {
       console.error('Error al cargar pedidos:', error);
     } finally {
@@ -733,7 +765,7 @@ const Pedidos: React.FC = () => {
             setPedidoAValidar(pedido);
             setMostrarModalEntregaOperativa(true);
           }}
-          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors w-24"
+          className="px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 rounded-lg shadow-sm transition-all duration-200 inline-flex items-center"
           title="Validar QR y entregar"
         >
           Entregar
@@ -741,28 +773,28 @@ const Pedidos: React.FC = () => {
       );
     } else if (pedido.status === 'entregado') {
       return (
-        <div className="relative flex flex-col gap-2">
+        <div className="flex flex-col gap-1.5 items-start">
           <button
             onClick={(e) => {
               e.stopPropagation();
               setPedidoAFacturar(pedido);
               setMostrarModalLiquidacion(true);
             }}
-            className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors w-24"
+            className="px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 rounded-lg shadow-sm transition-all duration-200"
             title="Liquidar y recoger"
           >
             Recoger
           </button>
           
           {/* Botones de modificaciones */}
-          <div className="flex gap-1">
+          <div className="flex gap-1.5">
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 setPedidoParaModificar(pedido);
                 setMostrarModalModificaciones(true);
               }}
-              className="px-2 py-1 text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 rounded transition-colors"
+              className="px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-lg shadow-sm transition-all duration-200"
               title="Modificar servicio (horas extras, cobros, descuentos, cambio de plan)"
             >
               Modificar
@@ -774,10 +806,10 @@ const Pedidos: React.FC = () => {
                 e.stopPropagation();
                 handleRegistrarPago(pedido);
               }}
-              className="px-2 py-1 text-xs font-medium text-white bg-green-500 hover:bg-green-600 rounded transition-colors"
+              className="px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 rounded-lg shadow-sm transition-all duration-200"
               title="Registrar pago"
             >
-              💰
+              Pagos
             </button>
           </div>
         </div>
@@ -788,8 +820,8 @@ const Pedidos: React.FC = () => {
       const saldoPendiente = Math.max(0, (pedido.total || 0) - totalPagado);
       
       return (
-        <div className="relative">
-          <span className="px-4 py-2 text-sm font-medium text-white bg-gray-500 rounded-md w-24 inline-block text-center">
+        <div className="flex flex-col gap-1.5 items-start">
+          <span className="px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-gray-500 to-gray-600 rounded-lg shadow-sm">
             Completado
           </span>
           {saldoPendiente > 0 && (
@@ -798,10 +830,10 @@ const Pedidos: React.FC = () => {
                 e.stopPropagation();
                 handleRegistrarPago(pedido);
               }}
-              className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shadow-lg transition-colors"
-              title={`Saldo pendiente: ${formatCurrency(saldoPendiente)} - Click para pagar`}
+              className="px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 rounded-lg shadow-sm transition-all duration-200"
+              title="Registrar pago"
             >
-              💰
+              Pagos
             </button>
           )}
         </div>
@@ -911,6 +943,20 @@ const Pedidos: React.FC = () => {
     try {
       console.log('Iniciando proceso de liquidación...');
       
+      // Función auxiliar para obtener el nombre del usuario actual
+      const getCurrentUserName = (): string => {
+        try {
+          const userStr = localStorage.getItem('currentUser');
+          if (userStr) {
+            const user = JSON.parse(userStr);
+            return user.name || 'Usuario desconocido';
+          }
+        } catch (error) {
+          console.error('Error al obtener nombre del usuario:', error);
+        }
+        return 'Usuario desconocido';
+      };
+      
       const updateData: Partial<Pedido> = {
         descuentos: liquidacion.descuentos,
         reembolsos: liquidacion.reembolsos,
@@ -918,7 +964,8 @@ const Pedidos: React.FC = () => {
         observacionesPago: liquidacion.observacionesPago,
         updatedAt: new Date(),
         status: 'recogido', // Cambiar estado a recogido
-        fechaRecogida: new Date() // Agregar fecha de recogida
+        fechaRecogida: new Date(), // Agregar fecha de recogida
+        recogidoPor: getCurrentUserName() // ✅ Nombre del usuario que realizó la recogida
       };
 
       // Si no ha pagado, agregar método de pago
@@ -1433,8 +1480,8 @@ const Pedidos: React.FC = () => {
                         <ClockIcon className="h-3 w-3 text-gray-400" />
                         <span>
                           <strong>Pedido:</strong> {formatDate(pedido.fechaAsignacion, 'dd/MM/yyyy HH:mm')}
-                          {user && firebaseUser?.uid === pedido.createdBy && (
-                            <span className="text-gray-500"> - {user.name}</span>
+                          {pedido.createdBy && nombresUsuarios.has(pedido.createdBy) && (
+                            <span className="text-gray-500"> - {nombresUsuarios.get(pedido.createdBy)}</span>
                           )}
                         </span>
                       </div>
@@ -1471,38 +1518,42 @@ const Pedidos: React.FC = () => {
                     </div>
 
                     {/* Botones de acción */}
-                    <div className="flex items-center justify-between pt-3 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center space-x-2">
+                    <div className="pt-3 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-start gap-1.5 mb-2">
                         {getProgresoButton(pedido)}
-                        {tieneFoto && (
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          {tieneFoto && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                verFotoInstalacion(pedido);
+                              }}
+                              className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-all duration-200"
+                              title="Ver foto de instalación"
+                            >
+                              <CameraIcon className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                        {tienePermiso('eliminarServicios') && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              verFotoInstalacion(pedido);
+                              if (confirm('¿Estás seguro de que quieres eliminar este pedido?')) {
+                                eliminarPedido(pedido);
+                              }
                             }}
-                            className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-all duration-200"
-                            title="Ver foto de instalación"
+                            className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200"
+                            title="Eliminar"
                           >
-                            <CameraIcon className="h-4 w-4" />
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
                           </button>
                         )}
                       </div>
-                      {tienePermiso('eliminarServicios') && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm('¿Estás seguro de que quieres eliminar este pedido?')) {
-                              eliminarPedido(pedido);
-                            }
-                          }}
-                          className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200"
-                          title="Eliminar"
-                        >
-                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      )}
                     </div>
                   </div>
                 );
@@ -2139,7 +2190,7 @@ const Pedidos: React.FC = () => {
                 
                 <div className="space-y-3">
                   {(() => {
-                    const timeline = generarTimelineServicio(pedidoSeleccionado, planes);
+                    const timeline = generarTimelineServicio(pedidoSeleccionado, planes, nombreCreadorPedido);
                     return timeline.map((evento, index) => (
                       <div key={evento.id} className="flex items-start space-x-3 p-3 bg-white rounded-lg border border-purple-100 shadow-sm">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${

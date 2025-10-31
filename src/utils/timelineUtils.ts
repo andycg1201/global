@@ -28,7 +28,7 @@ const convertirFecha = (fecha: any): Date => {
   return new Date();
 };
 
-export const generarTimelineServicio = (pedido: Pedido, planes: Plan[]): TimelineEvent[] => {
+export const generarTimelineServicio = (pedido: Pedido, planes: Plan[], nombreCreador?: string | null): TimelineEvent[] => {
   const eventos: TimelineEvent[] = [];
 
   // 1. Evento de creación del servicio
@@ -40,7 +40,8 @@ export const generarTimelineServicio = (pedido: Pedido, planes: Plan[]): Timelin
     fecha: convertirFecha(pedido.createdAt),
     monto: pedido.subtotal,
     icono: '📋',
-    color: 'blue'
+    color: 'blue',
+    usuario: nombreCreador || undefined // ✅ Nombre del usuario que creó el pedido
   });
 
   // 2. Eventos de modificaciones del servicio

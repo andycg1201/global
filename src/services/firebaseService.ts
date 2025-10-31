@@ -270,7 +270,7 @@ export const pedidoService = {
     const datosAnteriores = docSnapshot.exists() ? docSnapshot.data() : null;
     
     // Extraer campos de fecha para manejar por separado
-    const { fechaEntrega, fechaRecogida, fechaRecogidaCalculada, ...otrosUpdates } = updates;
+    const { fechaEntrega, fechaRecogida, fechaRecogidaCalculada, pagosRealizados, ...otrosUpdates } = updates;
     
     const updateData: any = {
       ...otrosUpdates,
@@ -304,6 +304,21 @@ export const pedidoService = {
         updateData.fechaRecogidaCalculada = deleteField();
         console.log('🗑️ fechaRecogidaCalculada eliminada con deleteField');
       }
+    }
+
+    // Convertir fechas de pagosRealizados a Timestamp
+    if (pagosRealizados !== undefined && Array.isArray(pagosRealizados)) {
+      updateData.pagosRealizados = pagosRealizados.map((pago: any) => ({
+        ...pago,
+        fecha: pago.fecha instanceof Date 
+          ? Timestamp.fromDate(pago.fecha)
+          : pago.fecha?.toDate 
+            ? pago.fecha 
+            : pago.fecha 
+              ? Timestamp.fromDate(new Date(pago.fecha))
+              : Timestamp.now()
+      }));
+      console.log('💰 Pagos convertidos a Timestamp:', updateData.pagosRealizados);
     }
 
     console.log('🚀 Enviando a Firebase:', updateData);
@@ -380,6 +395,20 @@ export const pedidoService = {
       }
     }
     
+    // Función auxiliar para obtener el nombre del usuario actual
+    const getCurrentUserName = (): string => {
+      try {
+        const userStr = localStorage.getItem('currentUser');
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          return user.name || 'Usuario desconocido';
+        }
+      } catch (error) {
+        console.error('Error al obtener nombre del usuario:', error);
+      }
+      return 'Usuario desconocido';
+    };
+    
     const updateData: any = {
       status,
       updatedAt: Timestamp.now()
@@ -388,6 +417,7 @@ export const pedidoService = {
     // Si se marca como entregado, establecer fecha de entrega y calcular fecha de recogida
     if (status === 'entregado') {
       updateData.fechaEntrega = Timestamp.now();
+      updateData.entregadoPor = getCurrentUserName(); // ✅ Nombre del usuario que realizó la entrega
       const plan = pedidoData.plan;
       if (plan && plan.duration) {
         // Importar calculatePickupDate para calcular correctamente
@@ -401,9 +431,10 @@ export const pedidoService = {
       }
     }
 
-    // Si se marca como recogido, establecer fecha de recogida
+    // Si se marca como recogido, establecer fecha de recogida y usuario
     if (status === 'recogido') {
       updateData.fechaRecogida = Timestamp.now();
+      updateData.recogidoPor = getCurrentUserName(); // ✅ Nombre del usuario que realizó la recogida
     }
 
     await updateDoc(docRef, updateData);
@@ -503,13 +534,23 @@ export const pedidoService = {
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => {
       const data = doc.data();
+      
+      // Convertir fechas de pagosRealizados de Timestamp a Date
+      const pagosRealizadosConvertidos = (data.pagosRealizados || []).map((pago: any) => ({
+        ...pago,
+        fecha: pago.fecha?.toDate ? pago.fecha.toDate() : pago.fecha instanceof Date ? pago.fecha : pago.fecha ? new Date(pago.fecha) : new Date()
+      }));
+
       return {
         id: doc.id,
         ...data,
+        pagosRealizados: pagosRealizadosConvertidos,
         fechaAsignacion: data.fechaAsignacion?.toDate() || new Date(),
         fechaEntrega: data.fechaEntrega?.toDate() || undefined,
         fechaRecogida: data.fechaRecogida?.toDate() || undefined,
         fechaRecogidaCalculada: data.fechaRecogidaCalculada?.toDate() || new Date(),
+        entregadoPor: data.entregadoPor || undefined, // ✅ Nombre del usuario que realizó la entrega
+        recogidoPor: data.recogidoPor || undefined, // ✅ Nombre del usuario que realizó la recogida
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date()
       } as Pedido;
@@ -545,9 +586,16 @@ export const pedidoService = {
           };
         }
         
+        // Convertir fechas de pagosRealizados de Timestamp a Date
+        const pagosRealizadosConvertidos = (data.pagosRealizados || []).map((pago: any) => ({
+          ...pago,
+          fecha: pago.fecha?.toDate ? pago.fecha.toDate() : pago.fecha instanceof Date ? pago.fecha : pago.fecha ? new Date(pago.fecha) : new Date()
+        }));
+
         return {
           id: doc.id,
           ...data,
+          pagosRealizados: pagosRealizadosConvertidos,
           lavadoraAsignada,
           fechaAsignacion: data.fechaAsignacion?.toDate() || new Date(),
           fechaEntrega: data.fechaEntrega?.toDate() || undefined,
@@ -586,15 +634,24 @@ export const pedidoService = {
         };
       }
       
+      // Convertir fechas de pagosRealizados de Timestamp a Date
+      const pagosRealizadosConvertidos = (data.pagosRealizados || []).map((pago: any) => ({
+        ...pago,
+        fecha: pago.fecha?.toDate ? pago.fecha.toDate() : pago.fecha instanceof Date ? pago.fecha : pago.fecha ? new Date(pago.fecha) : new Date()
+      }));
+
       return {
         id: doc.id,
         ...data,
+        pagosRealizados: pagosRealizadosConvertidos,
         lavadoraAsignada,
         fechaAsignacion: data.fechaAsignacion?.toDate() || new Date(),
         fechaEntrega: data.fechaEntrega?.toDate() || undefined,
         fechaRecogida: data.fechaRecogida?.toDate() || undefined,
         fechaRecogidaCalculada: data.fechaRecogidaCalculada?.toDate() || new Date(),
         fechaEliminacion: data.fechaEliminacion?.toDate() || undefined,
+        entregadoPor: data.entregadoPor || undefined, // ✅ Nombre del usuario que realizó la entrega
+        recogidoPor: data.recogidoPor || undefined, // ✅ Nombre del usuario que realizó la recogida
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date()
       } as Pedido;
@@ -627,9 +684,16 @@ export const pedidoService = {
         };
       }
       
+      // Convertir fechas de pagosRealizados de Timestamp a Date
+      const pagosRealizadosConvertidos = (data.pagosRealizados || []).map((pago: any) => ({
+        ...pago,
+        fecha: pago.fecha?.toDate ? pago.fecha.toDate() : pago.fecha instanceof Date ? pago.fecha : pago.fecha ? new Date(pago.fecha) : new Date()
+      }));
+
       return {
         id: doc.id,
         ...data,
+        pagosRealizados: pagosRealizadosConvertidos,
         lavadoraAsignada,
         fechaAsignacion: data.fechaAsignacion?.toDate() || new Date(),
         fechaEntrega: data.fechaEntrega?.toDate() || undefined,
@@ -657,13 +721,23 @@ export const pedidoService = {
     return onSnapshot(q, (snapshot) => {
       const pedidos = snapshot.docs.map(doc => {
         const data = doc.data();
+        
+        // Convertir fechas de pagosRealizados de Timestamp a Date
+        const pagosRealizadosConvertidos = (data.pagosRealizados || []).map((pago: any) => ({
+          ...pago,
+          fecha: pago.fecha?.toDate ? pago.fecha.toDate() : pago.fecha instanceof Date ? pago.fecha : pago.fecha ? new Date(pago.fecha) : new Date()
+        }));
+
         return {
           id: doc.id,
           ...data,
+          pagosRealizados: pagosRealizadosConvertidos,
           fechaAsignacion: data.fechaAsignacion?.toDate() || new Date(),
           fechaEntrega: data.fechaEntrega?.toDate() || undefined,
           fechaRecogida: data.fechaRecogida?.toDate() || undefined,
           fechaRecogidaCalculada: data.fechaRecogidaCalculada?.toDate() || new Date(),
+          entregadoPor: data.entregadoPor || undefined, // ✅ Nombre del usuario que realizó la entrega
+          recogidoPor: data.recogidoPor || undefined, // ✅ Nombre del usuario que realizó la recogida
           createdAt: data.createdAt?.toDate() || new Date(),
           updatedAt: data.updatedAt?.toDate() || new Date()
         } as Pedido;

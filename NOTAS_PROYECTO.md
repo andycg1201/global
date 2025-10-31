@@ -1,7 +1,7 @@
 # Notas del Proyecto - Sistema de Gestión de Lavadoras
 
 ## Estado Actual del Proyecto
-Última actualización: $(Get-Date -Format "yyyy-MM-dd HH:mm")
+Última actualización: 2025-01-27
 
 ## Cambios Recientes Implementados
 
@@ -36,7 +36,20 @@
 - Al seleccionar un rol, se cargan los permisos por defecto correspondientes
 - Si se edita un usuario existente y se mantiene su rol, se conservan los permisos personalizados
 
-### 4. Funcionalidades Implementadas Previamente
+### 4. Nueva Página "Operadores"
+- ✅ **Reporte de Arqueo por Usuario** movido desde "Reportes" a nueva página dedicada "Operadores"
+- ✅ **Filtros rápidos:** Hoy, Ayer, Esta Semana, Este Mes
+- ✅ **Filtros de fecha personalizados:** Fecha Inicio y Fecha Fin
+- ✅ **Detalles expandibles** por usuario mostrando:
+  - Ingresos (pagos) con cliente, fecha, medio de pago y monto
+  - Gastos generales con concepto, fecha, medio de pago y monto
+  - Mantenimientos con tipo de falla, fecha, medio de pago y monto
+  - Resumen con subtotales de ingresos, gastos y saldo final
+- ✅ Ruta: `/operadores`
+- ✅ Opción agregada al menú principal (requiere permiso `verReportes`)
+- ✅ El reporte de arqueo fue completamente removido de la página "Reportes"
+
+### 5. Funcionalidades Implementadas Previamente
 
 #### Registro de Usuarios en Acciones
 - ✅ Nombres de usuarios registrados en:
@@ -82,10 +95,13 @@
 - `src/pages/Pedidos.tsx` - UI de cards, cronología mejorada, nombres de usuarios
 - `src/pages/Gastos.tsx` - Registro de usuario en gastos
 - `src/pages/Pagos.tsx` - Registro de usuario en pagos
+- `src/pages/Operadores.tsx` - **NUEVA:** Reporte de arqueo por usuario con filtros avanzados
+- `src/pages/Reportes.tsx` - Reporte de arqueo removido (movido a Operadores)
 - `src/components/ModalHistorialMantenimiento.tsx` - Registro de usuarios en mantenimientos
 
-### Layout
-- `src/components/Layout.tsx` - Opción "Auditoría" oculta del menú (comentada)
+### Layout y Routing
+- `src/components/Layout.tsx` - Opción "Auditoría" oculta del menú (comentada), nueva opción "Operadores" agregada
+- `src/App.tsx` - Nueva ruta `/operadores` agregada
 
 ## Notas Importantes
 
@@ -106,11 +122,12 @@
 - [ ] Revisar si hay más permisos obsoletos que eliminar
 - [ ] Considerar si se necesitan permisos más granulares para inventario (separar crear/eliminar de marcar fuera de servicio)
 - [ ] Documentar flujo completo de permisos para nuevos desarrolladores
+- [ ] Considerar agregar exportación de reporte de arqueo (Excel/PDF) en la página Operadores
 
 ## Deployment
 - URL de producción: https://global-da5ac.web.app
 - Firebase Console: https://console.firebase.google.com/project/global-da5ac/overview
-- Último deploy: $(Get-Date -Format "yyyy-MM-dd HH:mm")
+- Último deploy: 2025-01-27
 
 ---
 

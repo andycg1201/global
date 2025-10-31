@@ -9,7 +9,6 @@ export interface Permisos {
   verCapital: boolean;
   verReportes: boolean;
   verConfiguracion: boolean;
-  verAuditoria: boolean;
   verPagos: boolean; // Nueva sección de pagos
   
   // Acciones en servicios
@@ -25,7 +24,7 @@ export interface Permisos {
   eliminarClientes: boolean;
   
   // Acciones en inventario
-  gestionarInventario: boolean; // crear, editar, eliminar lavadoras
+  gestionarInventario: boolean; // crear, editar, eliminar lavadoras, marcar fuera de servicio
   
   // Acciones en gastos
   crearGastos: boolean;
@@ -44,9 +43,6 @@ export interface Permisos {
   
   // Gestión de usuarios
   gestionarUsuarios: boolean;
-  
-  // Ver indicadores de auditoría
-  verIndicadoresAuditoria: boolean;
 }
 
 // Tipos de usuario

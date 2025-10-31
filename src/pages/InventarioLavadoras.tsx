@@ -26,7 +26,7 @@ import { ModalHistorialMantenimiento } from '../components/ModalHistorialManteni
 import { obtenerHistorialMantenimiento, obtenerMantenimientoPorId } from '../services/mantenimientoService';
 
 const InventarioLavadoras: React.FC = () => {
-  const { user } = useAuth();
+  const { user, esOperador, tienePermiso } = useAuth();
   const [lavadoras, setLavadoras] = useState<Lavadora[]>([]);
   const [loading, setLoading] = useState(true);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
@@ -50,23 +50,9 @@ const InventarioLavadoras: React.FC = () => {
     ubicacion: 'bodega' as const
   });
   
-  // Estados para análisis de rentabilidad
-  const [mostrarAnalisisRentabilidad, setMostrarAnalisisRentabilidad] = useState(false);
-  const [periodoAnalisis, setPeriodoAnalisis] = useState<'mensual' | 'trimestral' | 'anual'>('mensual');
-  const [datosRentabilidad, setDatosRentabilidad] = useState<any[]>([]);
-  const [pedidos, setPedidos] = useState<any[]>([]);
-  const [mantenimientos, setMantenimientos] = useState<Mantenimiento[]>([]);
-
   useEffect(() => {
     cargarLavadoras();
-    cargarDatosRentabilidad();
   }, []);
-
-  useEffect(() => {
-    if (mostrarAnalisisRentabilidad) {
-      calcularRentabilidad();
-    }
-  }, [mostrarAnalisisRentabilidad, periodoAnalisis, pedidos, mantenimientos, lavadoras]);
 
   const cargarLavadoras = async () => {
     try {
@@ -152,91 +138,6 @@ const InventarioLavadoras: React.FC = () => {
     } catch (error) {
       console.error('❌ Error al sincronizar lavadoras huérfanas:', error);
     }
-  };
-
-  const cargarDatosRentabilidad = async () => {
-    try {
-      const [pedidosData, mantenimientosData] = await Promise.all([
-        import('../services/firebaseService').then(service => service.pedidoService.getAllPedidos()),
-        import('../services/mantenimientoService').then(async service => {
-          // Obtener todos los mantenimientos directamente desde Firebase
-          const { collection, getDocs } = await import('firebase/firestore');
-          const { db } = await import('../lib/firebase');
-          
-          try {
-            const querySnapshot = await getDocs(collection(db, 'mantenimientos'));
-            const mantenimientos: any[] = [];
-            
-            querySnapshot.forEach((doc) => {
-              const data = doc.data();
-              mantenimientos.push({
-                id: doc.id,
-                lavadoraId: data.lavadoraId,
-                tipoFalla: data.tipoFalla,
-                descripcion: data.descripcion,
-                costoReparacion: data.costoReparacion,
-                servicioTecnico: data.servicioTecnico,
-                fechaInicio: data.fechaInicio?.toDate() || new Date(),
-                fechaEstimadaFin: data.fechaEstimadaFin?.toDate() || new Date(),
-                fechaFin: data.fechaFin?.toDate() || null,
-                estado: data.estado,
-                observaciones: data.observaciones,
-                createdBy: data.createdBy,
-                createdAt: data.createdAt?.toDate() || new Date(),
-                updatedAt: data.updatedAt?.toDate() || new Date()
-              });
-            });
-            
-            return mantenimientos;
-          } catch (error) {
-            console.error('Error obteniendo mantenimientos:', error);
-            return [];
-          }
-        })
-      ]);
-      setPedidos(pedidosData);
-      setMantenimientos(mantenimientosData);
-    } catch (error) {
-      console.error('Error al cargar datos para rentabilidad:', error);
-    }
-  };
-
-  const calcularRentabilidad = () => {
-    const datos = lavadoras.map(lavadora => {
-      // Calcular ingresos (pedidos completados con esta lavadora)
-      const pedidosCompletados = pedidos.filter(pedido => 
-        pedido.status === 'recogido' && 
-        pedido.lavadoraAsignada?.lavadoraId === lavadora.id
-      );
-      
-      const ingresos = pedidosCompletados.reduce((sum, pedido) => sum + (pedido.total || 0), 0);
-      
-      // Calcular gastos (mantenimientos de esta lavadora)
-      const mantenimientosLavadora = mantenimientos.filter(mant => 
-        mant.lavadoraId === lavadora.id && (mant as any).estado === 'completado'
-      );
-      
-      const gastos = mantenimientosLavadora.reduce((sum, mant) => sum + (mant.costoReparacion || 0), 0);
-      
-      // Calcular métricas
-      const rentabilidad = ingresos - gastos;
-      const roi = gastos > 0 ? ((rentabilidad / gastos) * 100) : 0;
-      const frecuenciaDanos = mantenimientosLavadora.length;
-      
-      return {
-        lavadora,
-        ingresos,
-        gastos,
-        rentabilidad,
-        roi,
-        frecuenciaDanos,
-        pedidosAtendidos: pedidosCompletados.length
-      };
-    });
-
-    // Ordenar por rentabilidad descendente
-    datos.sort((a, b) => b.rentabilidad - a.rentabilidad);
-    setDatosRentabilidad(datos);
   };
 
   const handleCrearLavadorasIniciales = async () => {
@@ -498,7 +399,7 @@ const InventarioLavadoras: React.FC = () => {
           <p className="text-gray-600">Gestiona el estado de las 15 lavadoras LG</p>
         </div>
         <div className="flex space-x-3">
-          {lavadoras.length === 0 && (
+          {lavadoras.length === 0 && tienePermiso('gestionarInventario') && (
             <button
               onClick={handleCrearLavadorasIniciales}
               className="btn-secondary flex items-center space-x-2"
@@ -517,28 +418,15 @@ const InventarioLavadoras: React.FC = () => {
               <span>Exportar Todos los Códigos</span>
             </button>
           )}
-          {lavadoras.length > 0 && (
+          {tienePermiso('gestionarInventario') && (
             <button
-              onClick={() => setMostrarAnalisisRentabilidad(!mostrarAnalisisRentabilidad)}
-              className={`flex items-center space-x-2 ${
-                mostrarAnalisisRentabilidad 
-                  ? 'bg-green-600 text-white hover:bg-green-700' 
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-              } px-4 py-2 rounded-lg font-medium transition-colors`}
+              onClick={() => setMostrarFormulario(true)}
+              className="btn-primary flex items-center space-x-2"
             >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              <span>{mostrarAnalisisRentabilidad ? 'Ocultar Análisis' : 'Análisis de Rentabilidad'}</span>
+              <PlusIcon className="h-5 w-5" />
+              <span>Registrar Lavadora</span>
             </button>
           )}
-          <button
-            onClick={() => setMostrarFormulario(true)}
-            className="btn-primary flex items-center space-x-2"
-          >
-            <PlusIcon className="h-5 w-5" />
-            <span>Registrar Lavadora</span>
-          </button>
         </div>
       </div>
 
@@ -623,158 +511,6 @@ const InventarioLavadoras: React.FC = () => {
           </select>
         </div>
       </div>
-
-      {/* Análisis de Rentabilidad */}
-      {mostrarAnalisisRentabilidad && (
-        <div className="card">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-medium text-gray-900">Análisis de Rentabilidad</h3>
-            <div className="flex items-center space-x-4">
-              <label className="text-sm font-medium text-gray-700">Período:</label>
-              <select
-                value={periodoAnalisis}
-                onChange={(e) => setPeriodoAnalisis(e.target.value as 'mensual' | 'trimestral' | 'anual')}
-                className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:ring-primary-500 focus:border-primary-500"
-              >
-                <option value="mensual">Mensual</option>
-                <option value="trimestral">Trimestral</option>
-                <option value="anual">Anual</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Gráfico de Rentabilidad */}
-          <div className="mb-6">
-            <h4 className="text-md font-medium text-gray-800 mb-4">Ingresos vs Gastos por Lavadora</h4>
-            <div className="space-y-3">
-              {datosRentabilidad.slice(0, 10).map((dato, index) => {
-                const maxValor = Math.max(...datosRentabilidad.map(d => Math.max(d.ingresos, d.gastos)));
-                const ingresosWidth = (dato.ingresos / maxValor) * 100;
-                const gastosWidth = (dato.gastos / maxValor) * 100;
-                
-                return (
-                  <div key={dato.lavadora.id} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-700">
-                        {dato.lavadora.codigoQR} - {dato.lavadora.marca} {dato.lavadora.modelo}
-                      </span>
-                      <div className="flex items-center space-x-4 text-xs text-gray-600">
-                        <span>Rentabilidad: <span className={`font-medium ${dato.rentabilidad >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          ${dato.rentabilidad.toLocaleString()}
-                        </span></span>
-                        <span>ROI: <span className={`font-medium ${dato.roi >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {dato.roi.toFixed(1)}%
-                        </span></span>
-                      </div>
-                    </div>
-                    
-                    {/* Barra de Ingresos */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-green-600 font-medium">Ingresos</span>
-                        <span className="text-green-600 font-medium">${dato.ingresos.toLocaleString()}</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-green-500 h-2 rounded-full transition-all duration-500"
-                          style={{ width: `${ingresosWidth}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                    
-                    {/* Barra de Gastos */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-red-600 font-medium">Gastos</span>
-                        <span className="text-red-600 font-medium">${dato.gastos.toLocaleString()}</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-red-500 h-2 rounded-full transition-all duration-500"
-                          style={{ width: `${gastosWidth}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Rankings */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Top 5 Más Rentables */}
-            <div>
-              <h4 className="text-md font-medium text-gray-800 mb-3">🥇 Top 5 Más Rentables</h4>
-              <div className="space-y-2">
-                {datosRentabilidad.slice(0, 5).map((dato, index) => (
-                  <div key={dato.lavadora.id} className="flex items-center justify-between p-2 bg-green-50 rounded-lg">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-lg">#{index + 1}</span>
-                      <span className="text-sm font-medium">{dato.lavadora.codigoQR}</span>
-                    </div>
-                    <span className="text-sm font-bold text-green-600">
-                      ${dato.rentabilidad.toLocaleString()}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Top 5 Más Problemáticas */}
-            <div>
-              <h4 className="text-md font-medium text-gray-800 mb-3">⚠️ Top 5 Más Problemáticas</h4>
-              <div className="space-y-2">
-                {datosRentabilidad
-                  .sort((a, b) => b.frecuenciaDanos - a.frecuenciaDanos)
-                  .slice(0, 5)
-                  .map((dato, index) => (
-                  <div key={dato.lavadora.id} className="flex items-center justify-between p-2 bg-red-50 rounded-lg">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-lg">#{index + 1}</span>
-                      <span className="text-sm font-medium">{dato.lavadora.codigoQR}</span>
-                    </div>
-                    <span className="text-sm font-bold text-red-600">
-                      {dato.frecuenciaDanos} daños
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Resumen General */}
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <h4 className="text-md font-medium text-gray-800 mb-3">📊 Resumen General</h4>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  ${datosRentabilidad.reduce((sum, d) => sum + d.ingresos, 0).toLocaleString()}
-                </div>
-                <div className="text-gray-600">Total Ingresos</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">
-                  ${datosRentabilidad.reduce((sum, d) => sum + d.gastos, 0).toLocaleString()}
-                </div>
-                <div className="text-gray-600">Total Gastos</div>
-              </div>
-              <div className="text-center">
-                <div className={`text-2xl font-bold ${datosRentabilidad.reduce((sum, d) => sum + d.rentabilidad, 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  ${datosRentabilidad.reduce((sum, d) => sum + d.rentabilidad, 0).toLocaleString()}
-                </div>
-                <div className="text-gray-600">Rentabilidad Total</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">
-                  {datosRentabilidad.reduce((sum, d) => sum + d.pedidosAtendidos, 0)}
-                </div>
-                <div className="text-gray-600">Pedidos Atendidos</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Lista de Lavadoras */}
       <div className="card">
@@ -879,17 +615,21 @@ const InventarioLavadoras: React.FC = () => {
                           <WrenchScrewdriverIcon className="h-3 w-3" />
                           <span>Mantenimiento</span>
                         </button>
-                        <button
-                          onClick={() => handleMarcarFueraServicio(lavadora)}
-                          className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center space-x-1"
-                          title="Marcar como fuera de servicio"
-                        >
-                          <ExclamationTriangleIcon className="h-3 w-3" />
-                          <span>Fuera Servicio</span>
-                        </button>
+                        {/* Solo managers y admins pueden marcar como fuera de servicio */}
+                        {!esOperador() && (
+                          <button
+                            onClick={() => handleMarcarFueraServicio(lavadora)}
+                            className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors flex items-center space-x-1"
+                            title="Marcar como fuera de servicio"
+                          >
+                            <ExclamationTriangleIcon className="h-3 w-3" />
+                            <span>Fuera Servicio</span>
+                          </button>
+                        )}
                       </>
                     )}
                     
+                    {/* Todos pueden finalizar mantenimientos */}
                     {lavadora.estado === 'mantenimiento' && (
                       <button
                         onClick={() => handleFinalizarMantenimiento(lavadora)}
@@ -901,7 +641,8 @@ const InventarioLavadoras: React.FC = () => {
                       </button>
                     )}
 
-                    {lavadora.estado === 'fuera_servicio' && (
+                    {/* Solo managers y admins pueden marcar como disponible desde fuera de servicio */}
+                    {lavadora.estado === 'fuera_servicio' && !esOperador() && (
                       <button
                         onClick={() => handleMarcarDisponible(lavadora)}
                         className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors flex items-center space-x-1"

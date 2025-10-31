@@ -19,12 +19,11 @@ export const permisosPorDefectoOperador: Permisos = {
   verDashboard: true,
   verPedidos: true,
   verClientes: true,
-  verInventario: false,
+  verInventario: true, // ✅ Operador puede ver inventario (pero no puede crear/eliminar lavadoras ni marcar fuera de servicio)
   verGastos: true,
   verCapital: false,
   verReportes: false, // Operador no puede ver reportes
   verConfiguracion: false,
-  verAuditoria: false,
   verPagos: true, // Operador puede ver pagos
   
   crearServicios: true,
@@ -37,7 +36,7 @@ export const permisosPorDefectoOperador: Permisos = {
   editarClientes: true,
   eliminarClientes: false,
   
-  gestionarInventario: false,
+  gestionarInventario: false, // Operador NO puede crear/eliminar lavadoras ni marcarlas fuera de servicio (pero SÍ puede crear/finalizar mantenimientos)
   
   crearGastos: true,
   eliminarGastos: false, // Operador no puede eliminar gastos
@@ -50,9 +49,7 @@ export const permisosPorDefectoOperador: Permisos = {
   exportarReportes: false,
   verFiltrosReportes: false, // No puede ver reportes
   
-  gestionarUsuarios: false,
-  
-  verIndicadoresAuditoria: false
+  gestionarUsuarios: false
 };
 
 // Permisos por defecto para un manager
@@ -65,7 +62,6 @@ export const permisosPorDefectoManager: Permisos = {
   verCapital: true,
   verReportes: true,
   verConfiguracion: false, // Manager no puede gestionar usuarios
-  verAuditoria: true,
   verPagos: true, // Manager puede ver pagos
   
   crearServicios: true,
@@ -78,7 +74,7 @@ export const permisosPorDefectoManager: Permisos = {
   editarClientes: true,
   eliminarClientes: true,
   
-  gestionarInventario: true,
+  gestionarInventario: true, // Manager puede crear/eliminar lavadoras y marcarlas fuera de servicio
   
   crearGastos: true,
   eliminarGastos: true, // Manager puede eliminar gastos
@@ -91,8 +87,7 @@ export const permisosPorDefectoManager: Permisos = {
   exportarReportes: true,
   verFiltrosReportes: true,
   
-  gestionarUsuarios: false, // Manager no puede gestionar usuarios
-  verIndicadoresAuditoria: true
+  gestionarUsuarios: false // Manager no puede gestionar usuarios
 };
 
 // Todos los permisos en true (para admin)
@@ -105,7 +100,6 @@ export const permisosAdmin: Permisos = {
   verCapital: true,
   verReportes: true,
   verConfiguracion: true,
-  verAuditoria: true,
   verPagos: true, // Admin puede ver pagos
   
   crearServicios: true,
@@ -131,9 +125,7 @@ export const permisosAdmin: Permisos = {
   exportarReportes: true,
   verFiltrosReportes: true,
   
-  gestionarUsuarios: true,
-  
-  verIndicadoresAuditoria: true
+  gestionarUsuarios: true
 };
 
 class UsuarioService {
@@ -271,15 +263,17 @@ class UsuarioService {
 
       const valoresAnteriores = docSnap.data();
       
-      // Si cambia el rol, actualizar permisos
-      if (updates.role) {
+      // Si cambia el rol, actualizar permisos solo si no se proporcionan permisos personalizados
+      if (updates.role && !updates.permisos) {
         if (updates.role === 'admin') {
           updates.permisos = permisosAdmin;
         } else if (updates.role === 'operador') {
           updates.permisos = permisosPorDefectoOperador;
+        } else if (updates.role === 'manager') {
+          updates.permisos = permisosPorDefectoManager;
         }
-        // Si es manager, mantener los permisos proporcionados o los existentes
       }
+      // Si se proporcionan permisos, mantenerlos (para manager y operador personalizados)
 
       await updateDoc(docRef, {
         ...updates,

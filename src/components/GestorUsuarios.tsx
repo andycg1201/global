@@ -24,6 +24,7 @@ const GestorUsuarios: React.FC<GestorUsuariosProps> = ({ onClose }) => {
   const [usuarioEditando, setUsuarioEditando] = useState<User | null>(null);
   const [mostrarConfirmacionRestablecer, setMostrarConfirmacionRestablecer] = useState(false);
   const [usuarioParaRestablecer, setUsuarioParaRestablecer] = useState<User | null>(null);
+  const [rolOriginal, setRolOriginal] = useState<UserRole | null>(null); // Guardar el rol original al abrir el formulario
   
   const [formData, setFormData] = useState({
     email: '',
@@ -55,6 +56,7 @@ const GestorUsuarios: React.FC<GestorUsuariosProps> = ({ onClose }) => {
   const abrirFormulario = (usuario?: User) => {
     if (usuario) {
       setUsuarioEditando(usuario);
+      setRolOriginal(usuario.role); // Guardar el rol original
       setFormData({
         email: usuario.email,
         password: '', // No mostrar contraseña
@@ -64,6 +66,7 @@ const GestorUsuarios: React.FC<GestorUsuariosProps> = ({ onClose }) => {
       });
     } else {
       setUsuarioEditando(null);
+      setRolOriginal(null); // No hay rol original para usuarios nuevos
       setFormData({
         email: '',
         password: '',
@@ -78,6 +81,7 @@ const GestorUsuarios: React.FC<GestorUsuariosProps> = ({ onClose }) => {
   const cerrarFormulario = () => {
     setMostrarFormulario(false);
     setUsuarioEditando(null);
+    setRolOriginal(null);
     setFormData({
       email: '',
       password: '',
@@ -94,9 +98,23 @@ const GestorUsuarios: React.FC<GestorUsuariosProps> = ({ onClose }) => {
       if (rol === 'admin') {
         permisosActualizados = permisosAdmin;
       } else if (rol === 'operador') {
-        permisosActualizados = permisosPorDefectoOperador;
+        // Si el rol original era operador y mantenemos operador, conservar permisos personalizados
+        // Si cambia de otro rol a operador, usar permisos por defecto
+        if (rolOriginal === 'operador' && rol === 'operador' && prev.permisos) {
+          // Mantener los permisos que ya tiene el usuario (cargados al abrir el formulario)
+          permisosActualizados = prev.permisos;
+        } else {
+          permisosActualizados = permisosPorDefectoOperador;
+        }
       } else if (rol === 'manager') {
-        permisosActualizados = permisosPorDefectoManager;
+        // Si el rol original era manager y mantenemos manager, conservar permisos personalizados
+        // Si cambia de otro rol a manager, usar permisos por defecto
+        if (rolOriginal === 'manager' && rol === 'manager' && prev.permisos) {
+          // Mantener los permisos que ya tiene el usuario (cargados al abrir el formulario)
+          permisosActualizados = prev.permisos;
+        } else {
+          permisosActualizados = permisosPorDefectoManager;
+        }
       } else {
         // Fallback
         permisosActualizados = permisosPorDefectoOperador;
@@ -133,7 +151,7 @@ const GestorUsuarios: React.FC<GestorUsuariosProps> = ({ onClose }) => {
           {
             name: formData.name,
             role: formData.role,
-            permisos: formData.role === 'manager' ? formData.permisos : undefined,
+            permisos: (formData.role === 'manager' || formData.role === 'operador') ? formData.permisos : undefined,
             isActive: true
           },
           currentUser.id
@@ -152,7 +170,7 @@ const GestorUsuarios: React.FC<GestorUsuariosProps> = ({ onClose }) => {
           formData.name,
           formData.role,
           currentUser.id,
-          formData.role === 'manager' ? formData.permisos : undefined
+          (formData.role === 'manager' || formData.role === 'operador') ? formData.permisos : undefined
         );
         alert('Usuario creado exitosamente');
       }
@@ -421,16 +439,18 @@ const GestorUsuarios: React.FC<GestorUsuariosProps> = ({ onClose }) => {
                 </div>
               </div>
 
-              {/* Permisos (solo para manager) */}
-              {formData.role === 'manager' && (
+              {/* Permisos (para manager y operador) */}
+              {(formData.role === 'manager' || formData.role === 'operador') && (
                 <div className="border-t pt-4">
-                  <h4 className="text-md font-medium text-gray-900 mb-4">Permisos</h4>
+                  <h4 className="text-md font-medium text-gray-900 mb-4">
+                    Permisos {formData.role === 'manager' ? '(Manager)' : '(Operador)'}
+                  </h4>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {/* Navegación */}
                     <div className="space-y-2">
                       <h5 className="text-sm font-semibold text-gray-700">Navegación</h5>
-                      {(['verDashboard', 'verPedidos', 'verClientes', 'verInventario', 'verGastos', 'verCapital', 'verReportes', 'verConfiguracion', 'verAuditoria'] as (keyof Permisos)[]).map(permiso => (
+                      {(['verDashboard', 'verPedidos', 'verClientes', 'verInventario', 'verGastos', 'verCapital', 'verReportes', 'verConfiguracion'] as (keyof Permisos)[]).map(permiso => (
                         <label key={permiso} className="flex items-center space-x-2 cursor-pointer">
                           <input
                             type="checkbox"
@@ -462,7 +482,7 @@ const GestorUsuarios: React.FC<GestorUsuariosProps> = ({ onClose }) => {
                     {/* Otras acciones */}
                     <div className="space-y-2">
                       <h5 className="text-sm font-semibold text-gray-700">Otras Acciones</h5>
-                      {(['crearClientes', 'editarClientes', 'eliminarClientes', 'gestionarInventario', 'crearGastos', 'eliminarGastos', 'crearPagos', 'eliminarPagos', 'gestionarCapital', 'exportarReportes', 'verFiltrosReportes', 'gestionarUsuarios', 'verIndicadoresAuditoria'] as (keyof Permisos)[]).map(permiso => (
+                      {(['crearClientes', 'editarClientes', 'eliminarClientes', 'gestionarInventario', 'crearGastos', 'eliminarGastos', 'crearPagos', 'eliminarPagos', 'gestionarCapital', 'exportarReportes', 'verFiltrosReportes', 'gestionarUsuarios'] as (keyof Permisos)[]).map(permiso => (
                         <label key={permiso} className="flex items-center space-x-2 cursor-pointer">
                           <input
                             type="checkbox"

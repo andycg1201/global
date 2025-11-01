@@ -1,7 +1,7 @@
 # Notas del Proyecto - Sistema de Gestión de Lavadoras
 
 ## Estado Actual del Proyecto
-Última actualización: 2025-01-27 (Después de implementar filtro de arqueo solo efectivo en Operadores)
+Última actualización: 2025-01-27 (Filtrado de datos por usuario para operadores en Pagos y Gastos)
 
 ## Cambios Recientes Implementados
 
@@ -90,7 +90,22 @@
   - `src/pages/Gastos.tsx` - Lógica de validación y filtrado de medios
   - `src/components/ModalMantenimiento.tsx` - Lógica de validación y filtrado de medios
 
-### 6. Funcionalidades Implementadas Previamente
+### 6. Filtrado de Datos por Usuario para Operadores
+- ✅ **Operadores solo ven SUS propios movimientos en Pagos y Gastos**
+  - **Página Pagos:** Los operadores solo ven los pagos que ellos mismos registraron (`registradoPor === user.name`)
+  - **Página Gastos:** Los operadores solo ven los gastos que ellos registraron (`registradoPor === user.name`)
+  - **Mantenimientos en Gastos:** Los operadores solo ven los mantenimientos que ellos registraron (`registradoPor === user.name`)
+- ✅ **Administradores y Managers:** Ven TODOS los movimientos (sin filtrado)
+- ✅ **IMPORTANTE:** Este filtrado es SOLO VISUAL. NO afecta:
+  - Cálculos de saldos
+  - Registro de movimientos en BD
+  - Funcionalidad de creación/edición
+  - Otras partes del sistema
+- ✅ Implementado en:
+  - `src/pages/Pagos.tsx` - Filtrado visual de pagos por `user.name` si es operador
+  - `src/pages/Gastos.tsx` - Filtrado visual de gastos y mantenimientos por `user.name` si es operador
+
+### 7. Funcionalidades Implementadas Previamente
 
 #### Registro de Usuarios en Acciones
 - ✅ Nombres de usuarios registrados en:
@@ -134,8 +149,8 @@
 ### Páginas
 - `src/pages/InventarioLavadoras.tsx` - Restricciones de UI basadas en permisos
 - `src/pages/Pedidos.tsx` - UI de cards, cronología mejorada, nombres de usuarios
-- `src/pages/Gastos.tsx` - Registro de usuario en gastos, restricción de medios de pago para operadores
-- `src/pages/Pagos.tsx` - Registro de usuario en pagos
+- `src/pages/Gastos.tsx` - Registro de usuario en gastos, restricción de medios de pago para operadores, filtrado visual por usuario
+- `src/pages/Pagos.tsx` - Registro de usuario en pagos, filtrado visual por usuario
 - `src/pages/Operadores.tsx` - **NUEVA:** Página completa con cards de operadores, modal detallado, filtros avanzados (fecha y tipo de acción), resumen financiero destacado y visualización detallada por tipo de acción, **arqueo solo efectivo**
 - `src/pages/Reportes.tsx` - Reporte de arqueo removido (movido a Operadores)
 - `src/components/ModalHistorialMantenimiento.tsx` - Registro de usuarios en mantenimientos
@@ -169,8 +184,8 @@
 ## Deployment
 - URL de producción: https://global-da5ac.web.app
 - Firebase Console: https://console.firebase.google.com/project/global-da5ac/overview
-- Último deploy: 2025-01-27 (Arqueo solo efectivo en Operadores + restricción de medios de pago para operadores en Gastos/Mantenimientos)
-- Último commit: Pendiente - "feat: Implementar arqueo solo efectivo en Operadores y restricción de medios de pago"
+- Último deploy: 2025-01-27 (Arqueo solo efectivo + filtrado visual para operadores en Pagos y Gastos)
+- Último commit: Pendiente - "feat: Implementar arqueo solo efectivo, restricciones de medios de pago y filtrado visual para operadores"
 
 ---
 

@@ -793,6 +793,18 @@ const Operadores: React.FC = () => {
                 const totalIngresos = (datosFiltrados.pagos as any)?.reduce((sum: number, item: any) => {
                   return sum + (item.pago.medioPago === 'efectivo' ? item.pago.monto : 0);
                 }, 0) || 0;
+                
+                // Calcular desglose por medio de pago
+                const ingresoEfectivo = (datosFiltrados.pagos as any)?.reduce((sum: number, item: any) => {
+                  return sum + (item.pago.medioPago === 'efectivo' ? item.pago.monto : 0);
+                }, 0) || 0;
+                const ingresoNequi = (datosFiltrados.pagos as any)?.reduce((sum: number, item: any) => {
+                  return sum + (item.pago.medioPago === 'nequi' ? item.pago.monto : 0);
+                }, 0) || 0;
+                const ingresoDaviplata = (datosFiltrados.pagos as any)?.reduce((sum: number, item: any) => {
+                  return sum + (item.pago.medioPago === 'daviplata' ? item.pago.monto : 0);
+                }, 0) || 0;
+                
                 const totalGastos = datosFiltrados.gastos.reduce((sum, g) => sum + (g.medioPago === 'efectivo' ? g.amount : 0), 0);
                 const totalMantenimientos = datosFiltrados.mantenimientos.reduce((sum, m) => sum + (m.medioPago === 'efectivo' ? m.costoReparacion : 0), 0);
                 const totalGastosTotal = totalGastos + totalMantenimientos;
@@ -802,14 +814,19 @@ const Operadores: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="bg-white rounded-lg p-5 border-2 border-green-300 shadow-md">
                       <div className="flex items-center justify-between mb-2">
-                        <div className="text-sm text-gray-600 font-medium">Ingresos</div>
+                        <div className="text-sm text-gray-600 font-medium">Ingresos (Arqueo Efectivo)</div>
                         <CurrencyDollarIcon className="h-5 w-5 text-green-600" />
                       </div>
                       <div className="text-3xl font-bold text-green-600">
                         {formatCurrency(totalIngresos)}
                       </div>
-                      <div className="text-xs text-gray-500 mt-2">
-                        {(datosFiltrados.pagos as any)?.length || 0} pago(s) recibido(s)
+                      <div className="text-xs text-gray-500 mt-3 space-y-1">
+                        <div>💰 Efectivo: {formatCurrency(ingresoEfectivo)}</div>
+                        <div>📱 Nequi: {formatCurrency(ingresoNequi)}</div>
+                        <div>💳 Daviplata: {formatCurrency(ingresoDaviplata)}</div>
+                        <div className="mt-2 pt-2 border-t border-gray-200">
+                          Total: {formatCurrency(ingresoEfectivo + ingresoNequi + ingresoDaviplata)}
+                        </div>
                       </div>
                     </div>
                     <div className="bg-white rounded-lg p-5 border-2 border-red-300 shadow-md">

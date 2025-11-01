@@ -197,14 +197,24 @@ const Gastos: React.FC = () => {
           fotos: data.fotos || [],
           observaciones: data.observaciones || '',
           createdBy: data.createdBy,
+          registradoPor: data.registradoPor, // ✅ Nombre del usuario que registró el mantenimiento
+          medioPago: data.medioPago, // Agregar medio de pago también
           createdAt: data.createdAt?.toDate() || new Date(),
           updatedAt: data.updatedAt?.toDate() || new Date()
         };
       });
       
+      // Si es operador, filtrar gastos y mantenimientos por su nombre
+      let gastosFinales = gastosData;
+      let mantenimientosFinales = mantenimientosData;
       
-      setGastos(gastosData);
-      setGastosMantenimiento(mantenimientosData);
+      if (esOperador() && user?.name) {
+        gastosFinales = gastosData.filter(g => g.registradoPor === user.name);
+        mantenimientosFinales = mantenimientosData.filter(m => m.registradoPor === user.name);
+      }
+      
+      setGastos(gastosFinales);
+      setGastosMantenimiento(mantenimientosFinales);
       setConceptos(conceptosData);
     } catch (error) {
       console.error('Error al cargar datos:', error);

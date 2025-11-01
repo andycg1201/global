@@ -36,7 +36,7 @@ interface FiltrosPagos {
 }
 
 const Pagos: React.FC = () => {
-  const { esOperador, tienePermiso } = useAuth();
+  const { user, esOperador, tienePermiso } = useAuth();
   const [pagos, setPagos] = useState<PagoCompleto[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtros, setFiltros] = useState<FiltrosPagos>({
@@ -181,6 +181,11 @@ const Pagos: React.FC = () => {
 
       // Aplicar filtros adicionales
       let pagosFiltrados = todosLosPagos;
+
+      // Si es operador, solo mostrar sus propios pagos
+      if (esOperador() && user?.name) {
+        pagosFiltrados = pagosFiltrados.filter(p => p.registradoPor === user.name);
+      }
 
       if (filtros.medioPago !== 'todos') {
         pagosFiltrados = pagosFiltrados.filter(p => p.medioPago === filtros.medioPago);

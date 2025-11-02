@@ -185,7 +185,7 @@
 - URL de producción: https://global-da5ac.web.app
 - Firebase Console: https://console.firebase.google.com/project/global-da5ac/overview
 - Último deploy: 2025-01-27 (Arqueo solo efectivo + filtrado visual para operadores en Pagos y Gastos)
-- Último commit: Pendiente - "feat: Implementar arqueo solo efectivo, restricciones de medios de pago y filtrado visual para operadores"
+- Último commit: 8131904 - "feat: Implementar arqueo solo efectivo, restricciones de medios de pago y filtrado visual para operadores"
 
 ---
 

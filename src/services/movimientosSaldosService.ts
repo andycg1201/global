@@ -107,27 +107,56 @@ export class MovimientosSaldosService {
         const data = doc.data();
         
         // Manejar fechas de manera más robusta
-        let fecha: Date;
-        if (data.fecha?.toDate) {
+        // IMPORTANTE: Buscar 'date' (nombre correcto en Firebase), no 'fecha'
+        // Nunca usar new Date() sin argumentos para evitar que la hora se actualice
+        let fecha: Date | null = null;
+        
+        // Prioridad 1: campo 'date' (nombre correcto usado al guardar como Timestamp)
+        if (data.date?.toDate) {
+          fecha = data.date.toDate();
+        } else if (data.date instanceof Date) {
+          fecha = data.date;
+        } 
+        // Prioridad 2: campo 'date' como string
+        else if (data.date && typeof data.date === 'string') {
+          fecha = new Date(data.date);
+        }
+        // Prioridad 3: campo 'fecha' (legacy, por compatibilidad)
+        else if (data.fecha?.toDate) {
           fecha = data.fecha.toDate();
         } else if (data.fecha instanceof Date) {
           fecha = data.fecha;
         } else if (data.fecha && typeof data.fecha === 'string') {
           fecha = new Date(data.fecha);
-        } else {
-          // Si no hay fecha válida, usar la fecha de creación del documento
-          fecha = new Date(doc.id.substring(0, 8)); // Usar timestamp del ID como fallback
+        }
+        // Prioridad 4: campo 'createdAt' (timestamp de creación del documento)
+        else if (data.createdAt?.toDate) {
+          fecha = data.createdAt.toDate();
+        } else if (data.createdAt instanceof Date) {
+          fecha = data.createdAt;
         }
         
-        // Validar que la fecha sea válida
-        if (isNaN(fecha.getTime())) {
-          console.warn('⚠️ Fecha inválida para gasto:', doc.id, 'usando fecha actual');
-          fecha = new Date();
+        // Validar y usar fallback solo si es necesario
+        if (!fecha || isNaN(fecha.getTime())) {
+          console.warn('⚠️ No se pudo obtener fecha válida para gasto:', doc.id, 'usando createdAt');
+          // Último recurso: usar createdAt (fecha original de creación), NUNCA fecha actual
+          if (data.createdAt?.toDate) {
+            fecha = data.createdAt.toDate();
+          } else if (data.createdAt instanceof Date) {
+            fecha = data.createdAt;
+          } else {
+            // Solo en caso extremo: usar fecha epoch (1970), nunca new Date() sin argumentos
+            fecha = new Date(0);
+            console.error('⚠️ Gasto sin fecha válida:', doc.id);
+          }
         }
+        
+        // Asegurar que fecha nunca sea null (TypeScript)
+        const fechaFinal: Date = fecha || new Date(0);
         
         const movimiento: MovimientoSaldo = {
           id: `gasto-${doc.id}`,
-          fecha: fecha,
+          fecha: fechaFinal,
           concepto: typeof data.concepto === 'object' ? data.concepto?.name || 'Gasto General' : data.concepto || 'Gasto General',
           referencia: `Ref #${doc.id.slice(-6)}`,
           monto: data.amount,
@@ -153,27 +182,47 @@ export class MovimientosSaldosService {
         const data = doc.data();
         
         // Manejar fechas de manera más robusta
-        let fecha: Date;
+        // IMPORTANTE: Nunca usar new Date() sin argumentos para evitar que la hora se actualice
+        let fecha: Date | null = null;
+        
+        // Prioridad 1: campo 'fechaInicio' (Timestamp de Firebase)
         if (data.fechaInicio?.toDate) {
           fecha = data.fechaInicio.toDate();
         } else if (data.fechaInicio instanceof Date) {
           fecha = data.fechaInicio;
-        } else if (data.fechaInicio && typeof data.fechaInicio === 'string') {
+        } 
+        // Prioridad 2: campo 'fechaInicio' como string
+        else if (data.fechaInicio && typeof data.fechaInicio === 'string') {
           fecha = new Date(data.fechaInicio);
-        } else {
-          // Si no hay fecha válida, usar la fecha de creación del documento
-          fecha = new Date(doc.id.substring(0, 8)); // Usar timestamp del ID como fallback
+        }
+        // Prioridad 3: campo 'createdAt' (timestamp de creación del documento)
+        else if (data.createdAt?.toDate) {
+          fecha = data.createdAt.toDate();
+        } else if (data.createdAt instanceof Date) {
+          fecha = data.createdAt;
         }
         
-        // Validar que la fecha sea válida
-        if (isNaN(fecha.getTime())) {
-          console.warn('⚠️ Fecha inválida para mantenimiento:', doc.id, 'usando fecha actual');
-          fecha = new Date();
+        // Validar y usar fallback solo si es necesario
+        if (!fecha || isNaN(fecha.getTime())) {
+          console.warn('⚠️ No se pudo obtener fecha válida para mantenimiento:', doc.id, 'usando createdAt');
+          // Último recurso: usar createdAt (fecha original de creación), NUNCA fecha actual
+          if (data.createdAt?.toDate) {
+            fecha = data.createdAt.toDate();
+          } else if (data.createdAt instanceof Date) {
+            fecha = data.createdAt;
+          } else {
+            // Solo en caso extremo: usar fecha epoch (1970), nunca new Date() sin argumentos
+            fecha = new Date(0);
+            console.error('⚠️ Mantenimiento sin fecha válida:', doc.id);
+          }
         }
+        
+        // Asegurar que fecha nunca sea null (TypeScript)
+        const fechaFinal: Date = fecha || new Date(0);
         
         const movimiento: MovimientoSaldo = {
           id: `mantenimiento-${doc.id}`,
-          fecha: fecha,
+          fecha: fechaFinal,
           concepto: `Mantenimiento - ${data.tipoFalla || 'Reparación'}`,
           referencia: `Mant #${doc.id.slice(-6)}`,
           monto: data.costoReparacion || 0,

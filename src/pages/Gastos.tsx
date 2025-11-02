@@ -592,7 +592,7 @@ const Gastos: React.FC = () => {
                   }}
                   required
                 />
-                {parseFloat(nuevoGasto.amount) > 0 && (
+                {parseFloat(nuevoGasto.amount) > 0 && !esOperador() && (
                   <div className="mt-2 text-xs text-gray-600">
                     💰 Saldos disponibles: 
                     Efectivo: ${saldosActuales.efectivo.toLocaleString()} | 

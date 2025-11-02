@@ -274,7 +274,7 @@ export const ModalMantenimiento: React.FC<ModalMantenimientoProps> = ({
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                     placeholder="0.00"
                   />
-                  {parseFloat(costoReparacion) > 0 && (
+                  {parseFloat(costoReparacion) > 0 && !esOperador() && (
                     <div className="mt-2 text-xs text-gray-600">
                       💰 Saldos disponibles: 
                       Efectivo: ${saldosActuales.efectivo.toLocaleString()} | 

@@ -208,6 +208,88 @@
 - Último deploy: 2025-01-28 (Ocultar saldos para operadores + corrección de fechas en historial)
 - Último commit: 2c81cdc - "fix: Ocultar saldos disponibles para operadores y corregir fechas en historial de saldos"
 
+## Flujo de Trabajo con Git
+
+### Conceptos Básicos
+
+**Git** es un sistema de control de versiones que permite:
+- Guardar el historial de cambios
+- Colaborar con otros desarrolladores
+- Tener respaldo del código
+
+### Comandos Principales
+
+1. **`git add`** - Preparar cambios para guardar
+   ```bash
+   git add archivo.tsx          # Agregar un archivo específico
+   git add -A                   # Agregar todos los archivos modificados
+   ```
+
+2. **`git commit`** - Guardar cambios localmente (solo en tu computadora)
+   ```bash
+   git commit -m "Descripción del cambio"
+   ```
+   - Los commits quedan guardados en tu máquina
+   - Aún no son visibles para otros o en el servidor
+
+3. **`git push`** - Subir commits al repositorio remoto (GitHub/GitLab)
+   ```bash
+   git push                     # Subir a la rama actual
+   ```
+   - Envía tus commits locales al servidor
+   - Hace que tus cambios sean visibles para otros
+   - Crea un backup en la nube
+   - Es necesario para colaborar en equipo
+
+4. **`git pull`** - Bajar cambios del servidor a tu computadora
+   ```bash
+   git pull                     # Descargar cambios remotos
+   ```
+   - Actualiza tu código local con cambios de otros
+   - Útil antes de empezar a trabajar
+
+5. **`git status`** - Ver el estado de tus archivos
+   ```bash
+   git status                   # Ver qué archivos están modificados
+   ```
+
+### Flujo de Trabajo Típico
+
+```
+1. Modificar archivos
+   ↓
+2. git add -A                    # Preparar cambios
+   ↓
+3. git commit -m "mensaje"        # Guardar localmente
+   ↓
+4. git push                       # Subir al servidor
+   ↓
+5. (Opcional) Firebase deploy     # Desplegar a producción
+```
+
+### Diferencia entre Commit y Push
+
+- **Commit:** Guarda cambios en tu computadora (local)
+  - Solo tú puedes verlos
+  - No están respaldados en la nube aún
+  
+- **Push:** Sube los commits al servidor remoto
+  - Todos pueden ver tus cambios
+  - El código queda respaldado
+  - Necesario para colaboración
+
+### Analogía Simple
+
+- **Commit** = Guardar documento en tu computadora
+- **Push** = Subir documento a Google Drive/OneDrive
+- **Pull** = Descargar documento del Drive
+
+### Repositorio Remoto
+
+- **URL:** https://github.com/andycg1201/global.git
+- **Rama principal:** `main`
+- **Commits recientes:** Se pueden ver en GitHub
+
 ---
 
 *Este archivo se actualiza manualmente. Mantener actualizado después de cambios importantes.*

@@ -1,11 +1,28 @@
 # Notas del Proyecto - Sistema de Gestión de Lavadoras
 
 ## Estado Actual del Proyecto
-Última actualización: 2025-01-27 (Filtrado de datos por usuario para operadores en Pagos y Gastos)
+Última actualización: 2025-01-28 (Ocultar saldos para operadores y corrección de fechas en historial)
 
 ## Cambios Recientes Implementados
 
-### 1. Permisos de Usuario Actualizados
+### 1. Mejoras de UI para Operadores y Corrección de Fechas
+- ✅ **Ocultar saldos disponibles para operadores:**
+  - El mensaje "💰 Saldos disponibles: Efectivo: $... | Nequi: ... | Daviplata: ..." ahora solo se muestra para administradores y managers
+  - Los operadores no ven este mensaje de ayuda al agregar gastos o crear mantenimientos
+  - Implementado en `src/pages/Gastos.tsx` y `src/components/ModalMantenimiento.tsx`
+  - Condición: `!esOperador()` para mostrar el mensaje
+
+- ✅ **Corrección de fechas en historial de saldos del Dashboard:**
+  - **Problema resuelto:** Las horas de los gastos se actualizaban cada vez que se recargaba la página
+  - **Causa:** El servicio buscaba `data.fecha` pero Firebase guarda los gastos como `data.date`
+  - **Solución implementada:**
+    - Cambio de `data.fecha` a `data.date` para leer correctamente la fecha de los gastos
+    - Reemplazo de `new Date()` como fallback por `createdAt` (timestamp original del documento)
+    - Esto evita que la hora se actualice y mantiene la hora original del registro
+  - **Aplicado a:** Gastos y Mantenimientos en el historial de saldos
+  - Implementado en `src/services/movimientosSaldosService.ts`
+
+### 2. Permisos de Usuario Actualizados
 - **Eliminados permisos obsoletos:**
   - `verAuditoria` - eliminado de la interfaz `Permisos`
   - `verIndicadoresAuditoria` - eliminado de la interfaz `Permisos`
@@ -145,16 +162,20 @@
 
 ### Componentes
 - `src/components/GestorUsuarios.tsx` - Formulario de permisos actualizado, operadores pueden editar permisos
+- `src/components/ModalMantenimiento.tsx` - Restricción de medios de pago para operadores, ocultar saldos para operadores
 
 ### Páginas
 - `src/pages/InventarioLavadoras.tsx` - Restricciones de UI basadas en permisos
 - `src/pages/Pedidos.tsx` - UI de cards, cronología mejorada, nombres de usuarios
-- `src/pages/Gastos.tsx` - Registro de usuario en gastos, restricción de medios de pago para operadores, filtrado visual por usuario
+- `src/pages/Gastos.tsx` - Registro de usuario en gastos, restricción de medios de pago para operadores, filtrado visual por usuario, ocultar saldos disponibles para operadores
 - `src/pages/Pagos.tsx` - Registro de usuario en pagos, filtrado visual por usuario
 - `src/pages/Operadores.tsx` - **NUEVA:** Página completa con cards de operadores, modal detallado, filtros avanzados (fecha y tipo de acción), resumen financiero destacado y visualización detallada por tipo de acción, **arqueo solo efectivo**
 - `src/pages/Reportes.tsx` - Reporte de arqueo removido (movido a Operadores)
 - `src/components/ModalHistorialMantenimiento.tsx` - Registro de usuarios en mantenimientos
-- `src/components/ModalMantenimiento.tsx` - Restricción de medios de pago para operadores
+- `src/components/ModalMantenimiento.tsx` - Restricción de medios de pago para operadores, ocultar saldos disponibles para operadores
+
+### Servicios
+- `src/services/movimientosSaldosService.ts` - Corrección de lectura de fechas: usar `data.date` en lugar de `data.fecha`, usar `createdAt` como fallback en lugar de `new Date()` para evitar actualización de hora
 
 ### Layout y Routing
 - `src/components/Layout.tsx` - Opción "Auditoría" oculta del menú (comentada), nueva opción "Operadores" agregada
@@ -184,8 +205,8 @@
 ## Deployment
 - URL de producción: https://global-da5ac.web.app
 - Firebase Console: https://console.firebase.google.com/project/global-da5ac/overview
-- Último deploy: 2025-01-27 (Arqueo solo efectivo + filtrado visual para operadores en Pagos y Gastos)
-- Último commit: 8131904 - "feat: Implementar arqueo solo efectivo, restricciones de medios de pago y filtrado visual para operadores"
+- Último deploy: 2025-01-28 (Ocultar saldos para operadores + corrección de fechas en historial)
+- Último commit: 2c81cdc - "fix: Ocultar saldos disponibles para operadores y corregir fechas en historial de saldos"
 
 ---
 

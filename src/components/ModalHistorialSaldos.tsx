@@ -83,10 +83,6 @@ const ModalHistorialSaldos: React.FC<ModalHistorialSaldosProps> = ({
   useEffect(() => {
     if (!isOpen || movimientos.length === 0) return;
 
-    console.log('🔍 ModalHistorialSaldos - Calculando filtros para:', filtroFecha);
-    console.log('📊 Total movimientos recibidos:', movimientos.length);
-    console.log('💰 Saldo actual recibido:', saldoActual);
-
     let movimientosDelPeriodo: MovimientoSaldo[] = [];
     let saldoHastaAnterior = 0;
 
@@ -111,9 +107,6 @@ const ModalHistorialSaldos: React.FC<ModalHistorialSaldosProps> = ({
           .filter(mov => mov.fecha <= ayer)
           .reduce((sum, mov) => sum + (mov.tipo === 'ingreso' ? mov.monto : -mov.monto), 0);
         
-        console.log('📅 Filtro HOY:');
-        console.log('  - Movimientos del día:', movimientosDelPeriodo.length);
-        console.log('  - Saldo hasta ayer:', saldoHastaAnterior);
         break;
 
       case 'personalizado':
@@ -135,31 +128,17 @@ const ModalHistorialSaldos: React.FC<ModalHistorialSaldosProps> = ({
           saldoHastaAnterior = movimientos
             .filter(mov => mov.fecha <= diaAnterior)
             .reduce((sum, mov) => sum + (mov.tipo === 'ingreso' ? mov.monto : -mov.monto), 0);
-          
-          console.log('📅 Filtro PERSONALIZADO:');
-          console.log('  - Rango:', fechaInicio, 'a', fechaFin);
-          console.log('  - Movimientos del período:', movimientosDelPeriodo.length);
-          console.log('  - Saldo hasta día anterior:', saldoHastaAnterior);
         }
         break;
 
       case 'todo':
         movimientosDelPeriodo = movimientos;
         saldoHastaAnterior = 0;
-        
-        console.log('📅 Filtro TODO:');
-        console.log('  - Movimientos totales:', movimientosDelPeriodo.length);
-        console.log('  - Saldo inicial:', saldoHastaAnterior);
         break;
     }
 
     // Ordenar movimientos por fecha
     movimientosDelPeriodo.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
-
-    console.log('✅ Resultados finales:');
-    console.log('  - Movimientos filtrados:', movimientosDelPeriodo.length);
-    console.log('  - Saldo inicial calculado:', saldoHastaAnterior);
-    console.log('  - Saldo actual recibido:', saldoActual);
 
     setMovimientosFiltrados(movimientosDelPeriodo);
     setSaldoInicial(saldoHastaAnterior);
@@ -171,12 +150,6 @@ const ModalHistorialSaldos: React.FC<ModalHistorialSaldosProps> = ({
       0
     );
     const saldoFinal = saldoInicial + movimientosDelPeriodo;
-    
-    console.log('🧮 Calculando saldo final:');
-    console.log('  - Saldo inicial:', saldoInicial);
-    console.log('  - Movimientos del período:', movimientosDelPeriodo);
-    console.log('  - Saldo final calculado:', saldoFinal);
-    console.log('  - Saldo actual (debería coincidir):', saldoActual);
     
     return saldoFinal;
   };

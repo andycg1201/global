@@ -20,6 +20,26 @@ declare module '*.jpeg' {
   export default content;
 }
 
+// Declaraciones para Contacts Picker API
+interface ContactsManager {
+  select(properties: string[], options?: { multiple?: boolean }): Promise<Contact[]>;
+}
+
+interface Contact {
+  name?: string[];
+  tel?: string[];
+  email?: string[];
+  address?: any[];
+}
+
+interface Navigator {
+  contacts?: ContactsManager;
+}
+
+interface Window {
+  ContactsManager?: any;
+}
+
 
 
 

@@ -31,14 +31,11 @@ export class MovimientosSaldosService {
     medioPago: 'efectivo' | 'nequi' | 'daviplata'
   ): Promise<MovimientoSaldo[]> {
     try {
-      console.log('🔍 MovimientosSaldosService - Buscando movimientos para:', medioPago);
       const movimientos: MovimientoSaldo[] = [];
 
       // 1. Obtener pagos de clientes desde pedidos
-      console.log('📊 Consultando pedidos para obtener pagos...');
       const pedidosQuery = query(collection(db, 'pedidos'));
       const pedidosSnapshot = await getDocs(pedidosQuery);
-      console.log('📋 Pedidos encontrados:', pedidosSnapshot.docs.length);
       
       pedidosSnapshot.forEach(doc => {
         const pedidoData = doc.data();
@@ -60,19 +57,14 @@ export class MovimientosSaldosService {
               planName: pedidoData.plan?.name,
               registradoPor: pago.registradoPor || undefined // Nombre del usuario que registró el pago
             };
-            console.log('💰 Pago agregado:', movimiento);
             movimientos.push(movimiento);
           }
         });
       });
-      
-      console.log('💰 Total pagos encontrados:', movimientos.length);
 
       // 2. Obtener capital inicial
-      console.log('💰 Consultando capital inicial...');
       const capitalInicialQuery = query(collection(db, 'capitalInicial'));
       const capitalInicialSnapshot = await getDocs(capitalInicialQuery);
-      console.log('💰 Documentos de capital inicial encontrados:', capitalInicialSnapshot.docs.length);
       
       capitalInicialSnapshot.forEach(doc => {
         const data = doc.data();
@@ -89,19 +81,16 @@ export class MovimientosSaldosService {
             descripcion: 'Capital inicial del negocio',
             medioPago: medioPago
           };
-          console.log('💰 Capital inicial agregado:', movimiento);
           movimientos.push(movimiento);
         }
       });
 
       // 3. Obtener gastos generales
-      console.log('💸 Consultando gastos para:', medioPago);
       const gastosQuery = query(
         collection(db, 'gastos'),
         where('medioPago', '==', medioPago)
       );
       const gastosSnapshot = await getDocs(gastosQuery);
-      console.log('💸 Gastos encontrados:', gastosSnapshot.docs.length);
       
       gastosSnapshot.forEach(doc => {
         const data = doc.data();
@@ -165,18 +154,15 @@ export class MovimientosSaldosService {
           medioPago: data.medioPago,
           registradoPor: data.registradoPor || undefined // Nombre del usuario que registró el gasto
         };
-        console.log('💸 Gasto agregado:', movimiento);
         movimientos.push(movimiento);
       });
 
       // 4. Obtener gastos de mantenimiento
-      console.log('🔧 Consultando mantenimientos para:', medioPago);
       const mantenimientosQuery = query(
         collection(db, 'mantenimientos'),
         where('medioPago', '==', medioPago)
       );
       const mantenimientosSnapshot = await getDocs(mantenimientosQuery);
-      console.log('🔧 Mantenimientos encontrados:', mantenimientosSnapshot.docs.length);
       
       mantenimientosSnapshot.forEach(doc => {
         const data = doc.data();
@@ -231,17 +217,14 @@ export class MovimientosSaldosService {
           medioPago: data.medioPago,
           registradoPor: data.registradoPor || undefined // Nombre del usuario que registró el mantenimiento
         };
-        console.log('🔧 Mantenimiento agregado:', movimiento);
         movimientos.push(movimiento);
       });
 
       // 5. Obtener movimientos de capital (inyecciones y retiros)
-      console.log('💰 Consultando movimientos de capital...');
       const capitalQuery = query(
         collection(db, 'movimientosCapital')
       );
       const capitalSnapshot = await getDocs(capitalQuery);
-      console.log('💰 Movimientos de capital encontrados:', capitalSnapshot.docs.length);
       
       capitalSnapshot.forEach(doc => {
         const data = doc.data();
@@ -258,29 +241,12 @@ export class MovimientosSaldosService {
             descripcion: data.descripcion,
             medioPago: medioPago
           };
-          console.log('💰 Movimiento de capital agregado:', movimiento);
           movimientos.push(movimiento);
         }
       });
 
       // Ordenar todos los movimientos por fecha
       const movimientosOrdenados = movimientos.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
-      console.log('✅ Total movimientos encontrados:', movimientosOrdenados.length);
-      
-      // Resumen de movimientos
-      const totalIngresos = movimientosOrdenados
-        .filter(m => m.tipo === 'ingreso')
-        .reduce((sum, m) => sum + m.monto, 0);
-      const totalGastos = movimientosOrdenados
-        .filter(m => m.tipo === 'gasto')
-        .reduce((sum, m) => sum + m.monto, 0);
-      const saldoCalculado = totalIngresos - totalGastos;
-      
-      console.log('📊 RESUMEN DE MOVIMIENTOS:');
-      console.log('  - Total ingresos:', totalIngresos);
-      console.log('  - Total gastos:', totalGastos);
-      console.log('  - Saldo calculado:', saldoCalculado);
-      console.log('  - Movimientos detallados:', movimientosOrdenados);
       
       return movimientosOrdenados;
 

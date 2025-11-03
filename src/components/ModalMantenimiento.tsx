@@ -58,7 +58,6 @@ export const ModalMantenimiento: React.FC<ModalMantenimientoProps> = ({
     try {
       const saldos = await calcularSaldosActuales();
       setSaldosActuales(saldos);
-      console.log('💰 Saldos actuales cargados en mantenimiento:', saldos);
     } catch (error) {
       console.error('Error al cargar saldos:', error);
     }

@@ -79,8 +79,6 @@ const Dashboard: React.FC = () => {
   // Función para cargar datos simplificados
   const cargarDatosSimplificados = async () => {
     try {
-      console.log('🔄 Cargando datos simplificados...');
-      
       // Obtener datos básicos
       const [pedidosData, configuracionData, planesData, capitalInicialData, movimientosCapitalData, gastosData, mantenimientosData, lavadorasData] = await Promise.all([
         pedidoService.getAllPedidos(),
@@ -96,20 +94,6 @@ const Dashboard: React.FC = () => {
       setConfiguracion(configuracionData);
       setPlanes(planesData);
       setLavadoras(lavadorasData);
-      
-      // Debug: verificar estado de lavadoras
-      console.log('🔍 Debug Dashboard - Estados de lavadoras:', lavadorasData.map(l => ({
-        codigoQR: l.codigoQR,
-        estado: l.estado
-      })));
-
-      // Debug específico para G-02
-      const g02 = lavadorasData.find(l => l.codigoQR === 'G-02');
-      console.log('🔍 Debug Dashboard - G-02 específica:', g02 ? {
-        codigoQR: g02.codigoQR,
-        estado: g02.estado,
-        id: g02.id
-      } : 'NO ENCONTRADA');
       
       // Procesar pedidos básico
       const pedidosPendientes = pedidosData.filter(p => p.status === 'pendiente');
@@ -176,16 +160,7 @@ const Dashboard: React.FC = () => {
       const gastosGenerales = gastosData.reduce((sum, gasto) => sum + gasto.amount, 0);
       
       // Calcular gastos de mantenimiento
-      console.log('🔧 Debug Dashboard - Mantenimientos cargados:', mantenimientosData.length);
-      console.log('🔧 Debug Dashboard - Datos de mantenimientos:', mantenimientosData.map(m => ({
-        id: m.id,
-        costoReparacion: m.costoReparacion,
-        medioPago: m.medioPago,
-        createdAt: m.createdAt
-      })));
-      
       const gastosMantenimiento = mantenimientosData.reduce((sum, mantenimiento) => sum + (mantenimiento.costoReparacion || 0), 0);
-      console.log('🔧 Debug Dashboard - Total gastos mantenimiento calculado:', gastosMantenimiento);
       
       // Retiros de capital
       const retirosCapital = movimientosCapitalData
@@ -197,20 +172,6 @@ const Dashboard: React.FC = () => {
       
       // Ingresos reales = Servicios + Capital Inicial + Inyecciones
       const ingresosReales = ingresosServicios + capitalInicial + inyeccionesCapital;
-      
-      console.log('💰 Desglose de Ingresos Reales:', {
-        ingresosServicios: ingresosServicios,
-        capitalInicial: capitalInicial,
-        inyeccionesCapital: inyeccionesCapital,
-        ingresosReales: ingresosReales
-      });
-      
-      console.log('💸 Desglose de Gastos:', {
-        gastosGenerales: gastosGenerales,
-        gastosMantenimiento: gastosMantenimiento,
-        retirosCapital: retirosCapital,
-        totalGastos: totalGastos
-      });
 
       const cuentasPorCobrar = pedidosData.reduce((sum, pedido) => {
         const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
@@ -265,11 +226,9 @@ const Dashboard: React.FC = () => {
       });
       
       // Procesar gastos de mantenimiento
-      console.log('🔧 Debug Dashboard - Procesando mantenimientos para saldos...');
       mantenimientosData.forEach(mantenimiento => {
         const medioPago = mantenimiento.medioPago || 'efectivo';
         const costo = mantenimiento.costoReparacion || 0;
-        console.log('🔧 Procesando mantenimiento:', mantenimiento.id, 'costo:', costo, 'medioPago:', medioPago);
         
         if (medioPago === 'efectivo') {
           saldosCalculados.efectivo.gastos += costo;
@@ -279,7 +238,6 @@ const Dashboard: React.FC = () => {
           saldosCalculados.daviplata.gastos += costo;
         }
       });
-      console.log('🔧 Debug Dashboard - Saldos después de procesar mantenimientos:', saldosCalculados);
       
       // Procesar movimientos de capital
       movimientosCapitalData.forEach(mov => {
@@ -301,9 +259,6 @@ const Dashboard: React.FC = () => {
       
       setSaldosPorMedioDePago(saldosCalculados);
       
-      
-      console.log('✅ Datos simplificados cargados correctamente');
-      
       } catch (error) {
       console.error('❌ Error al cargar datos simplificados:', error);
       } finally {
@@ -319,7 +274,6 @@ const Dashboard: React.FC = () => {
   // Escuchar eventos de mantenimiento para recargar datos
   useEffect(() => {
     const handleMantenimientoRealizado = () => {
-      console.log('🔄 Dashboard - Mantenimiento realizado, recargando datos...');
       cargarDatosSimplificados();
     };
 
@@ -378,7 +332,6 @@ const Dashboard: React.FC = () => {
         lavadoras
       );
       
-      console.log('Dashboard - Entrega operativa exitosa');
       
       // Cerrar modal de entrega operativa
       setMostrarModalEntregaOperativa(false);
@@ -418,16 +371,13 @@ const Dashboard: React.FC = () => {
   };
 
   const handleAbrirHistorialSaldos = async (tipo: 'efectivo' | 'nequi' | 'daviplata') => {
-    console.log('🔍 Abriendo historial de saldos para:', tipo);
     setTipoSaldoSeleccionado(tipo);
     setMostrarModalHistorialSaldos(true);
     
     // Cargar movimientos para el tipo de saldo seleccionado
     setCargandoMovimientos(true);
     try {
-      console.log('📊 Cargando movimientos desde Firebase...');
       const movimientos = await MovimientosSaldosService.obtenerMovimientosPorMedioPago(tipo);
-      console.log('✅ Movimientos cargados:', movimientos.length, movimientos);
       setMovimientosSaldos(movimientos);
     } catch (error) {
       console.error('❌ Error al cargar movimientos:', error);

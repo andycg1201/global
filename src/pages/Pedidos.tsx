@@ -154,7 +154,6 @@ const Pedidos: React.FC = () => {
     try {
       // Obtener todos los pedidos de una vez (más eficiente que múltiples consultas)
       const todosLosPedidos = await pedidoService.getAllPedidos();
-      console.log('🔍 Total pedidos cargados desde Firebase:', todosLosPedidos.length);
       
       // Cargar modificaciones para cada pedido
       const pedidosConModificaciones = await Promise.all(
@@ -178,27 +177,13 @@ const Pedidos: React.FC = () => {
       const fechaFin = new Date(filtros.fechaFin);
       fechaFin.setHours(23, 59, 59, 999);
       
-      console.log('📅 Rango de fechas:', fechaInicio.toISOString(), 'a', fechaFin.toISOString());
-      
       const pedidosFiltradosPorFecha = pedidosConModificaciones.filter(pedido => {
         const fechaPedido = new Date(pedido.fechaAsignacion);
         const dentroDelRango = fechaPedido >= fechaInicio && fechaPedido <= fechaFin;
         
-        // Log para pedidos con lavadora asignada
-        if (pedido.lavadoraAsignada) {
-          console.log(`🔍 Pedido ${pedido.id} con lavadora ${pedido.lavadoraAsignada.codigoQR}:`, {
-            fechaAsignacion: pedido.fechaAsignacion,
-            fechaPedido: fechaPedido.toISOString(),
-            dentroDelRango,
-            estado: pedido.status,
-            modificaciones: pedido.modificacionesServicio?.length || 0
-          });
-        }
-        
         return dentroDelRango;
       });
       
-      console.log('📊 Pedidos después del filtro de fecha:', pedidosFiltradosPorFecha.length);
       setPedidos(pedidosFiltradosPorFecha);
 
       // Cargar nombres de usuarios únicos de los pedidos
@@ -240,9 +225,7 @@ const Pedidos: React.FC = () => {
 
   const cargarConfiguracion = async () => {
     try {
-      console.log('Cargando configuración...');
       const config = await configService.getConfiguracion();
-      console.log('Configuración cargada:', config);
       setConfiguracion(config);
     } catch (error) {
       console.error('Error al cargar configuración:', error);
@@ -285,22 +268,17 @@ const Pedidos: React.FC = () => {
   // Función para liberar lavadoras de servicios completados
   const liberarLavadorasCompletadas = async () => {
     try {
-      console.log('🔄 Liberando TODAS las lavadoras alquiladas...');
-      
       // Obtener todas las lavadoras marcadas como "alquilada"
       const lavadorasAlquiladas = lavadoras.filter(l => l.estado === 'alquilada');
-      console.log(`📊 Lavadoras alquiladas encontradas: ${lavadorasAlquiladas.length}`);
       
       let liberadas = 0;
       for (const lavadora of lavadorasAlquiladas) {
-        console.log(`🔍 Liberando lavadora ${lavadora.codigoQR} (${lavadora.id})`);
         await lavadoraService.updateLavadora(lavadora.id, {
           estado: 'disponible'
         });
         liberadas++;
       }
       
-      console.log(`✅ ${liberadas} lavadoras liberadas`);
       cargarLavadoras(); // Recargar lavadoras
       alert(`${liberadas} lavadoras liberadas`);
     } catch (error) {
@@ -311,11 +289,8 @@ const Pedidos: React.FC = () => {
 
   const sincronizarLavadorasHuerfanas = async (lavadorasData: any[]) => {
     try {
-      console.log('🔄 Sincronizando lavadoras huérfanas...');
-      
       // Cargar TODOS los pedidos para la verificación
       const todosLosPedidos = await pedidoService.getAllPedidos();
-      console.log('🔍 Total pedidos para sincronización:', todosLosPedidos.length);
       
       for (const lavadora of lavadorasData) {
         if (lavadora.estado === 'alquilada') {
@@ -328,9 +303,6 @@ const Pedidos: React.FC = () => {
           });
           
           if (!pedidoAsociado) {
-            console.log(`🔧 Liberando lavadora huérfana: ${lavadora.codigoQR}`);
-            console.log(`🔍 Lavadora ${lavadora.codigoQR} no tiene pedido asociado - liberando`);
-            
             // Crear objeto de actualización solo con los campos que queremos cambiar
             const updates: any = {
               estado: 'disponible'
@@ -351,13 +323,9 @@ const Pedidos: React.FC = () => {
             }
             
             await lavadoraService.updateLavadora(lavadora.id, updates);
-          } else {
-            console.log(`✅ Lavadora ${lavadora.codigoQR} tiene pedido asociado: ${pedidoAsociado.id} - manteniendo alquilada`);
           }
         }
       }
-      
-      console.log('✅ Sincronización de lavadoras huérfanas completada');
     } catch (error) {
       console.error('❌ Error al sincronizar lavadoras huérfanas:', error);
     }
@@ -635,23 +603,11 @@ const Pedidos: React.FC = () => {
 
       await pedidoService.updatePedido(pedido.id, updateData);
       
-      // Log de auditoría
-      console.log(`📝 AUDITORÍA: Pedido ${pedido.id} cambió de "${pedido.status}" a "${nuevoEstado}"`, {
-        pedidoId: pedido.id,
-        cliente: pedido.cliente.name,
-        estadoAnterior: pedido.status,
-        estadoNuevo: nuevoEstado,
-        fechaCambio: fechaActual.toISOString(),
-        tieneFechaEntrega: !!pedido.fechaEntrega,
-        tieneFechaRecogida: !!pedido.fechaRecogida
-      });
-      
       // Si se marca como recogido y tiene lavadora asignada, liberar la lavadora
       if (nuevoEstado === 'recogido' && pedido.lavadoraAsignada) {
         await lavadoraService.updateLavadora(pedido.lavadoraAsignada.lavadoraId, {
           estado: 'disponible'
         });
-        console.log(`🔄 AUDITORÍA: Lavadora ${pedido.lavadoraAsignada.codigoQR} liberada tras recogida`);
       }
       
       cargarPedidos();
@@ -874,8 +830,6 @@ const Pedidos: React.FC = () => {
 
   const eliminarPedido = async (pedido: Pedido) => {
     try {
-      console.log('🗑️ Iniciando eliminación de pedido:', pedido.id);
-      
       // Validar si el pedido tiene pagos realizados
       const tienePagos = pedido.pagosRealizados && pedido.pagosRealizados.length > 0;
       const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
@@ -885,29 +839,20 @@ const Pedidos: React.FC = () => {
         return;
       }
       
-      console.log('📋 Lavadora asignada:', pedido.lavadoraAsignada);
-      
       // Liberar la lavadora asignada si existe
       if (pedido.lavadoraAsignada && pedido.lavadoraAsignada.lavadoraId) {
-        console.log('🔄 Liberando lavadora:', pedido.lavadoraAsignada.lavadoraId);
-        
         try {
           await lavadoraService.updateLavadora(pedido.lavadoraAsignada.lavadoraId, {
             estado: 'disponible'
           });
-          console.log('✅ Lavadora liberada exitosamente');
         } catch (lavadoraError) {
           console.error('❌ Error al liberar lavadora:', lavadoraError);
           // Continuar con la eliminación del pedido aunque falle la liberación de la lavadora
           alert('Advertencia: El pedido se eliminó pero hubo un problema al liberar la lavadora. Verifica manualmente el estado de la lavadora.');
         }
-      } else {
-        console.log('⚠️ No hay lavadora asignada para liberar o falta lavadoraId');
       }
       
-      console.log('🗑️ Marcando pedido como eliminado en la base de datos...');
       await pedidoService.marcarComoEliminado(pedido.id, firebaseUser?.uid || 'sistema');
-      console.log('✅ Pedido marcado como eliminado exitosamente');
       
       cargarPedidos();
       cargarLavadoras(); // Recargar lavadoras para actualizar el estado
@@ -937,17 +882,11 @@ const Pedidos: React.FC = () => {
 
 
   const handleLiquidacion = async (liquidacion: any) => {
-    console.log('handleLiquidacion llamado con:', liquidacion);
-    console.log('pedidoAFacturar:', pedidoAFacturar);
-    
     if (!pedidoAFacturar) {
-      console.log('No hay pedido para liquidar');
       return;
     }
     
     try {
-      console.log('Iniciando proceso de liquidación...');
-      
       // Función auxiliar para obtener el nombre del usuario actual
       const getCurrentUserName = (): string => {
         try {
@@ -992,17 +931,13 @@ const Pedidos: React.FC = () => {
       updateData.totalReembolsos = totalReembolsos;
       updateData.total = subtotal + totalCobrosAdicionales + totalHorasAdicionales - totalDescuentos - totalReembolsos;
 
-      console.log('Datos a actualizar:', updateData);
-
       await pedidoService.updatePedido(pedidoAFacturar.id, updateData);
-      console.log('Pedido actualizado exitosamente');
       
       // Si tiene lavadora asignada, liberar la lavadora
       if (pedidoAFacturar.lavadoraAsignada) {
         await lavadoraService.updateLavadora(pedidoAFacturar.lavadoraAsignada.lavadoraId, {
           estado: 'disponible'
         });
-        console.log('Lavadora liberada');
       }
       
       cargarPedidos();
@@ -1067,9 +1002,7 @@ const Pedidos: React.FC = () => {
       setPedidoALiquidar(null);
       
       // Disparar evento para recargar dashboard
-      console.log('🔄 Disparando evento pagoRealizado...');
       window.dispatchEvent(new CustomEvent('pagoRealizado'));
-      console.log('✅ Evento pagoRealizado disparado');
     } catch (error) {
       console.error('Error al procesar liquidación universal:', error);
       alert('Error al procesar la liquidación');
@@ -1086,8 +1019,6 @@ const Pedidos: React.FC = () => {
       lavadoras,
       {
         onSuccess: (pedidoActualizado) => {
-          console.log('Pedidos - Entrega operativa exitosa');
-          
           // Cerrar modal de entrega operativa
           setMostrarModalEntregaOperativa(false);
           
@@ -1125,14 +1056,11 @@ const Pedidos: React.FC = () => {
         recogidaData
       );
       
-      console.log('Pedidos - Recogida operativa exitosa');
-      
       // Si tiene lavadora asignada, liberar la lavadora
       if (pedidoParaRecogida.lavadoraAsignada) {
         await lavadoraService.updateLavadora(pedidoParaRecogida.lavadoraAsignada.lavadoraId, {
           estado: 'disponible'
         });
-        console.log('✅ Lavadora liberada');
       }
       
       // Cerrar modal de recogida operativa

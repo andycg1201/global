@@ -36,11 +36,8 @@ const Auditoria: React.FC = () => {
   const cargarRegistrosAuditoria = async () => {
     try {
       setLoading(true);
-      console.log('🔍 Cargando registros de auditoría...');
       
       const registros = await auditoriaService.obtenerRegistrosAuditoria();
-      
-      console.log('📊 Total registros obtenidos:', registros.length);
       
       setRegistrosAuditoria(registros);
       setRegistrosFiltrados(registros);

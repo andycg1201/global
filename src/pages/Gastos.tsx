@@ -327,20 +327,17 @@ const Gastos: React.FC = () => {
     }
 
     try {
-      console.log('Creando concepto:', nuevoConcepto);
       const conceptoId = await gastoService.createConcepto({
         name: nuevoConcepto.name.trim(),
         description: nuevoConcepto.description.trim(),
         isActive: true
       });
-      console.log('Concepto creado con ID:', conceptoId);
       
       setNuevoConcepto({ name: '', description: '' });
       setMostrarFormularioConcepto(false);
       
       // Recargar conceptos específicamente
       const conceptosActualizados = await gastoService.getConceptosActivos();
-      console.log('Conceptos actualizados:', conceptosActualizados);
       setConceptos(conceptosActualizados);
       
       // Si se estaba gestionando conceptos, volver a abrir el modal con datos actualizados

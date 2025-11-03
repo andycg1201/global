@@ -26,7 +26,6 @@ interface NuevoPedidoProps {
 }
 
 const NuevoPedido: React.FC<NuevoPedidoProps> = memo(({ onClose, clientePreSeleccionado }) => {
-  console.log('🔄 NuevoPedido renderizando');
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -50,7 +49,6 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = memo(({ onClose, clientePreSelec
   const datosCargados = useRef(false);
 
   const cargarDatos = useCallback(async () => {
-    console.log('🔄 cargarDatos ejecutándose');
     setLoading(true);
     try {
       const [planesData, configData, pedidosData] = await Promise.all([
@@ -59,7 +57,6 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = memo(({ onClose, clientePreSelec
         pedidoService.getAllPedidos()
       ]);
       
-      console.log('🔍 Planes cargados:', planesData.length, planesData);
       setPlanes(planesData);
       setConfiguracion(configData);
     } catch (error) {
@@ -70,7 +67,6 @@ const NuevoPedido: React.FC<NuevoPedidoProps> = memo(({ onClose, clientePreSelec
   }, []);
 
   useEffect(() => {
-    console.log('🔄 useEffect cargarDatos ejecutándose');
     if (!datosCargados.current) {
       datosCargados.current = true;
       cargarDatos();

@@ -94,37 +94,13 @@ const Pagos: React.FC = () => {
         fechaFin.setHours(23, 59, 59, 999);
       }
 
-      console.log('🔍 Debug Pagos - Filtros:', {
-        tipo: filtros.tipo,
-        fechaInicio: fechaInicio.toISOString(),
-        fechaFin: fechaFin.toISOString(),
-        fechaInicioLocal: fechaInicio.toLocaleString('es-CO'),
-        fechaFinLocal: fechaFin.toLocaleString('es-CO')
-      });
-
       const pedidos = await pedidoService.getAllPedidos();
-      console.log('📊 Total pedidos encontrados:', pedidos.length);
-      
-      // Debug: Mostrar todos los pedidos con pagos
-      const pedidosConPagos = pedidos.filter(p => p.pagosRealizados && p.pagosRealizados.length > 0);
-      console.log('📋 Pedidos con pagos:', pedidosConPagos.length);
-      pedidosConPagos.forEach(pedido => {
-        console.log(`📋 Pedido ${pedido.id.slice(-6)} (${pedido.cliente.name}):`, {
-          totalPagos: pedido.pagosRealizados?.length || 0,
-          pagos: pedido.pagosRealizados?.map(p => ({
-            monto: p.monto,
-            fecha: p.fecha,
-            medioPago: p.medioPago
-          }))
-        });
-      });
       
       const todosLosPagos: PagoCompleto[] = [];
 
       // Recopilar todos los pagos de los pedidos
       pedidos.forEach(pedido => {
         if (pedido.pagosRealizados && pedido.pagosRealizados.length > 0) {
-          console.log(`📋 Pedido ${pedido.id.slice(-6)} tiene ${pedido.pagosRealizados.length} pagos`);
           pedido.pagosRealizados.forEach((pago, index) => {
             // Manejar correctamente los timestamps de Firebase
             let fechaPago: Date;
@@ -136,22 +112,10 @@ const Pagos: React.FC = () => {
               fechaPago = new Date(pago.fecha);
             }
             
-            console.log(`💰 Pago ${index + 1}: ${formatCurrency(pago.monto)} - ${fechaPago.toISOString()}`);
-            
             // Comparación más robusta de fechas
             const fechaPagoTime = fechaPago.getTime();
             const fechaInicioTime = fechaInicio.getTime();
             const fechaFinTime = fechaFin.getTime();
-            
-            console.log(`🔍 Comparación de fechas:`, {
-              fechaPago: fechaPago.toISOString(),
-              fechaPagoLocal: fechaPago.toLocaleString('es-CO'),
-              fechaInicio: fechaInicio.toISOString(),
-              fechaFin: fechaFin.toISOString(),
-              cumpleFiltro: fechaPagoTime >= fechaInicioTime && fechaPagoTime <= fechaFinTime,
-              diferenciaInicio: fechaPagoTime - fechaInicioTime,
-              diferenciaFin: fechaFinTime - fechaPagoTime
-            });
             
             if (fechaPagoTime >= fechaInicioTime && fechaPagoTime <= fechaFinTime) {
               // Calcular saldos
@@ -204,14 +168,6 @@ const Pagos: React.FC = () => {
       // Ordenar por fecha (más recientes primero)
       pagosFiltrados.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
 
-      console.log('✅ Pagos finales encontrados:', pagosFiltrados.length);
-      console.log('📋 Pagos finales:', pagosFiltrados.map(p => ({
-        id: p.id,
-        cliente: p.clienteName,
-        monto: p.monto,
-        fecha: p.fecha.toISOString(),
-        medioPago: p.medioPago
-      })));
       setPagos(pagosFiltrados);
     } catch (error) {
       console.error('Error al cargar pagos:', error);
@@ -290,19 +246,6 @@ const Pagos: React.FC = () => {
   const totalEfectivo = pagos.filter(p => p.medioPago === 'efectivo').reduce((sum, p) => sum + p.monto, 0);
   const totalNequi = pagos.filter(p => p.medioPago === 'nequi').reduce((sum, p) => sum + p.monto, 0);
   const totalDaviplata = pagos.filter(p => p.medioPago === 'daviplata').reduce((sum, p) => sum + p.monto, 0);
-
-  // Debug: Mostrar cálculos de totales
-  console.log('🔍 Debug Pagos - Cálculo de totales:', {
-    totalPagos,
-    totalEfectivo,
-    totalNequi,
-    totalDaviplata,
-    pagosDetalle: pagos.map(p => ({
-      monto: p.monto,
-      medioPago: p.medioPago,
-      cliente: p.clienteName
-    }))
-  });
 
   return (
     <div className="space-y-6">

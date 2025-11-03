@@ -226,8 +226,6 @@ export const clienteService = {
 export const pedidoService = {
   // Crear nuevo pedido
   async createPedido(pedido: Omit<Pedido, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
-    console.log('📋 pedidoService.createPedido llamado');
-    
     const docRef = await addDoc(collection(db, 'pedidos'), {
       ...pedido,
       fechaAsignacion: Timestamp.fromDate(pedido.fechaAsignacion),
@@ -237,9 +235,6 @@ export const pedidoService = {
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now()
     });
-    
-    console.log('✅ Pedido creado con ID:', docRef.id);
-    console.log('🔍 Llamando auditoriaService.logAuditoria...');
     
     // Registrar auditoría
     await auditoriaService.logAuditoria(
@@ -256,13 +251,11 @@ export const pedidoService = {
       }
     );
     
-    console.log('✅ Auditoría registrada');
     return docRef.id;
   },
 
   // Actualizar pedido
   async updatePedido(id: string, updates: Partial<Pedido>): Promise<void> {
-    console.log('🔥 updatePedido llamado con:', { id, updates });
     const docRef = doc(db, 'pedidos', id);
     
     // Obtener datos anteriores para auditoría
@@ -281,28 +274,22 @@ export const pedidoService = {
     if (fechaEntrega !== undefined) {
       if (fechaEntrega) {
         updateData.fechaEntrega = Timestamp.fromDate(fechaEntrega);
-        console.log('📅 fechaEntrega establecida:', updateData.fechaEntrega);
       } else {
         updateData.fechaEntrega = deleteField();
-        console.log('🗑️ fechaEntrega eliminada con deleteField');
       }
     }
     if (fechaRecogida !== undefined) {
       if (fechaRecogida) {
         updateData.fechaRecogida = Timestamp.fromDate(fechaRecogida);
-        console.log('📅 fechaRecogida establecida:', updateData.fechaRecogida);
       } else {
         updateData.fechaRecogida = deleteField();
-        console.log('🗑️ fechaRecogida eliminada con deleteField');
       }
     }
     if (fechaRecogidaCalculada !== undefined) {
       if (fechaRecogidaCalculada) {
         updateData.fechaRecogidaCalculada = Timestamp.fromDate(fechaRecogidaCalculada);
-        console.log('📅 fechaRecogidaCalculada establecida:', updateData.fechaRecogidaCalculada);
       } else {
         updateData.fechaRecogidaCalculada = deleteField();
-        console.log('🗑️ fechaRecogidaCalculada eliminada con deleteField');
       }
     }
 
@@ -318,12 +305,9 @@ export const pedidoService = {
               ? Timestamp.fromDate(new Date(pago.fecha))
               : Timestamp.now()
       }));
-      console.log('💰 Pagos convertidos a Timestamp:', updateData.pagosRealizados);
     }
 
-    console.log('🚀 Enviando a Firebase:', updateData);
     await updateDoc(docRef, updateData);
-    console.log('✅ Actualización exitosa');
     
     // Detectar si hay un nuevo pago para registrar auditoría específica
     if (updates.pagosRealizados && Array.isArray(updates.pagosRealizados)) {
@@ -1005,7 +989,6 @@ export const resetService = {
 
       // NOTA: Los planes y lavadoras NO se eliminan para preservar la configuración
 
-      console.log('Todos los datos han sido eliminados exitosamente (planes, lavadoras y clientes preservados)');
     } catch (error) {
       console.error('Error al eliminar datos:', error);
       throw error;
@@ -1034,9 +1017,6 @@ export const resetService = {
             createdAt: Timestamp.now()
           });
         }
-        console.log('Planes básicos creados');
-      } else {
-        console.log('Planes existentes preservados');
       }
 
       // Crear conceptos de gastos básicos
@@ -1061,8 +1041,6 @@ export const resetService = {
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now()
       });
-
-      console.log('Datos básicos inicializados exitosamente');
     } catch (error) {
       console.error('Error al inicializar datos básicos:', error);
       throw error;
@@ -1209,8 +1187,6 @@ export const lavadoraService = {
 
   // Actualizar lavadora
   async updateLavadora(id: string, updates: Partial<Lavadora>): Promise<void> {
-    console.log('🔄 updateLavadora llamado con:', { id, updates });
-    
     const docRef = doc(db, 'lavadoras', id);
     const updateData: any = {
       ...updates,
@@ -1282,11 +1258,8 @@ export const lavadoraService = {
     
     // Solo crear si no hay lavadoras existentes
     if (lavadorasExistentes.length > 0) {
-      console.log('Ya existen lavadoras en el sistema');
       return;
     }
-
-    console.log('Creando 15 lavadoras iniciales...');
     
     for (let i = 1; i <= 15; i++) {
       const codigoQR = `G-${i.toString().padStart(2, '0')}`;

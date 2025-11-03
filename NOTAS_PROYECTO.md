@@ -1,11 +1,58 @@
 # Notas del Proyecto - Sistema de Gestión de Lavadoras
 
 ## Estado Actual del Proyecto
-Última actualización: 2025-01-28 (Ocultar saldos para operadores y corrección de fechas en historial)
+Última actualización: 2025-01-28 (Importación de contactos desde celular y mejoras en modal cliente)
 
 ## Cambios Recientes Implementados
 
-### 1. Mejoras de UI para Operadores y Corrección de Fechas
+### 1. Importación de Contactos desde Dispositivo Móvil
+- ✅ **Funcionalidad implementada:** Importar contactos del celular directamente al crear nuevo cliente
+  - Botón "📱 Importar contacto" visible junto al campo de teléfono
+  - Solo aparece al crear nuevo cliente (no al editar)
+  - Solo se muestra si la API de contactos está disponible en el navegador
+  - Abre el selector nativo de contactos del dispositivo
+  - Auto-completa nombre y teléfono del contacto seleccionado
+  - Formatea automáticamente el teléfono al formato colombiano (+57)
+
+- ✅ **Manejo de múltiples números telefónicos:**
+  - Si un contacto tiene múltiples números, automáticamente toma el primero
+  - Se registra en consola cuántos números tiene el contacto
+  - No requiere selección manual por parte del usuario
+
+- ✅ **Compatibilidad:**
+  - **Android:** Chrome/Edge actualizado ✅
+  - **iOS:** Safari 16.4+ ✅
+  - **Desktop:** Chrome/Edge ✅
+  - **Brave browser:** Detectado y bloqueado (muestra mensaje específico) ⚠️
+  - **Firefox:** No disponible (botón no se muestra)
+
+- ✅ **Corrección de ubicación GPS opcional:**
+  - **Problema resuelto:** Error "Los datos ingresados no son válidos" al guardar cliente sin ubicación GPS
+  - **Causa:** Se enviaba `ubicacionGPS: undefined` a Firebase, causando error `invalid-argument`
+  - **Solución:** El campo `ubicacionGPS` solo se incluye en el objeto si está definido y tiene coordenadas válidas
+  - Si no hay ubicación GPS, el campo simplemente no se incluye (no se envía `undefined`)
+
+- ✅ **Mensaje de ayuda para ubicación GPS:**
+  - Agregado mensaje claro indicando que la ubicación GPS es opcional
+  - Instrucciones de que debe hacer clic en "Mi Ubicación GPS" para guardarla
+  - Indicador visual: "✓ Ubicación guardada" (verde) o "No se ha guardado ubicación" (gris)
+
+- ✅ **Mejoras en validación y manejo de errores:**
+  - Validación mejorada de nombre y teléfono antes de guardar
+  - Limpieza automática de datos importados (espacios, caracteres especiales)
+  - Manejo de errores con mensajes descriptivos específicos por tipo de error
+  - Logging detallado en consola para diagnóstico
+
+- ✅ **Implementación técnica:**
+  - Declaraciones TypeScript agregadas en `src/vite-env.d.ts` para Contacts Picker API
+  - Detección automática de disponibilidad de API
+  - Múltiples métodos de acceso a ContactsManager para diferentes navegadores
+  - Implementado en `src/components/ModalCliente.tsx`
+
+- 📝 **Commit:** `944c36f` - "feat: Agregar importación de contactos desde celular y mejoras en modal cliente"
+- 📝 **Archivos modificados:** 13 archivos (365 insertions, 294 deletions)
+
+### 2. Mejoras de UI para Operadores y Corrección de Fechas
 - ✅ **Ocultar saldos disponibles para operadores:**
   - El mensaje "💰 Saldos disponibles: Efectivo: $... | Nequi: ... | Daviplata: ..." ahora solo se muestra para administradores y managers
   - Los operadores no ven este mensaje de ayuda al agregar gastos o crear mantenimientos
@@ -122,7 +169,7 @@
   - `src/pages/Pagos.tsx` - Filtrado visual de pagos por `user.name` si es operador
   - `src/pages/Gastos.tsx` - Filtrado visual de gastos y mantenimientos por `user.name` si es operador
 
-### 7. Funcionalidades Implementadas Previamente
+### 8. Funcionalidades Implementadas Previamente
 
 #### Registro de Usuarios en Acciones
 - ✅ Nombres de usuarios registrados en:
@@ -156,13 +203,16 @@
 
 ### Tipos y Interfaces
 - `src/types/index.ts` - Interfaz `Permisos` actualizada (sin auditoría)
+- `src/vite-env.d.ts` - Declaraciones TypeScript agregadas para Contacts Picker API (`ContactsManager`, `Contact`, extensiones de `Navigator` y `Window`)
 
 ### Servicios
 - `src/services/usuarioService.ts` - Permisos por defecto actualizados, sin auditoría
+- `src/services/movimientosSaldosService.ts` - Corrección de lectura de fechas: usar `data.date` en lugar de `data.fecha`, usar `createdAt` como fallback en lugar de `new Date()` para evitar actualización de hora
 
 ### Componentes
 - `src/components/GestorUsuarios.tsx` - Formulario de permisos actualizado, operadores pueden editar permisos
 - `src/components/ModalMantenimiento.tsx` - Restricción de medios de pago para operadores, ocultar saldos para operadores
+- `src/components/ModalCliente.tsx` - **ACTUALIZADO:** Importación de contactos desde celular, manejo de múltiples números telefónicos, corrección de ubicación GPS opcional, mensaje de ayuda para ubicación, mejoras en validación y manejo de errores
 
 ### Páginas
 - `src/pages/InventarioLavadoras.tsx` - Restricciones de UI basadas en permisos
@@ -173,9 +223,6 @@
 - `src/pages/Reportes.tsx` - Reporte de arqueo removido (movido a Operadores)
 - `src/components/ModalHistorialMantenimiento.tsx` - Registro de usuarios en mantenimientos
 - `src/components/ModalMantenimiento.tsx` - Restricción de medios de pago para operadores, ocultar saldos disponibles para operadores
-
-### Servicios
-- `src/services/movimientosSaldosService.ts` - Corrección de lectura de fechas: usar `data.date` en lugar de `data.fecha`, usar `createdAt` como fallback en lugar de `new Date()` para evitar actualización de hora
 
 ### Layout y Routing
 - `src/components/Layout.tsx` - Opción "Auditoría" oculta del menú (comentada), nueva opción "Operadores" agregada
@@ -196,6 +243,12 @@
 
 4. **Exportación QR:** Se cambió de generación dinámica en Word a descarga de PDF estático desde la carpeta `public`.
 
+5. **Importación de Contactos:**
+   - Funciona en Chrome/Edge (Android y Desktop) y Safari 16.4+ (iOS)
+   - Brave browser bloquea la API por privacidad (muestra mensaje específico)
+   - Si un contacto tiene múltiples números, automáticamente se importa el primero
+   - La ubicación GPS es completamente opcional y no causa errores si no se proporciona
+
 ## Próximos Pasos Sugeridos (si aplica)
 - [ ] Revisar si hay más permisos obsoletos que eliminar
 - [ ] Considerar si se necesitan permisos más granulares para inventario (separar crear/eliminar de marcar fuera de servicio)
@@ -205,8 +258,8 @@
 ## Deployment
 - URL de producción: https://global-da5ac.web.app
 - Firebase Console: https://console.firebase.google.com/project/global-da5ac/overview
-- Último deploy: 2025-01-28 (Ocultar saldos para operadores + corrección de fechas en historial)
-- Último commit: 2c81cdc - "fix: Ocultar saldos disponibles para operadores y corregir fechas en historial de saldos"
+- Último deploy: 2025-01-28 (Importación de contactos desde celular + mejoras en modal cliente)
+- Último commit: 944c36f - "feat: Agregar importación de contactos desde celular y mejoras en modal cliente"
 
 ## Flujo de Trabajo con Git
 

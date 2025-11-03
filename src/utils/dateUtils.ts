@@ -136,26 +136,77 @@ export const formatColombianPhone = (phone: string): string => {
     return phone;
   }
   
-  // Remover todos los caracteres no numéricos
-  const cleanPhone = phone.replace(/\D/g, '');
+  // Remover todos los caracteres no numéricos excepto el +
+  let cleanPhone = phone.replace(/[^\d+]/g, '');
   
-  // Si ya tiene código de país colombiano (57), agregar el +
-  if (cleanPhone.startsWith('57') && cleanPhone.length === 12) {
-    return `+${cleanPhone}`;
+  // Convertir 0057... a +57... (remover 00 inicial si existe antes de 57)
+  if (cleanPhone.startsWith('0057')) {
+    cleanPhone = '+57' + cleanPhone.substring(4);
+  }
+  
+  // Si ya tiene código de país colombiano (57) sin el +, agregarlo
+  if (cleanPhone.startsWith('57') && !cleanPhone.startsWith('+')) {
+    // Verificar que tenga la longitud correcta (12 dígitos totales: 57 + 10 dígitos)
+    if (cleanPhone.length === 12) {
+      return `+${cleanPhone}`;
+    }
   }
   
   // Si tiene 10 dígitos (número colombiano sin código de país)
-  if (cleanPhone.length === 10) {
+  if (cleanPhone.length === 10 && !cleanPhone.startsWith('+')) {
     return `+57${cleanPhone}`;
   }
   
-  // Si tiene 11 dígitos y empieza con 3 (celular colombiano)
-  if (cleanPhone.length === 11 && cleanPhone.startsWith('3')) {
+  // Si tiene 11 dígitos y empieza con 3 (celular colombiano sin código de país)
+  if (cleanPhone.length === 11 && cleanPhone.startsWith('3') && !cleanPhone.startsWith('+')) {
     return `+57${cleanPhone}`;
   }
   
-  // Para otros casos, devolver tal como está
-  return phone;
+  // Para otros casos, devolver tal como está (o con +57 si no tiene prefijo)
+  if (!cleanPhone.startsWith('+')) {
+    // Si tiene 10 o 11 dígitos, asumir que es número colombiano
+    if (cleanPhone.length === 10 || (cleanPhone.length === 11 && cleanPhone.startsWith('3'))) {
+      return `+57${cleanPhone}`;
+    }
+  }
+  
+  return cleanPhone.startsWith('+') ? cleanPhone : phone;
+};
+
+// Validar si un número es un celular colombiano válido
+export const isValidColombianCellphone = (phone: string): { isValid: boolean; message?: string } => {
+  // Remover todos los caracteres no numéricos excepto el +
+  let cleanPhone = phone.replace(/[^\d+]/g, '');
+  
+  // Convertir 0057... a +57...
+  if (cleanPhone.startsWith('0057')) {
+    cleanPhone = '+57' + cleanPhone.substring(4);
+  }
+  
+  // Debe empezar con +57
+  if (!cleanPhone.startsWith('+57')) {
+    return { isValid: false, message: 'El número debe tener el prefijo +57 de Colombia' };
+  }
+  
+  // Obtener los dígitos después de +57
+  const digitsAfterCountryCode = cleanPhone.substring(3);
+  
+  // Debe tener 10 dígitos después del código de país
+  if (digitsAfterCountryCode.length !== 10) {
+    return { isValid: false, message: 'El número debe tener 10 dígitos después del código de país (+57)' };
+  }
+  
+  // Los primeros 3 dígitos después de +57 deben ser >= 300 para ser celular válido
+  const firstThreeDigits = parseInt(digitsAfterCountryCode.substring(0, 3));
+  
+  if (firstThreeDigits < 300) {
+    return { 
+      isValid: false, 
+      message: 'Este número posiblemente no tenga WhatsApp.' 
+    };
+  }
+  
+  return { isValid: true };
 };
 
 // Generar enlace de WhatsApp para recogida

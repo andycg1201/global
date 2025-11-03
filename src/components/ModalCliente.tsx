@@ -3,7 +3,7 @@ import { XMarkIcon, UserPlusIcon } from '@heroicons/react/24/outline';
 import { clienteService } from '../services/firebaseService';
 import { Cliente } from '../types';
 import LocationPicker from './LocationPicker';
-import { formatColombianPhone } from '../utils/dateUtils';
+import { formatColombianPhone, isValidColombianCellphone } from '../utils/dateUtils';
 
 interface ModalClienteProps {
   isOpen: boolean;
@@ -30,6 +30,7 @@ const ModalCliente: React.FC<ModalClienteProps> = ({
   });
   const [getCurrentMapCenter, setGetCurrentMapCenter] = useState<(() => { lat: number; lng: number }) | null>(null);
   const [contactsSupported, setContactsSupported] = useState(false);
+  const [telefonoAdvertencia, setTelefonoAdvertencia] = useState<string>('');
 
   // Verificar si la API de contactos está disponible
   useEffect(() => {
@@ -75,6 +76,7 @@ const ModalCliente: React.FC<ModalClienteProps> = ({
         notes: '',
         ubicacionGPS: undefined
       });
+      setTelefonoAdvertencia('');
     }
   }, [isOpen, clienteEditando]);
 
@@ -170,6 +172,7 @@ const ModalCliente: React.FC<ModalClienteProps> = ({
         notes: '',
         ubicacionGPS: undefined
       });
+      setTelefonoAdvertencia('');
       onClose();
     } catch (error: any) {
       console.error('❌ Error completo al guardar cliente:', error);
@@ -203,15 +206,16 @@ const ModalCliente: React.FC<ModalClienteProps> = ({
   };
 
   const handleClose = () => {
-    // Limpiar formulario al cerrar
-    setNuevoCliente({
-      name: '',
-      phone: '',
-      address: '',
-      notes: '',
-      ubicacionGPS: undefined
-    });
-    onClose();
+      // Limpiar formulario al cerrar
+      setNuevoCliente({
+        name: '',
+        phone: '',
+        address: '',
+        notes: '',
+        ubicacionGPS: undefined
+      });
+      setTelefonoAdvertencia('');
+      onClose();
   };
 
   const handleImportarContacto = async () => {
@@ -336,19 +340,31 @@ const ModalCliente: React.FC<ModalClienteProps> = ({
             
             // Validar que el teléfono no esté vacío después de limpiar
             if (telefono && telefono.length > 0) {
-              // Formatear según formato colombiano
+              // Formatear según formato colombiano (convierte 0057... a +57...)
               try {
                 telefono = formatColombianPhone(telefono);
                 console.log('📱 Teléfono formateado:', telefono);
+                
+                // Validar si es un celular colombiano válido
+                const validacion = isValidColombianCellphone(telefono);
+                if (!validacion.isValid && validacion.message) {
+                  console.warn('⚠️ Advertencia de validación:', validacion.message);
+                  setTelefonoAdvertencia(validacion.message);
+                } else {
+                  setTelefonoAdvertencia('');
+                }
               } catch (formatError) {
                 console.warn('⚠️ Error al formatear teléfono, usando sin formatear:', formatError);
                 // Si falla el formateo, usar el teléfono limpio
+                setTelefonoAdvertencia('');
               }
             } else {
               console.warn('⚠️ El teléfono quedó vacío después de limpiarlo');
+              setTelefonoAdvertencia('');
             }
           } else {
             console.warn('⚠️ No se pudo extraer un número telefónico válido');
+            setTelefonoAdvertencia('');
           }
         }
 
@@ -475,11 +491,25 @@ const ModalCliente: React.FC<ModalClienteProps> = ({
                 onChange={(e) => {
                   // Solo actualizar el valor sin formatear mientras se escribe
                   setNuevoCliente(prev => ({ ...prev, phone: e.target.value }));
+                  // Limpiar advertencia mientras se escribe
+                  setTelefonoAdvertencia('');
                 }}
                 onBlur={(e) => {
                   // Formatear solo cuando el usuario termine de escribir (onBlur)
                   const formattedPhone = formatColombianPhone(e.target.value);
                   setNuevoCliente(prev => ({ ...prev, phone: formattedPhone }));
+                  
+                  // Validar si es un celular colombiano válido
+                  if (formattedPhone) {
+                    const validacion = isValidColombianCellphone(formattedPhone);
+                    if (!validacion.isValid && validacion.message) {
+                      setTelefonoAdvertencia(validacion.message);
+                    } else {
+                      setTelefonoAdvertencia('');
+                    }
+                  } else {
+                    setTelefonoAdvertencia('');
+                  }
                 }}
                 required
                 placeholder="Ej: 3001234567 o 3172478520"
@@ -487,6 +517,11 @@ const ModalCliente: React.FC<ModalClienteProps> = ({
               <p className="text-xs text-gray-500 mt-1">
                 Se formateará automáticamente a formato colombiano (+57)
               </p>
+              {telefonoAdvertencia && (
+                <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                  ⚠️ <strong>Advertencia:</strong> {telefonoAdvertencia}
+                </div>
+              )}
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">

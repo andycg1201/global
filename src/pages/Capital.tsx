@@ -112,16 +112,24 @@ const Capital: React.FC = () => {
       // Obtener TODOS los pedidos (sin filtro de fecha de asignación)
       const todosLosPedidos = await pedidoService.getAllPedidos();
       
-      // Obtener gastos del rango de fechas
-      const gastos = await gastoService.getGastosDelRango(filtros.fechaInicio, filtros.fechaFin);
+      // Obtener gastos totales para el resumen y filtrar para el libro diario
+      const fechaInicioHistorico = new Date(2000, 0, 1);
+      const fechaFinHistorico = new Date();
+      fechaFinHistorico.setHours(23, 59, 59, 999);
+
+      const gastosTotales = await gastoService.getGastosDelRango(fechaInicioHistorico, fechaFinHistorico);
+
+      const estaEnRangoFechas = (fecha: Date) =>
+        fecha >= filtros.fechaInicio && fecha <= filtros.fechaFin;
       
-      // Obtener mantenimientos del rango de fechas
+      // Obtener mantenimientos (sin filtrar) para resumen y libro
       let mantenimientosFiltrados: Mantenimiento[] = [];
+      let todosLosMantenimientos: Mantenimiento[] = [];
       
       try {
         // Obtener todos los mantenimientos directamente de la colección (como en Dashboard)
         const mantenimientosSnapshot = await getDocs(collection(db, 'mantenimientos'));
-        const todosLosMantenimientos = mantenimientosSnapshot.docs.map(doc => {
+        todosLosMantenimientos = mantenimientosSnapshot.docs.map(doc => {
           const data = doc.data();
           return {
             id: doc.id,
@@ -156,7 +164,7 @@ const Capital: React.FC = () => {
         mantenimientosFiltrados = todosLosMantenimientos.filter(mantenimiento => {
           // El gasto se hace efectivo cuando se CREA el mantenimiento, no cuando se estima que termine
           const fechaMantenimiento = mantenimiento.createdAt;
-          const estaEnRango = fechaMantenimiento >= filtros.fechaInicio && fechaMantenimiento <= filtros.fechaFin;
+          const estaEnRango = estaEnRangoFechas(fechaMantenimiento);
           console.log('🔧 Verificando mantenimiento:', mantenimiento.id, 'fecha creación:', fechaMantenimiento, 'en rango:', estaEnRango);
           return estaEnRango;
         });
@@ -173,7 +181,12 @@ const Capital: React.FC = () => {
       const movimientosGastos: MovimientoLibroDiario[] = [];
 
       // Procesar gastos
-      gastos.forEach(gasto => {
+      const gastosFiltrados = gastosTotales.filter(gasto => {
+        const fechaGasto = new Date(gasto.date);
+        return !isNaN(fechaGasto.getTime()) && estaEnRangoFechas(fechaGasto);
+      });
+
+      gastosFiltrados.forEach(gasto => {
         const fechaGasto = new Date(gasto.date);
         console.log('🔧 Procesando gasto:', gasto.id, 'fecha:', fechaGasto, 'monto:', gasto.amount);
         if (!isNaN(fechaGasto.getTime())) {
@@ -229,18 +242,6 @@ const Capital: React.FC = () => {
         }
       });
 
-      // Combinar y ordenar todos los movimientos
-      const todosLosMovimientos = [...movimientosIngresos, ...movimientosGastos]
-        .sort((a, b) => {
-          // Ordenar por fecha y hora
-          const fechaA = new Date(a.fecha);
-          const fechaB = new Date(b.fecha);
-          if (fechaA.getTime() === fechaB.getTime()) {
-            return a.hora.localeCompare(b.hora);
-          }
-          return fechaA.getTime() - fechaB.getTime();
-        });
-
       // Incluir movimientos de capital en el libro diario (excluyendo pagos de servicios)
       const movimientosCapitalLibro: MovimientoLibroDiario[] = movimientosCapitalData
         .filter(mov => {
@@ -249,51 +250,54 @@ const Capital: React.FC = () => {
                                 mov.concepto.includes('servicio') ||
                                 mov.observaciones?.includes('servicio') ||
                                 mov.observaciones?.includes('Pago');
+          const estaEnRango = estaEnRangoFechas(mov.fecha);
           console.log('🔍 Filtro movimiento capital:', {
             id: mov.id,
             concepto: mov.concepto,
             observaciones: mov.observaciones,
             esPagoServicio,
-            incluir: !esPagoServicio
+            enRango: estaEnRango,
+            incluir: !esPagoServicio && estaEnRango
           });
-          return !esPagoServicio;
+          return !esPagoServicio && estaEnRango;
         })
-        .map(mov => ({
-        id: `capital-${mov.id}`,
-        fecha: mov.fecha,
-        hora: mov.fecha.toLocaleTimeString('es-CO', { 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        }),
-        tipo: mov.tipo === 'inyeccion' ? 'ingreso' as const : 'gasto' as const,
-        concepto: `${mov.tipo === 'inyeccion' ? 'Inyección' : 'Retiro'} de Capital - ${mov.concepto}`,
-        monto: (mov.efectivo || 0) + (mov.nequi || 0) + (mov.daviplata || 0),
-        medioPago: 'efectivo', // Por defecto efectivo ya que es la suma de todos
-        referencia: mov.observaciones,
-        saldoEfectivo: 0,
-        saldoNequi: 0,
-        saldoDaviplata: 0,
-        saldoTotal: 0
-      }));
+        .reduce<MovimientoLibroDiario[]>((acumulado, mov) => {
+          const tipoMovimiento = mov.tipo === 'inyeccion' ? 'ingreso' : 'gasto';
+          const conceptoBase = `${mov.tipo === 'inyeccion' ? 'Inyección' : 'Retiro'} de Capital - ${mov.concepto}`;
+          const montosPorMedio: Partial<Record<MovimientoLibroDiario['medioPago'], number>> = {
+            efectivo: mov.efectivo || 0,
+            nequi: mov.nequi || 0,
+            daviplata: mov.daviplata || 0
+          };
+
+          const movimientosPorMedio = crearMovimientosPorMedio(
+            `capital-${mov.id}`,
+            mov.fecha,
+            tipoMovimiento,
+            conceptoBase,
+            montosPorMedio,
+            mov.observaciones
+          );
+
+          return [...acumulado, ...movimientosPorMedio];
+        }, []);
 
       // Incluir capital inicial en el libro diario
-      const capitalInicialLibro: MovimientoLibroDiario[] = capitalInicialData ? [{
-        id: 'capital-inicial',
-        fecha: capitalInicialData.fecha,
-        hora: capitalInicialData.fecha.toLocaleTimeString('es-CO', { 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        }),
-        tipo: 'ingreso',
-        concepto: 'Capital Inicial',
-        monto: capitalInicialData.efectivo + capitalInicialData.nequi + capitalInicialData.daviplata,
-        medioPago: 'efectivo', // Por defecto efectivo ya que es la suma de todos
-        referencia: 'Capital inicial registrado',
-        saldoEfectivo: 0,
-        saldoNequi: 0,
-        saldoDaviplata: 0,
-        saldoTotal: 0
-      }] : [];
+      const capitalInicialLibro: MovimientoLibroDiario[] =
+        capitalInicialData && estaEnRangoFechas(capitalInicialData.fecha)
+          ? crearMovimientosPorMedio(
+            'capital-inicial',
+            capitalInicialData.fecha,
+            'ingreso',
+            'Capital Inicial',
+            {
+              efectivo: capitalInicialData.efectivo || 0,
+              nequi: capitalInicialData.nequi || 0,
+              daviplata: capitalInicialData.daviplata || 0
+            },
+            'Capital inicial registrado'
+          )
+        : [];
 
       // Procesar pagos de servicios
       const pagosPedidosLibro: MovimientoLibroDiario[] = [];
@@ -301,7 +305,7 @@ const Capital: React.FC = () => {
         if (pedido.pagosRealizados && pedido.pagosRealizados.length > 0) {
           pedido.pagosRealizados.forEach(pago => {
             const fechaPago = new Date(pago.fecha);
-            if (!isNaN(fechaPago.getTime())) {
+            if (!isNaN(fechaPago.getTime()) && estaEnRangoFechas(fechaPago)) {
               pagosPedidosLibro.push({
                 id: `pago-${pedido.id}-${Date.now()}`,
                 fecha: fechaPago,
@@ -418,10 +422,10 @@ const Capital: React.FC = () => {
       });
       
       // Calcular gastos generales
-      const gastosGeneralesTotal = gastos.reduce((sum, gasto) => sum + (gasto.amount || 0), 0);
+      const gastosGeneralesTotal = gastosTotales.reduce((sum, gasto) => sum + (gasto.amount || 0), 0);
       
       // Calcular mantenimientos
-      const mantenimientosTotal = mantenimientosFiltrados.reduce((sum, mant) => sum + (mant.costoReparacion || 0), 0);
+      const mantenimientosTotal = todosLosMantenimientos.reduce((sum, mant) => sum + (mant.costoReparacion || 0), 0);
       
       setDatosResumen({
         capitalInicial: capitalInicialTotal,
@@ -490,6 +494,88 @@ const Capital: React.FC = () => {
     }
   };
 
+  const getMedioPagoLabel = (medio: MovimientoLibroDiario['medioPago']) => {
+    switch (medio) {
+      case 'efectivo':
+        return 'Efectivo';
+      case 'nequi':
+        return 'Nequi';
+      case 'daviplata':
+        return 'Daviplata';
+      default:
+        return medio;
+    }
+  };
+
+  const getMedioPagoInfo = (medio: MovimientoLibroDiario['medioPago']) => {
+    switch (medio) {
+      case 'efectivo':
+        return {
+          label: 'Efectivo',
+          icon: <BanknotesIcon className="h-4 w-4" />,
+          badgeClass: 'bg-green-50 text-green-700'
+        };
+      case 'nequi':
+        return {
+          label: 'Nequi',
+          icon: <DevicePhoneMobileIcon className="h-4 w-4" />,
+          badgeClass: 'bg-purple-50 text-purple-700'
+        };
+      case 'daviplata':
+        return {
+          label: 'Daviplata',
+          icon: <CreditCardIcon className="h-4 w-4" />,
+          badgeClass: 'bg-indigo-50 text-indigo-700'
+        };
+      default:
+        return {
+          label: medio,
+          icon: <CurrencyDollarIcon className="h-4 w-4" />,
+          badgeClass: 'bg-gray-100 text-gray-700'
+        };
+    }
+  };
+
+  const mediosDisponibles: MovimientoLibroDiario['medioPago'][] = ['efectivo', 'nequi', 'daviplata'];
+
+  const crearMovimientosPorMedio = (
+    baseId: string,
+    fecha: Date,
+    tipo: 'ingreso' | 'gasto',
+    conceptoBase: string,
+    montos: Partial<Record<MovimientoLibroDiario['medioPago'], number>>,
+    referencia?: string
+  ): MovimientoLibroDiario[] => {
+    const horaMovimiento = fecha.toLocaleTimeString('es-CO', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    const movimientos: MovimientoLibroDiario[] = [];
+
+    mediosDisponibles.forEach((medio) => {
+      const monto = montos[medio] || 0;
+      if (monto > 0) {
+        movimientos.push({
+          id: `${baseId}-${medio}`,
+          fecha,
+          hora: horaMovimiento,
+          tipo,
+          concepto: `${conceptoBase} (${getMedioPagoLabel(medio)})`,
+          monto,
+          medioPago: medio,
+          referencia,
+          saldoEfectivo: 0,
+          saldoNequi: 0,
+          saldoDaviplata: 0,
+          saldoTotal: 0
+        });
+      }
+    });
+
+    return movimientos;
+  };
+
   const exportarLibroDiario = () => {
     if (movimientos.length === 0) {
       alert('No hay movimientos para exportar');
@@ -523,7 +609,7 @@ const Capital: React.FC = () => {
         mov.tipo,
         `"${mov.concepto.replace(/"/g, '""')}"`, // Escapar comillas dobles
         mov.monto,
-        mov.medioPago,
+        getMedioPagoLabel(mov.medioPago),
         mov.cliente ? `"${mov.cliente.replace(/"/g, '""')}"` : '',
         mov.plan ? `"${mov.plan.replace(/"/g, '""')}"` : '',
         mov.referencia ? `"${mov.referencia.replace(/"/g, '""')}"` : '',
@@ -565,14 +651,6 @@ const Capital: React.FC = () => {
     return tipo === 'ingreso' ? '↗️' : '↘️';
   };
 
-  const getMedioPagoIcon = (medio: string) => {
-    switch (medio) {
-      case 'efectivo': return <BanknotesIcon className="h-4 w-4" />;
-      case 'nequi': return <DevicePhoneMobileIcon className="h-4 w-4" />;
-      case 'daviplata': return <CreditCardIcon className="h-4 w-4" />;
-      default: return <CurrencyDollarIcon className="h-4 w-4" />;
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -838,71 +916,75 @@ const Capital: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {movimientos.map((mov) => (
-                      <tr key={mov.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-900">
-                          <div>
-                            <div className="font-medium">{formatDate(mov.fecha, 'dd/MM/yyyy')}</div>
-                            <div className="text-gray-500">{mov.hora}</div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTipoColor(mov.tipo)}`}>
-                            {getTipoIcon(mov.tipo)} {mov.tipo}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
-                          <div className="max-w-xs truncate" title={mov.concepto}>
-                            {mov.concepto}
-                          </div>
-                          {mov.referencia && (
-                            <div className="text-xs text-gray-500 mt-1 truncate" title={mov.referencia}>
-                              {mov.referencia}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-right text-sm font-medium">
-                          <span className={getTipoColor(mov.tipo)}>
-                            {mov.tipo === 'ingreso' ? '+' : '-'}{formatCurrency(mov.monto)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center text-sm">
-                          <div className="flex items-center justify-center">
-                            {getMedioPagoIcon(mov.medioPago)}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
-                          {mov.cliente && (
+                    {movimientos.map((mov) => {
+                      const medioInfo = getMedioPagoInfo(mov.medioPago);
+                      return (
+                        <tr key={mov.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-900">
                             <div>
-                              <div className="font-medium">{mov.cliente}</div>
-                              {mov.plan && (
-                                <div className="text-xs text-gray-500">{mov.plan}</div>
-                              )}
+                              <div className="font-medium">{formatDate(mov.fecha, 'dd/MM/yyyy')}</div>
+                              <div className="text-gray-500">{mov.hora}</div>
                             </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-right text-sm font-medium">
-                          <span className={mov.saldoEfectivo >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {formatCurrency(mov.saldoEfectivo)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right text-sm font-medium">
-                          <span className={mov.saldoNequi >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {formatCurrency(mov.saldoNequi)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right text-sm font-medium">
-                          <span className={mov.saldoDaviplata >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {formatCurrency(mov.saldoDaviplata)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right text-sm font-bold">
-                          <span className={mov.saldoTotal >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {formatCurrency(mov.saldoTotal)}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTipoColor(mov.tipo)}`}>
+                              {getTipoIcon(mov.tipo)} {mov.tipo}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            <div className="max-w-xs truncate" title={mov.concepto}>
+                              {mov.concepto}
+                            </div>
+                            {mov.referencia && (
+                              <div className="text-xs text-gray-500 mt-1 truncate" title={mov.referencia}>
+                                {mov.referencia}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right text-sm font-medium">
+                            <span className={getTipoColor(mov.tipo)}>
+                              {mov.tipo === 'ingreso' ? '+' : '-'}{formatCurrency(mov.monto)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center text-sm">
+                            <div className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-semibold ${medioInfo.badgeClass}`}>
+                              {medioInfo.icon}
+                              <span className="ml-1">{medioInfo.label}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            {mov.cliente && (
+                              <div>
+                                <div className="font-medium">{mov.cliente}</div>
+                                {mov.plan && (
+                                  <div className="text-xs text-gray-500">{mov.plan}</div>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right text-sm font-medium">
+                            <span className={mov.saldoEfectivo >= 0 ? 'text-green-600' : 'text-red-600'}>
+                              {formatCurrency(mov.saldoEfectivo)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right text-sm font-medium">
+                            <span className={mov.saldoNequi >= 0 ? 'text-green-600' : 'text-red-600'}>
+                              {formatCurrency(mov.saldoNequi)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right text-sm font-medium">
+                            <span className={mov.saldoDaviplata >= 0 ? 'text-green-600' : 'text-red-600'}>
+                              {formatCurrency(mov.saldoDaviplata)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right text-sm font-bold">
+                            <span className={mov.saldoTotal >= 0 ? 'text-green-600' : 'text-red-600'}>
+                              {formatCurrency(mov.saldoTotal)}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

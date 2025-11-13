@@ -40,6 +40,7 @@ const Dashboard: React.FC = () => {
   const [gastosGenerales, setGastosGenerales] = useState<number>(0);
   const [gastosMantenimiento, setGastosMantenimiento] = useState<number>(0);
   const [retirosCapital, setRetirosCapital] = useState<number>(0);
+  const [capitalDisponible, setCapitalDisponible] = useState<number>(0);
   const [saldosPorMedioDePago, setSaldosPorMedioDePago] = useState({
       efectivo: { ingresos: 0, gastos: 0, saldo: 0 },
       nequi: { ingresos: 0, gastos: 0, saldo: 0 },
@@ -190,74 +191,77 @@ const Dashboard: React.FC = () => {
       setGastosMantenimiento(gastosMantenimiento);
       setRetirosCapital(retirosCapital);
       
-      // Calcular saldos por medio de pago (incluyendo gastos)
-      const saldosCalculados = {
-        efectivo: { ingresos: capitalInicialData?.efectivo || 0, gastos: 0, saldo: capitalInicialData?.efectivo || 0 },
-        nequi: { ingresos: capitalInicialData?.nequi || 0, gastos: 0, saldo: capitalInicialData?.nequi || 0 },
-        daviplata: { ingresos: capitalInicialData?.daviplata || 0, gastos: 0, saldo: capitalInicialData?.daviplata || 0 }
+      type MedioPago = 'efectivo' | 'nequi' | 'daviplata';
+      type MovimientoSaldoInterno = {
+        medio: MedioPago;
+        tipo: 'ingreso' | 'gasto';
+        monto: number;
       };
-      
-      // Procesar pagos reales
+
+      const movimientosSaldo: MovimientoSaldoInterno[] = [];
+
+      const registrarMovimiento = (medio: MedioPago, tipo: 'ingreso' | 'gasto', monto?: number) => {
+        if (!monto || monto <= 0) return;
+        movimientosSaldo.push({ medio, tipo, monto });
+      };
+
+      if (capitalInicialData) {
+        registrarMovimiento('efectivo', 'ingreso', capitalInicialData.efectivo || 0);
+        registrarMovimiento('nequi', 'ingreso', capitalInicialData.nequi || 0);
+        registrarMovimiento('daviplata', 'ingreso', capitalInicialData.daviplata || 0);
+      }
+
       pedidosData.forEach(pedido => {
         if (pedido.pagosRealizados && pedido.pagosRealizados.length > 0) {
           pedido.pagosRealizados.forEach(pago => {
-            const medioPago = pago.medioPago || 'efectivo';
-            if (medioPago === 'efectivo') {
-                saldosCalculados.efectivo.ingresos += pago.monto;
-            } else if (medioPago === 'nequi') {
-                saldosCalculados.nequi.ingresos += pago.monto;
-            } else if (medioPago === 'daviplata') {
-                saldosCalculados.daviplata.ingresos += pago.monto;
-            }
+            const medioPago = (pago.medioPago || 'efectivo') as MedioPago;
+            registrarMovimiento(medioPago, 'ingreso', pago.monto);
           });
         }
       });
-      
-      // Procesar gastos generales
+
       gastosData.forEach(gasto => {
-        const medioPago = gasto.medioPago || 'efectivo';
-        if (medioPago === 'efectivo') {
-          saldosCalculados.efectivo.gastos += gasto.amount;
-        } else if (medioPago === 'nequi') {
-          saldosCalculados.nequi.gastos += gasto.amount;
-        } else if (medioPago === 'daviplata') {
-          saldosCalculados.daviplata.gastos += gasto.amount;
-        }
+        const medioPago = (gasto.medioPago || 'efectivo') as MedioPago;
+        registrarMovimiento(medioPago, 'gasto', gasto.amount);
       });
-      
-      // Procesar gastos de mantenimiento
+
       mantenimientosData.forEach(mantenimiento => {
-        const medioPago = mantenimiento.medioPago || 'efectivo';
-        const costo = mantenimiento.costoReparacion || 0;
-        
-        if (medioPago === 'efectivo') {
-          saldosCalculados.efectivo.gastos += costo;
-        } else if (medioPago === 'nequi') {
-          saldosCalculados.nequi.gastos += costo;
-        } else if (medioPago === 'daviplata') {
-          saldosCalculados.daviplata.gastos += costo;
-        }
+        const medioPago = (mantenimiento.medioPago || 'efectivo') as MedioPago;
+        registrarMovimiento(medioPago, 'gasto', mantenimiento.costoReparacion || 0);
       });
-      
-      // Procesar movimientos de capital
+
       movimientosCapitalData.forEach(mov => {
-        if (mov.tipo === 'inyeccion') {
-          saldosCalculados.efectivo.ingresos += mov.efectivo;
-          saldosCalculados.nequi.ingresos += mov.nequi;
-          saldosCalculados.daviplata.ingresos += mov.daviplata;
-        } else if (mov.tipo === 'retiro') {
-          saldosCalculados.efectivo.gastos += mov.efectivo;
-          saldosCalculados.nequi.gastos += mov.nequi;
-          saldosCalculados.daviplata.gastos += mov.daviplata;
+        const tipoMovimiento = mov.tipo === 'inyeccion' ? 'ingreso' : 'gasto';
+        registrarMovimiento('efectivo', tipoMovimiento, mov.efectivo);
+        registrarMovimiento('nequi', tipoMovimiento, mov.nequi);
+        registrarMovimiento('daviplata', tipoMovimiento, mov.daviplata);
+      });
+
+      const saldosCalculados = {
+        efectivo: { ingresos: 0, gastos: 0, saldo: 0 },
+        nequi: { ingresos: 0, gastos: 0, saldo: 0 },
+        daviplata: { ingresos: 0, gastos: 0, saldo: 0 }
+      };
+
+      movimientosSaldo.forEach(mov => {
+        if (mov.tipo === 'ingreso') {
+          saldosCalculados[mov.medio].ingresos += mov.monto;
+        } else {
+          saldosCalculados[mov.medio].gastos += mov.monto;
         }
       });
-      
-      // Calcular saldos finales
-      saldosCalculados.efectivo.saldo = saldosCalculados.efectivo.ingresos - saldosCalculados.efectivo.gastos;
-      saldosCalculados.nequi.saldo = saldosCalculados.nequi.ingresos - saldosCalculados.nequi.gastos;
-      saldosCalculados.daviplata.saldo = saldosCalculados.daviplata.ingresos - saldosCalculados.daviplata.gastos;
-      
+
+      (Object.keys(saldosCalculados) as MedioPago[]).forEach(medio => {
+        saldosCalculados[medio].saldo = saldosCalculados[medio].ingresos - saldosCalculados[medio].gastos;
+      });
+
       setSaldosPorMedioDePago(saldosCalculados);
+      
+      const capitalDisponibleCalculado =
+        saldosCalculados.efectivo.saldo +
+        saldosCalculados.nequi.saldo +
+        saldosCalculados.daviplata.saldo;
+      setCapitalDisponible(capitalDisponibleCalculado);
       
       } catch (error) {
       console.error('❌ Error al cargar datos simplificados:', error);
@@ -428,7 +432,7 @@ const Dashboard: React.FC = () => {
             <WalletIcon className="h-5 w-5 text-purple-600" />
               </div>
           <p className="text-gray-500 text-xs font-medium">Capital</p>
-          <p className="text-lg font-semibold text-gray-900">{formatCurrency(capitalInicial + inyeccionesCapital)}</p>
+          <p className="text-lg font-semibold text-gray-900">{formatCurrency(capitalDisponible)}</p>
               </div>
 
         {/* Servicios */}

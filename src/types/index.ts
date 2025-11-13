@@ -472,6 +472,7 @@ export interface WhatsAppMessage {
 export interface Configuracion {
   id: string;
   horaAdicional: number; // precio por hora adicional
+  telefonoContacto: string; // número de teléfono para contacto en mensajes WhatsApp
   horarioTrabajo: {
     inicio: string; // "07:00"
     fin: string; // "19:00"

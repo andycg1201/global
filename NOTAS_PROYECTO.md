@@ -1,7 +1,7 @@
 # Notas del Proyecto - Sistema de Gestión de Lavadoras
 
 ## Estado Actual del Proyecto
-Última actualización: 2025-01-28 (Importación de contactos desde celular y mejoras en modal cliente)
+Última actualización: 2025-01-28 (Validación y formateo mejorado de números telefónicos colombianos)
 
 ## Cambios Recientes Implementados
 
@@ -52,7 +52,38 @@
 - 📝 **Commit:** `944c36f` - "feat: Agregar importación de contactos desde celular y mejoras en modal cliente"
 - 📝 **Archivos modificados:** 13 archivos (365 insertions, 294 deletions)
 
-### 2. Mejoras de UI para Operadores y Corrección de Fechas
+### 2. Validación y Formateo Mejorado de Números Telefónicos Colombianos
+- ✅ **Conversión automática de prefijo 0057 a +57:**
+  - Si un número viene como `00573205257502`, se convierte automáticamente a `+573205257502`
+  - Remueve el `00` inicial si existe antes del `57`
+  - Asegura que siempre tenga el prefijo `+57` correcto
+
+- ✅ **Validación de celulares colombianos:**
+  - Valida que los primeros 3 dígitos después de `+57` sean >= 300
+  - Números válidos: empiezan con 300, 315, 320, 301, etc. (celulares colombianos)
+  - Números no válidos: empiezan con 099, 050, etc. (menores a 300, posiblemente no celulares)
+
+- ✅ **Mensaje de advertencia visual:**
+  - Se muestra debajo del campo de teléfono cuando el número no es válido
+  - Mensaje: "⚠️ **Advertencia:** Este número posiblemente no tenga WhatsApp."
+  - Fondo amarillo claro con borde amarillo para destacar
+  - Es solo una advertencia informativa: el usuario puede continuar guardando
+
+- ✅ **Validación en múltiples momentos:**
+  - Al importar contacto desde el celular
+  - Al escribir/editar manualmente el teléfono (se valida al salir del campo - `onBlur`)
+  - La advertencia se limpia automáticamente cuando el usuario empieza a escribir de nuevo
+
+- ✅ **Implementación técnica:**
+  - Nueva función `isValidColombianCellphone()` en `src/utils/dateUtils.ts`
+  - Mejora en `formatColombianPhone()` para manejar prefijo `0057`
+  - Estado `telefonoAdvertencia` en `ModalCliente.tsx` para mostrar mensaje visual
+  - Validación integrada en proceso de importación y en evento `onBlur` del campo
+
+- 📝 **Commit:** `3c4271f` - "feat: Mejorar validación y formateo de números telefónicos colombianos"
+- 📝 **Archivos modificados:** 4 archivos (175 insertions, 36 deletions)
+
+### 3. Mejoras de UI para Operadores y Corrección de Fechas
 - ✅ **Ocultar saldos disponibles para operadores:**
   - El mensaje "💰 Saldos disponibles: Efectivo: $... | Nequi: ... | Daviplata: ..." ahora solo se muestra para administradores y managers
   - Los operadores no ven este mensaje de ayuda al agregar gastos o crear mantenimientos
@@ -69,7 +100,7 @@
   - **Aplicado a:** Gastos y Mantenimientos en el historial de saldos
   - Implementado en `src/services/movimientosSaldosService.ts`
 
-### 2. Permisos de Usuario Actualizados
+### 4. Permisos de Usuario Actualizados
 - **Eliminados permisos obsoletos:**
   - `verAuditoria` - eliminado de la interfaz `Permisos`
   - `verIndicadoresAuditoria` - eliminado de la interfaz `Permisos`
@@ -86,21 +117,21 @@
   - **Admin:**
     - Todos los permisos en `true` (acceso total)
 
-### 2. Restricciones de UI en Inventario
+### 5. Restricciones de UI en Inventario
 - Botón "Crear 15 Lavadoras" - Solo visible si `tienePermiso('gestionarInventario')`
 - Botón "Registrar Lavadora" - Solo visible si `tienePermiso('gestionarInventario')`
 - Botón "Marcar como fuera de servicio" - Solo visible si `!esOperador()`
 - Botón "Marcar como disponible" (desde fuera_servicio) - Solo visible si `!esOperador()`
 - Botones de mantenimiento - Visibles para todos (operadores pueden crear y finalizar)
 
-### 3. Gestión de Permisos en Configuración
+### 6. Gestión de Permisos en Configuración
 - **Operador:** Los permisos pueden ser editados por administradores
 - **Manager:** Los permisos pueden ser editados por administradores
 - **Admin:** Los permisos NO pueden ser editados (acceso total automático)
 - Al seleccionar un rol, se cargan los permisos por defecto correspondientes
 - Si se edita un usuario existente y se mantiene su rol, se conservan los permisos personalizados
 
-### 4. Nueva Página "Operadores" (Versión Mejorada)
+### 7. Nueva Página "Operadores" (Versión Mejorada)
 - ✅ **Reporte de Arqueo por Usuario** movido desde "Reportes" a nueva página dedicada "Operadores"
 - ✅ **Vista inicial con cards/tags de operadores:**
   - Muestra resumen financiero rápido: Ingresos, Gastos, Saldo
@@ -144,7 +175,7 @@
 - ✅ Opción agregada al menú principal (requiere permiso `verReportes`)
 - ✅ El reporte de arqueo fue completamente removido de la página "Reportes"
 
-### 5. Restricciones de Medios de Pago
+### 8. Restricciones de Medios de Pago
 - ✅ **Operadores solo pueden registrar Gastos y Mantenimientos en efectivo**
   - En `Gastos`: Si el usuario es operador, el selector de medios de pago solo muestra "efectivo"
   - En `Inventario/Mantenimientos`: Si el usuario es operador, el selector de medios de pago solo muestra "efectivo"
@@ -154,7 +185,7 @@
   - `src/pages/Gastos.tsx` - Lógica de validación y filtrado de medios
   - `src/components/ModalMantenimiento.tsx` - Lógica de validación y filtrado de medios
 
-### 6. Filtrado de Datos por Usuario para Operadores
+### 9. Filtrado de Datos por Usuario para Operadores
 - ✅ **Operadores solo ven SUS propios movimientos en Pagos y Gastos**
   - **Página Pagos:** Los operadores solo ven los pagos que ellos mismos registraron (`registradoPor === user.name`)
   - **Página Gastos:** Los operadores solo ven los gastos que ellos registraron (`registradoPor === user.name`)
@@ -169,7 +200,7 @@
   - `src/pages/Pagos.tsx` - Filtrado visual de pagos por `user.name` si es operador
   - `src/pages/Gastos.tsx` - Filtrado visual de gastos y mantenimientos por `user.name` si es operador
 
-### 8. Funcionalidades Implementadas Previamente
+### 10. Funcionalidades Implementadas Previamente
 
 #### Registro de Usuarios en Acciones
 - ✅ Nombres de usuarios registrados en:
@@ -204,6 +235,7 @@
 ### Tipos y Interfaces
 - `src/types/index.ts` - Interfaz `Permisos` actualizada (sin auditoría)
 - `src/vite-env.d.ts` - Declaraciones TypeScript agregadas para Contacts Picker API (`ContactsManager`, `Contact`, extensiones de `Navigator` y `Window`)
+- `src/utils/dateUtils.ts` - **ACTUALIZADO:** Nueva función `isValidColombianCellphone()` para validar celulares colombianos, mejora en `formatColombianPhone()` para convertir `0057...` a `+57...`
 
 ### Servicios
 - `src/services/usuarioService.ts` - Permisos por defecto actualizados, sin auditoría
@@ -212,7 +244,7 @@
 ### Componentes
 - `src/components/GestorUsuarios.tsx` - Formulario de permisos actualizado, operadores pueden editar permisos
 - `src/components/ModalMantenimiento.tsx` - Restricción de medios de pago para operadores, ocultar saldos para operadores
-- `src/components/ModalCliente.tsx` - **ACTUALIZADO:** Importación de contactos desde celular, manejo de múltiples números telefónicos, corrección de ubicación GPS opcional, mensaje de ayuda para ubicación, mejoras en validación y manejo de errores
+- `src/components/ModalCliente.tsx` - **ACTUALIZADO:** Importación de contactos desde celular, manejo de múltiples números telefónicos, corrección de ubicación GPS opcional, mensaje de ayuda para ubicación, mejoras en validación y manejo de errores, validación visual de números telefónicos colombianos
 
 ### Páginas
 - `src/pages/InventarioLavadoras.tsx` - Restricciones de UI basadas en permisos
@@ -249,6 +281,12 @@
    - Si un contacto tiene múltiples números, automáticamente se importa el primero
    - La ubicación GPS es completamente opcional y no causa errores si no se proporciona
 
+6. **Validación de Números Telefónicos:**
+   - Conversión automática: `0057...` se convierte a `+57...`
+   - Validación: números celulares colombianos deben empezar con 300, 315, 320, etc. (>= 300)
+   - Advertencia visual cuando el número no parece tener WhatsApp (primeros 3 dígitos < 300)
+   - La advertencia es solo informativa, permite guardar de todas formas
+
 ## Próximos Pasos Sugeridos (si aplica)
 - [ ] Revisar si hay más permisos obsoletos que eliminar
 - [ ] Considerar si se necesitan permisos más granulares para inventario (separar crear/eliminar de marcar fuera de servicio)
@@ -258,8 +296,8 @@
 ## Deployment
 - URL de producción: https://global-da5ac.web.app
 - Firebase Console: https://console.firebase.google.com/project/global-da5ac/overview
-- Último deploy: 2025-01-28 (Importación de contactos desde celular + mejoras en modal cliente)
-- Último commit: 944c36f - "feat: Agregar importación de contactos desde celular y mejoras en modal cliente"
+- Último deploy: 2025-01-28 (Validación y formateo mejorado de números telefónicos colombianos)
+- Último commit: 3c4271f - "feat: Mejorar validación y formateo de números telefónicos colombianos"
 
 ## Flujo de Trabajo con Git
 

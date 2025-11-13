@@ -101,6 +101,7 @@ export const initialConceptosGastos: Omit<ConceptoGasto, 'id' | 'createdAt'>[] =
 // Configuración inicial del sistema
 export const initialConfiguracion: Omit<Configuracion, 'id' | 'updatedAt'> = {
   horaAdicional: 2000,
+  telefonoContacto: '+573105988735',
   horarioTrabajo: {
     inicio: '07:00',
     fin: '19:00'

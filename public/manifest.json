@@ -1,0 +1,32 @@
+{
+  "id": "/",
+  "name": "Lavadoras Global - Sistema de Gestión",
+  "short_name": "Lavadoras Global",
+  "description": "Sistema de gestión de alquiler de lavadoras",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo_apk.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo_apk.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "es",
+  "dir": "ltr",
+  "screenshots": [],
+  "shortcuts": []
+}
+

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { XMarkIcon, CameraIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline';
 import { Pedido } from '../types';
 import { formatDate } from '../utils/dateUtils';
+import { configService } from '../services/firebaseService';
 
 interface ModalWhatsAppProps {
   isOpen: boolean;
@@ -17,9 +18,25 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
   const [fotoUrl, setFotoUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [mensajePreview, setMensajePreview] = useState<string>('');
+  const [telefonoContacto, setTelefonoContacto] = useState<string>('+573105988735'); // Valor por defecto
+  const [horaAdicional, setHoraAdicional] = useState<number>(2000); // Valor por defecto
 
   React.useEffect(() => {
     if (pedido && isOpen) {
+      // Cargar configuración
+      const cargarConfiguracion = async () => {
+        try {
+          const config = await configService.getConfiguracion();
+          if (config) {
+            setTelefonoContacto(config.telefonoContacto || '+573105988735');
+            setHoraAdicional(config.horaAdicional || 2000);
+          }
+        } catch (error) {
+          console.error('Error al cargar configuración:', error);
+        }
+      };
+      cargarConfiguracion();
+
       // Calcular hora de recogida según el plan
       const horaRecogidaCalculada = calcularHoraRecogida(pedido);
       setHoraRecogida(horaRecogidaCalculada);
@@ -33,12 +50,12 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
     }
   }, [pedido, isOpen, fotoEvidencia]);
 
-  // Actualizar mensaje cuando cambie la hora de recogida
+  // Actualizar mensaje cuando cambie la hora de recogida o la configuración
   React.useEffect(() => {
     if (pedido) {
       setMensajePreview(generarMensaje());
     }
-  }, [horaRecogida, pedido]);
+  }, [horaRecogida, pedido, telefonoContacto, horaAdicional]);
 
   // Función para calcular fecha y hora de recogida correctamente
   const calcularFechaHoraRecogida = (fechaEntrega: Date, planName: string): Date => {
@@ -200,6 +217,13 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
     // Obtener descripción del plan
     const descripcionPlan = obtenerDescripcionPlan(pedido.plan.name);
     
+    // Formatear precio de hora adicional
+    const precioFormateado = new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0
+    }).format(horaAdicional);
+    
     let mensaje = `*¡Lavadora entregada!* ✅\n\n`;
     mensaje += `📅 *Fecha:* ${fechaEntrega}\n`;
     mensaje += `🕐 *Hora:* ${horaEntrega}\n\n`;
@@ -210,9 +234,9 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
     mensaje += `📅 Fecha: ${fechaRecogida}\n`;
     mensaje += `🕐 Hora: ${horaRecogidaTexto}\n\n`;
     mensaje += `💰 *¿Necesitas más tiempo?*\n`;
-    mensaje += `• Hora adicional: $2,000\n`;
+    mensaje += `• Hora adicional: ${precioFormateado}\n`;
     mensaje += `• Confirma con anticipación\n`;
-    mensaje += `• Contacto: +573005254876\n\n`;
+    mensaje += `• Contacto: ${telefonoContacto}\n\n`;
     mensaje += `Muchas gracias por utilizar nuestros servicios\n`;
     mensaje += `LAVADORAS GLOBAL`;
     

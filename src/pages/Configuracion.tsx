@@ -11,7 +11,7 @@ import {
 import { configService, planService, resetService } from '../services/firebaseService';
 import { storageService, ejecutarLimpiezaAutomatica } from '../services/storageService';
 import { Configuracion, Plan } from '../types';
-import { formatCurrency } from '../utils/dateUtils';
+import { formatCurrency, formatColombianPhone, isValidColombianCellphone } from '../utils/dateUtils';
 import GestorUsuarios from '../components/GestorUsuarios';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -31,9 +31,11 @@ const Configuracion: React.FC = () => {
     fotosAntiguas: 0
   });
   const [limpiando, setLimpiando] = useState(false);
+  const [telefonoAdvertencia, setTelefonoAdvertencia] = useState<string>('');
   
   const [formData, setFormData] = useState({
-    horaAdicional: 2000
+    horaAdicional: 2000,
+    telefonoContacto: '+573105988735'
   });
 
   const [formularioPlan, setFormularioPlan] = useState({
@@ -58,7 +60,8 @@ const Configuracion: React.FC = () => {
       if (config) {
         setConfiguracion(config);
         setFormData({
-          horaAdicional: config.horaAdicional
+          horaAdicional: config.horaAdicional,
+          telefonoContacto: config.telefonoContacto || '+573105988735'
         });
       }
       
@@ -84,11 +87,22 @@ const Configuracion: React.FC = () => {
 
   const guardarConfiguracion = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validar teléfono antes de guardar
+    if (formData.telefonoContacto) {
+      const validacion = isValidColombianCellphone(formData.telefonoContacto);
+      if (!validacion.isValid) {
+        alert(validacion.message || 'El número de teléfono no es válido');
+        return;
+      }
+    }
+    
     setSaving(true);
     
     try {
       await configService.updateConfiguracion(formData);
       setConfiguracion(prev => prev ? { ...prev, ...formData } : null);
+      setTelefonoAdvertencia('');
       alert('Configuración guardada exitosamente');
     } catch (error) {
       console.error('Error al guardar configuración:', error);
@@ -251,7 +265,7 @@ const Configuracion: React.FC = () => {
           <h3 className="text-lg font-medium text-gray-900">Configuración de Precios</h3>
         </div>
         
-        <form onSubmit={guardarConfiguracion}>
+        <form onSubmit={guardarConfiguracion} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Precio por Hora Adicional
@@ -271,14 +285,60 @@ const Configuracion: React.FC = () => {
               <span className="text-sm text-gray-500">
                 = {formatCurrency(formData.horaAdicional)}
               </span>
-              <button
-                type="submit"
-                disabled={saving}
-                className="btn-primary"
-              >
-                {saving ? 'Guardando...' : 'Guardar'}
-              </button>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Teléfono de Contacto para WhatsApp *
+            </label>
+            <div className="space-y-2">
+              <input
+                type="text"
+                className="input-field"
+                placeholder="+573105988735"
+                value={formData.telefonoContacto}
+                onChange={(e) => {
+                  setFormData(prev => ({ ...prev, telefonoContacto: e.target.value }));
+                  setTelefonoAdvertencia('');
+                }}
+                onBlur={(e) => {
+                  try {
+                    const formattedPhone = formatColombianPhone(e.target.value);
+                    setFormData(prev => ({ ...prev, telefonoContacto: formattedPhone }));
+                    if (formattedPhone) {
+                      const validacion = isValidColombianCellphone(formattedPhone);
+                      if (!validacion.isValid && validacion.message) {
+                        setTelefonoAdvertencia(validacion.message);
+                      } else {
+                        setTelefonoAdvertencia('');
+                      }
+                    }
+                  } catch (error) {
+                    setTelefonoAdvertencia('');
+                  }
+                }}
+                required
+              />
+              {telefonoAdvertencia && (
+                <div className="text-sm text-orange-600 bg-orange-50 border border-orange-200 rounded p-2">
+                  ⚠️ <strong>Advertencia:</strong> {telefonoAdvertencia}
+                </div>
+              )}
+              <p className="text-xs text-gray-500">
+                Este número aparecerá en los mensajes de WhatsApp cuando se entregue una lavadora
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={saving}
+              className="btn-primary"
+            >
+              {saving ? 'Guardando...' : 'Guardar'}
+            </button>
           </div>
         </form>
       </div>

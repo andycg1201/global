@@ -22,6 +22,7 @@ import { formatDate, formatCurrency, getCurrentDateColombia } from '../utils/dat
 import ModalCapitalInicial from '../components/ModalCapitalInicial';
 import ModalMovimientoCapital from '../components/ModalMovimientoCapital';
 import ResumenCapital from '../components/ResumenCapital';
+import * as XLSX from 'xlsx';
 
 interface FiltrosCapital {
   fechaInicio: Date;
@@ -585,61 +586,48 @@ const Capital: React.FC = () => {
     console.log('📊 Exportando libro diario con', movimientos.length, 'movimientos');
     console.log('📊 Primeros movimientos:', movimientos.slice(0, 3));
 
-    const headers = [
-      'Fecha',
-      'Hora',
-      'Tipo',
-      'Concepto',
-      'Monto',
-      'Medio de Pago',
-      'Cliente',
-      'Plan',
-      'Referencia',
-      'Saldo Efectivo',
-      'Saldo Nequi',
-      'Saldo Daviplata',
-      'Saldo Total'
-    ];
+    const rows = movimientos.map(mov => ({
+      Fecha: formatDate(mov.fecha, 'dd/MM/yyyy'),
+      Hora: mov.hora,
+      Tipo: mov.tipo,
+      Concepto: mov.concepto,
+      Monto: mov.tipo === 'ingreso' ? mov.monto : -mov.monto,
+      'Medio de Pago': getMedioPagoLabel(mov.medioPago),
+      Cliente: mov.cliente || '',
+      Plan: mov.plan || '',
+      Referencia: mov.referencia || '',
+      'Saldo Efectivo': mov.saldoEfectivo,
+      'Saldo Nequi': mov.saldoNequi,
+      'Saldo Daviplata': mov.saldoDaviplata,
+      'Saldo Total': mov.saldoTotal
+    }));
 
-    const csvContent = [
-      headers.join(','),
-      ...movimientos.map(mov => [
-        formatDate(mov.fecha, 'dd/MM/yyyy'),
-        mov.hora,
-        mov.tipo,
-        `"${mov.concepto.replace(/"/g, '""')}"`, // Escapar comillas dobles
-        mov.monto,
-        getMedioPagoLabel(mov.medioPago),
-        mov.cliente ? `"${mov.cliente.replace(/"/g, '""')}"` : '',
-        mov.plan ? `"${mov.plan.replace(/"/g, '""')}"` : '',
-        mov.referencia ? `"${mov.referencia.replace(/"/g, '""')}"` : '',
-        mov.saldoEfectivo,
-        mov.saldoNequi,
-        mov.saldoDaviplata,
-        mov.saldoTotal
-      ].join(','))
-    ].join('\n');
+    const worksheet = XLSX.utils.json_to_sheet(rows, {
+      header: [
+        'Fecha',
+        'Hora',
+        'Tipo',
+        'Concepto',
+        'Monto',
+        'Medio de Pago',
+        'Cliente',
+        'Plan',
+        'Referencia',
+        'Saldo Efectivo',
+        'Saldo Nequi',
+        'Saldo Daviplata',
+        'Saldo Total'
+      ]
+    });
 
-    // Agregar BOM para UTF-8 en Excel
-    const BOM = '\uFEFF';
-    const csvContentWithBOM = BOM + csvContent;
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Libro Diario');
 
-    const blob = new Blob([csvContentWithBOM], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    
-    // Nombre del archivo con rango de fechas
     const fechaInicio = formatDate(filtros.fechaInicio, 'yyyy-MM-dd');
     const fechaFin = formatDate(filtros.fechaFin, 'yyyy-MM-dd');
-    const nombreArchivo = `libro_diario_${fechaInicio}_a_${fechaFin}.csv`;
-    
-    link.setAttribute('download', nombreArchivo);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
+    const nombreArchivo = `libro_diario_${fechaInicio}_a_${fechaFin}.xlsx`;
+
+    XLSX.writeFile(workbook, nombreArchivo);
     console.log('✅ Archivo exportado:', nombreArchivo);
   };
 

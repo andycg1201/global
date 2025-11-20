@@ -17,7 +17,7 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
   const [fotoPreview, setFotoPreview] = useState<string | null>(null);
   const [fotoUrl, setFotoUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [mensajePreview, setMensajePreview] = useState<string>('');
+  const [mensajeEditable, setMensajeEditable] = useState<string>('');
   const [telefonoContacto, setTelefonoContacto] = useState<string>('+573105988735'); // Valor por defecto
   const [horaAdicional, setHoraAdicional] = useState<number>(2000); // Valor por defecto
 
@@ -47,13 +47,17 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
         setFotoPreview(fotoEvidencia);
         console.log('📸 Foto de evidencia pre-cargada:', fotoEvidencia);
       }
+    } else {
+      // Limpiar cuando se cierra el modal
+      setMensajeEditable('');
+      setHoraRecogida('');
     }
   }, [pedido, isOpen, fotoEvidencia]);
 
   // Actualizar mensaje cuando cambie la hora de recogida o la configuración
   React.useEffect(() => {
     if (pedido) {
-      setMensajePreview(generarMensaje());
+      setMensajeEditable(generarMensaje());
     }
   }, [horaRecogida, pedido, telefonoContacto, horaAdicional]);
 
@@ -246,8 +250,8 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
   const abrirWhatsApp = async () => {
     if (!pedido) return;
     
-    // Usar el mensaje del preview
-    const mensaje = mensajePreview;
+    // Usar el mensaje editable
+    const mensaje = mensajeEditable;
     
     // Abrir WhatsApp
     const numero = pedido.cliente.phone.replace(/\D/g, ''); // Solo números
@@ -282,7 +286,7 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
             <p className="text-sm text-gray-600">{pedido.cliente.phone}</p>
           </div>
 
-          {/* Hora de recogida editable */}
+          {/* Hora de recogida editable (opcional, también se puede editar en el mensaje) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Hora de Recogida Programada
@@ -293,17 +297,26 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
               onChange={(e) => setHoraRecogida(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
+            <p className="text-xs text-gray-500 mt-1">
+              Al cambiar la hora, el mensaje se actualizará automáticamente. Puedes editarlo después.
+            </p>
           </div>
 
-
-          {/* Preview del mensaje */}
+          {/* Mensaje editable */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Mensaje que se enviará:
+              Mensaje que se enviará (editable):
             </label>
-            <div className="bg-gray-50 p-3 rounded-md text-sm text-gray-700 max-h-32 overflow-y-auto">
-              {mensajePreview}
-            </div>
+            <textarea
+              value={mensajeEditable}
+              onChange={(e) => setMensajeEditable(e.target.value)}
+              rows={12}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm font-mono resize-y"
+              placeholder="El mensaje se generará automáticamente..."
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Puedes editar completamente el mensaje antes de enviarlo. La plantilla se carga automáticamente.
+            </p>
           </div>
         </div>
 

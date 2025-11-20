@@ -39,12 +39,15 @@ const Pagos: React.FC = () => {
   const { user, esOperador, tienePermiso } = useAuth();
   const [pagos, setPagos] = useState<PagoCompleto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filtros, setFiltros] = useState<FiltrosPagos>({
-    tipo: 'todos',
-    fechaInicio: getCurrentDateColombia(),
-    fechaFin: getCurrentDateColombia(),
-    medioPago: 'todos',
-    busqueda: ''
+  const [filtros, setFiltros] = useState<FiltrosPagos>(() => {
+    const hoy = getCurrentDateColombia();
+    return {
+      tipo: 'hoy',
+      fechaInicio: new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 0, 0, 0, 0),
+      fechaFin: new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59, 999),
+      medioPago: 'todos',
+      busqueda: ''
+    };
   });
   
   // Estados para modales

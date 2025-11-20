@@ -1,14 +1,19 @@
 # Notas del Proyecto - Sistema de Gestión de Lavadoras
 
 ## Estado Actual del Proyecto
-Última actualización: 2025-11-13 (Correcciones de saldos Dashboard/Libro Diario + exportación Excel)
+Última actualización: 2025-11-13 (Mensaje WhatsApp editable + Filtro por defecto en Pagos)
 
 ### Resumen rápido (2025-11-13)
+- 📱 **Mensaje WhatsApp editable**: El mensaje de confirmación de entrega ahora es completamente editable antes de enviarlo. Se carga la plantilla automáticamente pero el usuario puede modificar todo el contenido.
+- 📅 **Filtro por defecto en Pagos**: La página de Pagos muestra por defecto solo los pagos del día actual (filtro "Hoy") en lugar de todos los pagos históricos.
 - 📊 Dashboard y Libro Diario alineados: saldos por medio de pago y capital disponible calculados con los montos reales (capital inicial + inyecciones + pagos – retiros – gastos).
 - 🧾 Libro Diario: movimientos filtrables por rango, resumen histórico intacto y exportación directa a Excel con medios de pago y saldos acumulados.
 - 🚀 Despliegue a producción realizado: `firebase deploy --only hosting` sobre `global-da5ac`.
 
-#### Commits clave
+#### Commits clave recientes
+- `588b1eb` – feat: mensaje WhatsApp editable y filtro por defecto hoy en pagos
+  - ModalWhatsApp: mensaje completamente editable en textarea, se carga plantilla automáticamente pero permite edición total.
+  - Pagos: filtro por defecto cambiado de "Todos" a "Hoy" con fechas del día actual (00:00:00 - 23:59:59).
 - `77bf099` – fix: alinear capital y saldos con libro diario
   - Corregido el cálculo de saldos por medio en Dashboard y capital disponible neto.
   - Libro Diario ahora registra capital inicial e inyecciones por medio real y respeta filtros.
@@ -213,7 +218,42 @@
   - `src/pages/Pagos.tsx` - Filtrado visual de pagos por `user.name` si es operador
   - `src/pages/Gastos.tsx` - Filtrado visual de gastos y mantenimientos por `user.name` si es operador
 
-### 10. Funcionalidades Implementadas Previamente
+### 10. Correcciones de Saldos Dashboard y Libro Diario (2025-11-13)
+- ✅ **Problema resuelto:** Desfase entre saldos mostrados en Dashboard y Libro Diario
+  - **Causa:** El Libro Diario registraba todo el capital inicial e inyecciones como "efectivo", inflando artificialmente el saldo de efectivo
+  - **Solución:** Capital inicial e inyecciones/retiros ahora se registran por medio de pago real (efectivo, Nequi, Daviplata)
+  - Cada movimiento de capital genera registros separados por cada medio de pago con monto > 0
+- ✅ **Dashboard corregido:**
+  - Tarjeta "Capital" ahora muestra capital disponible neto (suma de saldos por medio de pago)
+  - Saldos por medio de pago calculados correctamente usando la misma lógica del Libro Diario
+  - Coinciden exactamente con los valores del Libro Diario
+- ✅ **Libro Diario mejorado:**
+  - Filtros aplicados correctamente: resumen histórico completo, Libro Diario filtrable por rango
+  - Por defecto muestra movimientos del día actual ("Hoy")
+  - Exportación a Excel (`.xlsx`) con todos los detalles: fecha, hora, tipo, concepto, monto, medio de pago, cliente/plan, saldos acumulados
+- ✅ Implementado en:
+  - `src/pages/Dashboard.tsx` - Cálculo correcto de saldos y capital disponible
+  - `src/pages/Capital.tsx` - Registro de movimientos por medio real, filtros, exportación Excel
+- 📝 **Commits:** `77bf099`, `56f7a10`
+
+### 11. Mensaje WhatsApp Editable y Filtro por Defecto en Pagos (2025-11-13)
+- ✅ **Mensaje WhatsApp completamente editable:**
+  - **Antes:** Solo se podía editar la hora de recogida, el mensaje era de solo lectura
+  - **Ahora:** El mensaje completo es editable en un textarea antes de enviarlo
+  - Se carga automáticamente la plantilla con todos los datos (fecha, hora, cliente, plan, dirección, recogida, etc.)
+  - El usuario puede modificar cualquier parte del mensaje antes de abrir WhatsApp
+  - Si cambia la hora de recogida, el mensaje se regenera automáticamente (pero puede seguir editándolo)
+- ✅ **Filtro por defecto en Pagos:**
+  - **Antes:** Mostraba todos los pagos desde el principio (`tipo: 'todos'`)
+  - **Ahora:** Muestra por defecto solo los pagos del día actual (`tipo: 'hoy'`)
+  - Fechas iniciales configuradas para inicio y fin del día actual (00:00:00 - 23:59:59)
+  - El usuario puede cambiar el filtro a "Todos", "Ayer" o rango personalizado si lo necesita
+- ✅ Implementado en:
+  - `src/components/ModalWhatsApp.tsx` - Textarea editable para mensaje completo
+  - `src/pages/Pagos.tsx` - Filtro por defecto cambiado a "Hoy"
+- 📝 **Commit:** `588b1eb`
+
+### 12. Funcionalidades Implementadas Previamente
 
 #### Registro de Usuarios en Acciones
 - ✅ Nombres de usuarios registrados en:
@@ -258,16 +298,19 @@
 - `src/components/GestorUsuarios.tsx` - Formulario de permisos actualizado, operadores pueden editar permisos
 - `src/components/ModalMantenimiento.tsx` - Restricción de medios de pago para operadores, ocultar saldos para operadores
 - `src/components/ModalCliente.tsx` - **ACTUALIZADO:** Importación de contactos desde celular, manejo de múltiples números telefónicos, corrección de ubicación GPS opcional, mensaje de ayuda para ubicación, mejoras en validación y manejo de errores, validación visual de números telefónicos colombianos
+- `src/components/ModalWhatsApp.tsx` - **ACTUALIZADO (2025-11-13):** Mensaje completamente editable en textarea, plantilla se carga automáticamente pero permite edición total antes de enviar
+- `src/components/ModalHistorialMantenimiento.tsx` - Registro de usuarios en mantenimientos
+- `src/components/ModalMantenimiento.tsx` - Restricción de medios de pago para operadores, ocultar saldos disponibles para operadores
 
 ### Páginas
 - `src/pages/InventarioLavadoras.tsx` - Restricciones de UI basadas en permisos
 - `src/pages/Pedidos.tsx` - UI de cards, cronología mejorada, nombres de usuarios
 - `src/pages/Gastos.tsx` - Registro de usuario en gastos, restricción de medios de pago para operadores, filtrado visual por usuario, ocultar saldos disponibles para operadores
-- `src/pages/Pagos.tsx` - Registro de usuario en pagos, filtrado visual por usuario
+- `src/pages/Pagos.tsx` - **ACTUALIZADO (2025-11-13):** Registro de usuario en pagos, filtrado visual por usuario, filtro por defecto cambiado a "Hoy" (solo pagos del día actual)
+- `src/pages/Dashboard.tsx` - **ACTUALIZADO (2025-11-13):** Cálculo correcto de saldos por medio de pago y capital disponible neto, alineado con Libro Diario
+- `src/pages/Capital.tsx` - **ACTUALIZADO (2025-11-13):** Registro de movimientos por medio de pago real, filtros aplicados correctamente, exportación a Excel del Libro Diario
 - `src/pages/Operadores.tsx` - **NUEVA:** Página completa con cards de operadores, modal detallado, filtros avanzados (fecha y tipo de acción), resumen financiero destacado y visualización detallada por tipo de acción, **arqueo solo efectivo**
 - `src/pages/Reportes.tsx` - Reporte de arqueo removido (movido a Operadores)
-- `src/components/ModalHistorialMantenimiento.tsx` - Registro de usuarios en mantenimientos
-- `src/components/ModalMantenimiento.tsx` - Restricción de medios de pago para operadores, ocultar saldos disponibles para operadores
 
 ### Layout y Routing
 - `src/components/Layout.tsx` - Opción "Auditoría" oculta del menú (comentada), nueva opción "Operadores" agregada
@@ -309,8 +352,13 @@
 ## Deployment
 - URL de producción: https://global-da5ac.web.app
 - Firebase Console: https://console.firebase.google.com/project/global-da5ac/overview
-- Último deploy: 2025-01-28 (Validación y formateo mejorado de números telefónicos colombianos)
-- Último commit: 3c4271f - "feat: Mejorar validación y formateo de números telefónicos colombianos"
+- Último deploy: 2025-11-13 (Mensaje WhatsApp editable + Filtro por defecto en Pagos)
+- Último commit: `588b1eb` - "feat: mensaje WhatsApp editable y filtro por defecto hoy en pagos"
+- Commits recientes desplegados:
+  - `588b1eb` - Mensaje WhatsApp editable y filtro por defecto hoy en pagos
+  - `77bf099` - Alinear capital y saldos con libro diario
+  - `56f7a10` - Exportar libro diario en excel
+  - `7841bdf` - Actualizar notas del proyecto con correcciones de saldos y exportación excel
 
 ## Flujo de Trabajo con Git
 

@@ -15,6 +15,7 @@ import {
 import { pedidoService, gastoService } from '../services/firebaseService';
 import { obtenerTodosLosMantenimientos } from '../services/mantenimientoService';
 import { usuarioService } from '../services/usuarioService';
+import { modificacionesService } from '../services/modificacionesService';
 import { Pedido, Gasto, Mantenimiento, PagoRealizado, ModificacionServicio } from '../types';
 import { formatDate, formatCurrency, getCurrentDateColombia } from '../utils/dateUtils';
 
@@ -71,7 +72,24 @@ const Operadores: React.FC = () => {
     try {
       // Cargar TODOS los pedidos para poder filtrar por operador
       const todosLosPedidos = await pedidoService.getAllPedidos();
-      setPedidos(todosLosPedidos);
+      
+      // Cargar modificaciones para cada pedido
+      const pedidosConModificaciones = await Promise.all(
+        todosLosPedidos.map(async (pedido) => {
+          try {
+            const modificaciones = await modificacionesService.obtenerModificacionesPorPedido(pedido.id);
+            return {
+              ...pedido,
+              modificacionesServicio: modificaciones
+            };
+          } catch (error) {
+            console.error(`Error cargando modificaciones para pedido ${pedido.id}:`, error);
+            return pedido;
+          }
+        })
+      );
+      
+      setPedidos(pedidosConModificaciones);
 
       // Cargar todos los gastos
       const fechaLimite = new Date();
@@ -330,31 +348,50 @@ const Operadores: React.FC = () => {
         break;
 
       case 'entregados':
-        pedidosFiltrados = pedidos.filter(pedido => 
-          pedido.entregadoPor === operadorSeleccionado &&
-          pedido.fechaEntrega &&
-          pedido.fechaEntrega >= fechaInicio &&
-          pedido.fechaEntrega <= fechaFin
-        );
+        pedidosFiltrados = pedidos.filter(pedido => {
+          if (pedido.entregadoPor === operadorSeleccionado && pedido.fechaEntrega) {
+            const fechaEntregaNormalizada = new Date(pedido.fechaEntrega);
+            fechaEntregaNormalizada.setHours(0, 0, 0, 0);
+            return fechaEntregaNormalizada >= fechaInicio && fechaEntregaNormalizada <= fechaFin;
+          }
+          return false;
+        });
         break;
 
       case 'recogidos':
-        pedidosFiltrados = pedidos.filter(pedido => 
-          pedido.recogidoPor === operadorSeleccionado &&
-          pedido.fechaRecogida &&
-          pedido.fechaRecogida >= fechaInicio &&
-          pedido.fechaRecogida <= fechaFin
-        );
+        pedidosFiltrados = pedidos.filter(pedido => {
+          if (pedido.recogidoPor === operadorSeleccionado && pedido.fechaRecogida) {
+            const fechaRecogidaNormalizada = new Date(pedido.fechaRecogida);
+            fechaRecogidaNormalizada.setHours(0, 0, 0, 0);
+            return fechaRecogidaNormalizada >= fechaInicio && fechaRecogidaNormalizada <= fechaFin;
+          }
+          return false;
+        });
         break;
 
       case 'modificaciones':
         pedidos.forEach(pedido => {
           if (pedido.modificacionesServicio && pedido.modificacionesServicio.length > 0) {
             pedido.modificacionesServicio.forEach(mod => {
-              const fechaMod = mod.fecha;
+              // Convertir fecha correctamente (puede venir como Timestamp de Firebase o Date)
+              let fechaMod: Date;
+              if (mod.fecha instanceof Date) {
+                fechaMod = mod.fecha;
+              } else if ((mod.fecha as any)?.toDate) {
+                fechaMod = (mod.fecha as any).toDate();
+              } else if (mod.fecha) {
+                fechaMod = new Date(mod.fecha);
+              } else {
+                return; // Si no hay fecha, saltar esta modificación
+              }
+
+              // Normalizar fecha (poner horas a 0 para comparar solo por día)
+              const fechaModNormalizada = new Date(fechaMod);
+              fechaModNormalizada.setHours(0, 0, 0, 0);
+
               if (mod.aplicadoPor === operadorSeleccionado &&
-                  fechaMod >= fechaInicio &&
-                  fechaMod <= fechaFin) {
+                  fechaModNormalizada >= fechaInicio &&
+                  fechaModNormalizada <= fechaFin) {
                 modificaciones.push({ pedido, modificacion: mod });
               }
             });
@@ -445,9 +482,21 @@ const Operadores: React.FC = () => {
           if (pedido.modificacionesServicio) {
             pedido.modificacionesServicio.forEach(mod => {
               if (mod.aplicadoPor === operadorSeleccionado) {
-                const fechaMod = new Date(mod.fecha);
-                fechaMod.setHours(0, 0, 0, 0);
-                if (fechaMod >= fechaInicio && fechaMod <= fechaFin) {
+                // Convertir fecha correctamente (puede venir como Timestamp de Firebase o Date)
+                let fechaMod: Date;
+                if (mod.fecha instanceof Date) {
+                  fechaMod = mod.fecha;
+                } else if ((mod.fecha as any)?.toDate) {
+                  fechaMod = (mod.fecha as any).toDate();
+                } else if (mod.fecha) {
+                  fechaMod = new Date(mod.fecha);
+                } else {
+                  return; // Si no hay fecha, saltar esta modificación
+                }
+
+                const fechaModNormalizada = new Date(fechaMod);
+                fechaModNormalizada.setHours(0, 0, 0, 0);
+                if (fechaModNormalizada >= fechaInicio && fechaModNormalizada <= fechaFin) {
                   modificaciones.push({ pedido, modificacion: mod });
                 }
               }

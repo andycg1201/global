@@ -103,11 +103,15 @@ const Pedidos: React.FC = () => {
   const [filtros, setFiltros] = useState<FiltrosPedidos>({
     fechaInicio: (() => {
       const hoy = getCurrentDateColombia();
-      return hoy;
+      const fechaNormalizada = new Date(hoy);
+      fechaNormalizada.setHours(0, 0, 0, 0);
+      return fechaNormalizada;
     })(),
     fechaFin: (() => {
       const hoy = getCurrentDateColombia();
-      return hoy;
+      const fechaNormalizada = new Date(hoy);
+      fechaNormalizada.setHours(23, 59, 59, 999);
+      return fechaNormalizada;
     })(),
     estado: 'todos',
     tipoFiltro: 'hoy'
@@ -177,9 +181,30 @@ const Pedidos: React.FC = () => {
       const fechaFin = new Date(filtros.fechaFin);
       fechaFin.setHours(23, 59, 59, 999);
       
+      console.log('📅 Filtros de fecha aplicados:', {
+        fechaInicio: fechaInicio.toISOString(),
+        fechaFin: fechaFin.toISOString(),
+        fechaInicioLocal: fechaInicio.toLocaleString('es-CO', { timeZone: 'America/Bogota' }),
+        fechaFinLocal: fechaFin.toLocaleString('es-CO', { timeZone: 'America/Bogota' })
+      });
+      
       const pedidosFiltradosPorFecha = pedidosConModificaciones.filter(pedido => {
-        const fechaPedido = new Date(pedido.fechaAsignacion);
-        const dentroDelRango = fechaPedido >= fechaInicio && fechaPedido <= fechaFin;
+        // Convertir fecha del pedido correctamente (puede ser Date, Timestamp o string)
+        let fechaPedido: Date;
+        if (pedido.fechaAsignacion instanceof Date) {
+          fechaPedido = pedido.fechaAsignacion;
+        } else if ((pedido.fechaAsignacion as any)?.toDate) {
+          fechaPedido = (pedido.fechaAsignacion as any).toDate();
+        } else {
+          fechaPedido = new Date(pedido.fechaAsignacion);
+        }
+        
+        // Normalizar fecha del pedido a inicio del día para comparar solo por fecha
+        const fechaPedidoNormalizada = new Date(fechaPedido);
+        fechaPedidoNormalizada.setHours(0, 0, 0, 0);
+        
+        // Comparar solo por fecha (ignorar hora)
+        const dentroDelRango = fechaPedidoNormalizada >= fechaInicio && fechaPedidoNormalizada <= fechaFin;
         
         return dentroDelRango;
       });
@@ -349,21 +374,43 @@ const Pedidos: React.FC = () => {
   }, [pedidos, filtros, busqueda]);
 
   const aplicarFiltroRapido = (tipo: 'hoy' | 'ayer' | 'semana') => {
-    const hoy = getCurrentDateColombia();
-    const ayer = new Date(hoy);
+    const hoyBase = getCurrentDateColombia();
+    
+    // Normalizar fecha de hoy
+    const hoy = new Date(hoyBase);
+    hoy.setHours(0, 0, 0, 0);
+    const hoyFin = new Date(hoyBase);
+    hoyFin.setHours(23, 59, 59, 999);
+    
+    // Normalizar fecha de ayer
+    const ayer = new Date(hoyBase);
     ayer.setDate(ayer.getDate() - 1);
-    const semanaAtras = new Date(hoy);
+    ayer.setHours(0, 0, 0, 0);
+    const ayerFin = new Date(ayer);
+    ayerFin.setHours(23, 59, 59, 999);
+    
+    // Normalizar fecha de semana atrás
+    const semanaAtras = new Date(hoyBase);
     semanaAtras.setDate(semanaAtras.getDate() - 7);
+    semanaAtras.setHours(0, 0, 0, 0);
+
+    console.log('📅 Aplicando filtro rápido:', {
+      tipo,
+      hoy: hoy.toLocaleString('es-CO', { timeZone: 'America/Bogota' }),
+      hoyFin: hoyFin.toLocaleString('es-CO', { timeZone: 'America/Bogota' }),
+      ayer: ayer.toLocaleString('es-CO', { timeZone: 'America/Bogota' }),
+      ayerFin: ayerFin.toLocaleString('es-CO', { timeZone: 'America/Bogota' })
+    });
 
     switch (tipo) {
       case 'hoy':
-        setFiltros(prev => ({ ...prev, fechaInicio: hoy, fechaFin: hoy, tipoFiltro: 'hoy' }));
+        setFiltros(prev => ({ ...prev, fechaInicio: hoy, fechaFin: hoyFin, tipoFiltro: 'hoy' }));
         break;
       case 'ayer':
-        setFiltros(prev => ({ ...prev, fechaInicio: ayer, fechaFin: ayer, tipoFiltro: 'ayer' }));
+        setFiltros(prev => ({ ...prev, fechaInicio: ayer, fechaFin: ayerFin, tipoFiltro: 'ayer' }));
         break;
       case 'semana':
-        setFiltros(prev => ({ ...prev, fechaInicio: semanaAtras, fechaFin: hoy, tipoFiltro: 'semana' }));
+        setFiltros(prev => ({ ...prev, fechaInicio: semanaAtras, fechaFin: hoyFin, tipoFiltro: 'semana' }));
         break;
     }
   };
@@ -1227,11 +1274,17 @@ const Pedidos: React.FC = () => {
               type="date"
               className="input"
               value={filtros.fechaInicio.toISOString().split('T')[0]}
-              onChange={(e) => setFiltros(prev => ({ 
-                ...prev, 
-                fechaInicio: new Date(e.target.value),
-                tipoFiltro: 'personalizado'
-              }))}
+              onChange={(e) => {
+                // Crear fecha en zona horaria local (no UTC)
+                const fechaValue = e.target.value; // Formato: YYYY-MM-DD
+                const [year, month, day] = fechaValue.split('-').map(Number);
+                const fechaLocal = new Date(year, month - 1, day, 0, 0, 0, 0);
+                setFiltros(prev => ({ 
+                  ...prev, 
+                  fechaInicio: fechaLocal,
+                  tipoFiltro: 'personalizado'
+                }));
+              }}
               />
             </div>
           
@@ -1243,11 +1296,17 @@ const Pedidos: React.FC = () => {
               type="date"
               className="input"
               value={filtros.fechaFin.toISOString().split('T')[0]}
-              onChange={(e) => setFiltros(prev => ({ 
-                ...prev, 
-                fechaFin: new Date(e.target.value),
-                tipoFiltro: 'personalizado'
-              }))}
+              onChange={(e) => {
+                // Crear fecha en zona horaria local (no UTC)
+                const fechaValue = e.target.value; // Formato: YYYY-MM-DD
+                const [year, month, day] = fechaValue.split('-').map(Number);
+                const fechaLocal = new Date(year, month - 1, day, 23, 59, 59, 999);
+                setFiltros(prev => ({ 
+                  ...prev, 
+                  fechaFin: fechaLocal,
+                  tipoFiltro: 'personalizado'
+                }));
+              }}
             />
           </div>
 

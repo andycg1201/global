@@ -105,6 +105,7 @@ const EditarPedido: React.FC<EditarPedidoProps> = ({ pedido, onClose, onSave }) 
         ...pedido,
         cliente: formData.cliente,
         plan: formData.plan,
+        planId: formData.plan.id, // ✅ Actualizar también planId para que los filtros funcionen correctamente
         horasAdicionales: formData.horasAdicionales,
         paymentMethod: formData.paymentMethod,
         descuentos: formData.descuentos,

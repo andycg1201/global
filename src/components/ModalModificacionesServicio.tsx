@@ -270,11 +270,15 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
         }
       }
 
-      // Calcular total final del servicio
+      // Calcular total de modificaciones (incluyendo diferencia del cambio de plan)
       const totalModificaciones = (modificacion.totalHorasExtras || 0) + 
         (modificacion.totalCobrosAdicionales || 0) - 
-        (modificacion.totalDescuentos || 0);
-      const totalFinalServicio = precioPlanFinal + totalModificaciones;
+        (modificacion.totalDescuentos || 0) +
+        diferenciaReal; // ✅ Incluir diferencia del cambio de plan
+      
+      // Calcular total final: precio del plan original + todas las modificaciones (incluyendo diferencia del cambio de plan)
+      const precioPlanOriginal = Number(pedido.plan.price) || 0;
+      const totalFinalServicio = precioPlanOriginal + totalModificaciones;
 
       // Preparar datos para Firebase (sin campos undefined)
       const modificacionCompleta: any = {
@@ -375,6 +379,7 @@ const ModalModificacionesServicio: React.FC<ModalModificacionesServicioProps> = 
           
           await pedidoService.updatePedido(pedido.id, {
             plan: nuevoPlan,
+            planId: nuevoPlan.id, // ✅ Actualizar también planId para que los filtros funcionen correctamente
             subtotal: nuevoPlan.price,
             total: totalFinalServicio, // El total incluye el plan + modificaciones
             fechaRecogidaCalculada: fechaRecogidaCalculada // Actualizar fecha de recogida

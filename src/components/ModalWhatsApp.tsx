@@ -4,6 +4,28 @@ import { Pedido } from '../types';
 import { formatDate } from '../utils/dateUtils';
 import { configService } from '../services/firebaseService';
 
+// Plantilla por defecto del mensaje de WhatsApp
+const PLANTILLA_MENSAJE_WHATSAPP_DEFECTO = `*¡Lavadora entregada!* ✅
+
+📅 *Fecha:* {FECHA_ENTREGA}
+🕐 *Hora:* {HORA_ENTREGA}
+
+📋 *Detalles del servicio:*
+• {DESCRIPCION_PLAN}
+• Dirección: {DIRECCION}
+
+⏰ *Recogida programada:*
+📅 Fecha: {FECHA_RECOGIDA}
+🕐 Hora: {HORA_RECOGIDA}
+
+💰 *¿Necesitas más tiempo?*
+• Hora adicional: {PRECIO_HORA_ADICIONAL}
+• Confirma con anticipación
+• Contacto: {TELEFONO_CONTACTO}
+
+Muchas gracias por utilizar nuestros servicios
+LAVADORAS GLOBAL`;
+
 interface ModalWhatsAppProps {
   isOpen: boolean;
   onClose: () => void;
@@ -20,6 +42,7 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
   const [mensajeEditable, setMensajeEditable] = useState<string>('');
   const [telefonoContacto, setTelefonoContacto] = useState<string>('+573105988735'); // Valor por defecto
   const [horaAdicional, setHoraAdicional] = useState<number>(2000); // Valor por defecto
+  const [plantillaMensaje, setPlantillaMensaje] = useState<string>(''); // Plantilla desde configuración
 
   React.useEffect(() => {
     if (pedido && isOpen) {
@@ -30,9 +53,15 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
           if (config) {
             setTelefonoContacto(config.telefonoContacto || '+573105988735');
             setHoraAdicional(config.horaAdicional || 2000);
+            setPlantillaMensaje(config.plantillaMensajeWhatsApp || PLANTILLA_MENSAJE_WHATSAPP_DEFECTO);
+          } else {
+            // Si no hay configuración, usar valores por defecto
+            setPlantillaMensaje(PLANTILLA_MENSAJE_WHATSAPP_DEFECTO);
           }
         } catch (error) {
           console.error('Error al cargar configuración:', error);
+          // En caso de error, usar plantilla por defecto
+          setPlantillaMensaje(PLANTILLA_MENSAJE_WHATSAPP_DEFECTO);
         }
       };
       cargarConfiguracion();
@@ -59,7 +88,7 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
     if (pedido) {
       setMensajeEditable(generarMensaje());
     }
-  }, [horaRecogida, pedido, telefonoContacto, horaAdicional]);
+  }, [horaRecogida, pedido, telefonoContacto, horaAdicional, plantillaMensaje]);
 
   // Función para calcular fecha y hora de recogida correctamente
   const calcularFechaHoraRecogida = (fechaEntrega: Date, planName: string): Date => {
@@ -228,21 +257,20 @@ const ModalWhatsApp: React.FC<ModalWhatsAppProps> = ({ isOpen, onClose, pedido, 
       minimumFractionDigits: 0
     }).format(horaAdicional);
     
-    let mensaje = `*¡Lavadora entregada!* ✅\n\n`;
-    mensaje += `📅 *Fecha:* ${fechaEntrega}\n`;
-    mensaje += `🕐 *Hora:* ${horaEntrega}\n\n`;
-    mensaje += `📋 *Detalles del servicio:*\n`;
-    mensaje += `• ${descripcionPlan}\n`;
-    mensaje += `• Dirección: ${pedido.cliente.address}\n\n`;
-    mensaje += `⏰ *Recogida programada:*\n`;
-    mensaje += `📅 Fecha: ${fechaRecogida}\n`;
-    mensaje += `🕐 Hora: ${horaRecogidaTexto}\n\n`;
-    mensaje += `💰 *¿Necesitas más tiempo?*\n`;
-    mensaje += `• Hora adicional: ${precioFormateado}\n`;
-    mensaje += `• Confirma con anticipación\n`;
-    mensaje += `• Contacto: ${telefonoContacto}\n\n`;
-    mensaje += `Muchas gracias por utilizar nuestros servicios\n`;
-    mensaje += `LAVADORAS GLOBAL`;
+    // Usar plantilla desde configuración o la por defecto
+    const plantilla = plantillaMensaje.trim() || PLANTILLA_MENSAJE_WHATSAPP_DEFECTO;
+    
+    // Reemplazar variables en la plantilla
+    let mensaje = plantilla
+      .replace(/{NOMBRE_CLIENTE}/g, pedido.cliente.name)
+      .replace(/{FECHA_ENTREGA}/g, fechaEntrega)
+      .replace(/{HORA_ENTREGA}/g, horaEntrega)
+      .replace(/{FECHA_RECOGIDA}/g, fechaRecogida)
+      .replace(/{HORA_RECOGIDA}/g, horaRecogidaTexto)
+      .replace(/{DESCRIPCION_PLAN}/g, descripcionPlan)
+      .replace(/{DIRECCION}/g, pedido.cliente.address)
+      .replace(/{PRECIO_HORA_ADICIONAL}/g, precioFormateado)
+      .replace(/{TELEFONO_CONTACTO}/g, telefonoContacto);
     
     return mensaje;
   };

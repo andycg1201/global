@@ -15,6 +15,28 @@ import { formatCurrency, formatColombianPhone, isValidColombianCellphone } from 
 import GestorUsuarios from '../components/GestorUsuarios';
 import { useAuth } from '../contexts/AuthContext';
 
+// Plantilla por defecto del mensaje de WhatsApp
+const PLANTILLA_MENSAJE_WHATSAPP_DEFECTO = `*¡Lavadora entregada!* ✅
+
+📅 *Fecha:* {FECHA_ENTREGA}
+🕐 *Hora:* {HORA_ENTREGA}
+
+📋 *Detalles del servicio:*
+• {DESCRIPCION_PLAN}
+• Dirección: {DIRECCION}
+
+⏰ *Recogida programada:*
+📅 Fecha: {FECHA_RECOGIDA}
+🕐 Hora: {HORA_RECOGIDA}
+
+💰 *¿Necesitas más tiempo?*
+• Hora adicional: {PRECIO_HORA_ADICIONAL}
+• Confirma con anticipación
+• Contacto: {TELEFONO_CONTACTO}
+
+Muchas gracias por utilizar nuestros servicios
+LAVADORAS GLOBAL`;
+
 const Configuracion: React.FC = () => {
   const { esAdmin } = useAuth();
   const [configuracion, setConfiguracion] = useState<Configuracion | null>(null);
@@ -35,7 +57,8 @@ const Configuracion: React.FC = () => {
   
   const [formData, setFormData] = useState({
     horaAdicional: 2000,
-    telefonoContacto: '+573105988735'
+    telefonoContacto: '+573105988735',
+    plantillaMensajeWhatsApp: PLANTILLA_MENSAJE_WHATSAPP_DEFECTO
   });
 
   const [formularioPlan, setFormularioPlan] = useState({
@@ -61,7 +84,8 @@ const Configuracion: React.FC = () => {
         setConfiguracion(config);
         setFormData({
           horaAdicional: config.horaAdicional,
-          telefonoContacto: config.telefonoContacto || '+573105988735'
+          telefonoContacto: config.telefonoContacto || '+573105988735',
+          plantillaMensajeWhatsApp: config.plantillaMensajeWhatsApp || PLANTILLA_MENSAJE_WHATSAPP_DEFECTO
         });
       }
       
@@ -328,6 +352,38 @@ const Configuracion: React.FC = () => {
               <p className="text-xs text-gray-500">
                 Este número aparecerá en los mensajes de WhatsApp cuando se entregue una lavadora
               </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Plantilla de Mensaje WhatsApp para Entrega
+            </label>
+            <div className="space-y-2">
+              <textarea
+                rows={12}
+                className="input-field font-mono text-sm"
+                value={formData.plantillaMensajeWhatsApp}
+                onChange={(e) => setFormData(prev => ({ ...prev, plantillaMensajeWhatsApp: e.target.value }))}
+                placeholder="Plantilla del mensaje que se enviará a los clientes..."
+              />
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs font-medium text-blue-800 mb-2">Variables disponibles:</p>
+                <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
+                  <li><code>{'{NOMBRE_CLIENTE}'}</code> - Nombre del cliente</li>
+                  <li><code>{'{FECHA_ENTREGA}'}</code> - Fecha de entrega (dd/MM/yyyy)</li>
+                  <li><code>{'{HORA_ENTREGA}'}</code> - Hora de entrega (HH:mm)</li>
+                  <li><code>{'{FECHA_RECOGIDA}'}</code> - Fecha de recogida programada (dd/MM/yyyy)</li>
+                  <li><code>{'{HORA_RECOGIDA}'}</code> - Hora de recogida programada (HH:mm)</li>
+                  <li><code>{'{DESCRIPCION_PLAN}'}</code> - Descripción del plan de servicio</li>
+                  <li><code>{'{DIRECCION}'}</code> - Dirección del cliente</li>
+                  <li><code>{'{PRECIO_HORA_ADICIONAL}'}</code> - Precio formateado de hora adicional</li>
+                  <li><code>{'{TELEFONO_CONTACTO}'}</code> - Teléfono de contacto</li>
+                </ul>
+                <p className="text-xs text-blue-600 mt-2">
+                  Si no se configura una plantilla, se usará la plantilla por defecto del sistema.
+                </p>
+              </div>
             </div>
           </div>
 

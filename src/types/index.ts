@@ -473,6 +473,7 @@ export interface Configuracion {
   id: string;
   horaAdicional: number; // precio por hora adicional
   telefonoContacto: string; // número de teléfono para contacto en mensajes WhatsApp
+  plantillaMensajeWhatsApp?: string; // plantilla del mensaje de WhatsApp para entrega de lavadora
   horarioTrabajo: {
     inicio: string; // "07:00"
     fin: string; // "19:00"

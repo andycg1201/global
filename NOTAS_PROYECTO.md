@@ -1,7 +1,20 @@
 # Notas del Proyecto - Sistema de Gestión de Lavadoras
 
 ## Estado Actual del Proyecto
-Última actualización: 2025-01-28 (Validación y formateo mejorado de números telefónicos colombianos)
+Última actualización: 2025-11-13 (Correcciones de saldos Dashboard/Libro Diario + exportación Excel)
+
+### Resumen rápido (2025-11-13)
+- 📊 Dashboard y Libro Diario alineados: saldos por medio de pago y capital disponible calculados con los montos reales (capital inicial + inyecciones + pagos – retiros – gastos).
+- 🧾 Libro Diario: movimientos filtrables por rango, resumen histórico intacto y exportación directa a Excel con medios de pago y saldos acumulados.
+- 🚀 Despliegue a producción realizado: `firebase deploy --only hosting` sobre `global-da5ac`.
+
+#### Commits clave
+- `77bf099` – fix: alinear capital y saldos con libro diario
+  - Corregido el cálculo de saldos por medio en Dashboard y capital disponible neto.
+  - Libro Diario ahora registra capital inicial e inyecciones por medio real y respeta filtros.
+- `56f7a10` – feat: exportar libro diario en excel
+  - Exportación de movimientos a `.xlsx` usando `xlsx`.
+  - Actualización de `.firebase/hosting.ZGlzdA.cache` tras el build/deploy.
 
 ## Cambios Recientes Implementados
 

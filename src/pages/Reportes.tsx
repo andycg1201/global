@@ -55,6 +55,38 @@ const Reportes: React.FC = () => {
     total: 0
   });
 
+  /**
+   * Formatea una fecha a 'YYYY-MM-DD' en zona horaria local para inputs type=\"date\"
+   * evitando el desfase al usar toISOString() (UTC).
+   */
+  const formatDateInputLocal = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  /**
+   * Obtiene el plan \"efectivo\" de un pedido: el plan que debe usarse hoy para reportes.
+   * - Prioriza planId (campo confiable)
+   * - Luego pedido.plan?.id
+   * - Como último recurso, intenta mapear por nombre de plan contra la lista de planes activos.
+   */
+  const getPlanIdEfectivo = (pedido: Pedido): string | null => {
+    if (pedido.planId) return pedido.planId;
+    if (pedido.plan?.id) return pedido.plan.id;
+
+    if (pedido.plan?.name && planes.length > 0) {
+      const nombrePedido = pedido.plan.name.trim().toUpperCase();
+      const planCoincidente = planes.find(p => p.name.trim().toUpperCase() === nombrePedido);
+      if (planCoincidente) {
+        return planCoincidente.id;
+      }
+    }
+
+    return null;
+  };
+
   useEffect(() => {
     cargarDatosIniciales();
   }, []);
@@ -146,6 +178,7 @@ const Reportes: React.FC = () => {
         }));
       }
       
+      // Partimos de los pedidos dentro del rango de fechas
       let todosLosPedidos = pedidosUnicos;
 
       console.log('🔍 Filtros aplicados:', {
@@ -156,104 +189,41 @@ const Reportes: React.FC = () => {
         fechaFin: filtros.fechaFin
       });
 
-      // Aplicar filtros
+      // Aplicar filtros (estado, plan, cliente) de forma consistente con la página de Pedidos
       if (filtros.estado !== 'todos') {
         todosLosPedidos = todosLosPedidos.filter(p => p.status === filtros.estado);
         console.log('🔍 Filtrado por estado:', filtros.estado, '- Pedidos restantes:', todosLosPedidos.length);
       }
       if (filtros.planId !== 'todos') {
         const selectedPlan = planes.find(p => p.id === filtros.planId);
-        console.log('🔍 Filtrando por plan:', {
+        const nombrePlanSeleccionado = selectedPlan?.name?.trim().toUpperCase() || null;
+
+        console.log('🔍 Filtrando por plan (usando plan efectivo y nombre):', {
           planId: filtros.planId,
-          planName: selectedPlan?.name,
-          totalPlanes: planes.length,
-          planesAvailable: planes.map(p => ({ id: p.id, name: p.name }))
+          planName: selectedPlan?.name
         });
-        console.log('🔍 Pedidos antes del filtro de plan:', todosLosPedidos.length);
-        
-        // Log de los primeros pedidos para debug
-        if (todosLosPedidos.length > 0) {
-          console.log('🔍 Primeros 3 pedidos (plan info):', todosLosPedidos.slice(0, 3).map(p => {
-            const planActualDelPedido = planes.find(pl => pl.id === (p.planId || p.plan?.id));
-            return {
-              id: p.id,
-              cliente: p.cliente?.name,
-              planId: p.planId,
-              planIdFromPlan: p.plan?.id,
-              planNameDelPedido: p.plan?.name,
-              planNameActual: planActualDelPedido?.name,
-              coincide: (p.planId === filtros.planId) || (p.plan?.id === filtros.planId)
-            };
-          }));
-        }
 
-        const pedidosAntesFiltro = [...todosLosPedidos];
         todosLosPedidos = todosLosPedidos.filter(p => {
-          // Verificar tanto planId como plan.id como fallback
-          // Pero priorizar planId ya que es más confiable
-          const planIdDelPedido = p.planId || p.plan?.id;
-          const matchesPlanId = p.planId === filtros.planId;
-          const matchesPlanObject = p.plan?.id === filtros.planId;
-          const matches = matchesPlanId || matchesPlanObject;
-          
-          // Verificar también si el plan actual (desde la lista de planes) coincide
-          // Esto ayuda a detectar inconsistencias
-          const planActualDelPedido = planes.find(pl => pl.id === planIdDelPedido);
-          const matchesPlanActual = planActualDelPedido?.id === filtros.planId;
-          
-          // El pedido pasa el filtro si cualquiera de las verificaciones coincide
-          const pasaFiltro = matches || matchesPlanActual;
-          
-          if (!pasaFiltro && pedidosAntesFiltro.length <= 10) {
-            console.log('❌ Pedido descartado por filtro de plan:', {
-              id: p.id,
-              cliente: p.cliente?.name,
-              planId: p.planId,
-              planIdFromPlan: p.plan?.id,
-              planNameDelPedido: p.plan?.name,
-              planNameActual: planActualDelPedido?.name,
-              filtroPlanId: filtros.planId,
-              filtroPlanName: selectedPlan?.name,
-              matchesPlanId,
-              matchesPlanObject,
-              matchesPlanActual
-            });
-          }
-          
-          return pasaFiltro;
-        });
+          const planIdEfectivo = getPlanIdEfectivo(p);
+          const coincidePorId = planIdEfectivo === filtros.planId;
 
-        console.log('🔍 Filtrado por plan:', filtros.planId, '- Pedidos restantes:', todosLosPedidos.length);
-        
-        // Log de los pedidos que pasaron el filtro
-        if (todosLosPedidos.length > 0 && todosLosPedidos.length <= 10) {
-          console.log('✅ Pedidos que pasaron el filtro de plan:', todosLosPedidos.map(p => {
-            const planActualDelPedido = planes.find(pl => pl.id === (p.planId || p.plan?.id));
-            return {
-              id: p.id,
-              cliente: p.cliente?.name,
-              planId: p.planId,
-              planIdFromPlan: p.plan?.id,
-              planNameDelPedido: p.plan?.name,
-              planNameActual: planActualDelPedido?.name
-            };
-          }));
-        }
-        
-        // Si no hay resultados pero había pedidos antes del filtro, mostrar planes disponibles
-        if (todosLosPedidos.length === 0 && pedidosUnicos.length > 0) {
-          console.log('⚠️ No se encontraron pedidos con el plan seleccionado. Verificando planes disponibles:');
-          const planesUnicos = [...new Set(pedidosUnicos.map(p => {
-            const planActual = planes.find(pl => pl.id === (p.planId || p.plan?.id));
-            return {
-              planId: p.planId,
-              planIdFromPlan: p.plan?.id,
-              planNameDelPedido: p.plan?.name,
-              planNameActual: planActual?.name
-            };
-          }))];
-          console.log('📋 Planes disponibles en los pedidos:', planesUnicos);
-        }
+          // Fallback por nombre, para pedidos antiguos o con datos inconsistentes
+          let coincidePorNombre = false;
+          if (nombrePlanSeleccionado) {
+            const planDesdeListado = planIdEfectivo
+              ? planes.find(pl => pl.id === planIdEfectivo)
+              : undefined;
+            const nombreDesdeListado = planDesdeListado?.name?.trim().toUpperCase();
+            const nombreDesdePedido = p.plan?.name?.trim().toUpperCase();
+
+            coincidePorNombre =
+              nombreDesdeListado === nombrePlanSeleccionado ||
+              nombreDesdePedido === nombrePlanSeleccionado;
+          }
+
+          return coincidePorId || coincidePorNombre;
+        });
+        console.log('🔍 Pedidos restantes después de filtro de plan:', todosLosPedidos.length);
       }
       if (filtros.clienteId !== 'todos') {
         todosLosPedidos = todosLosPedidos.filter(p => p.clienteId === filtros.clienteId);
@@ -263,9 +233,9 @@ const Reportes: React.FC = () => {
       setPedidos(todosLosPedidos);
       console.log('✅ Pedidos establecidos en estado');
 
-      // Calcular análisis de planes y modificaciones
-      console.log('🔄 Iniciando cálculo de análisis de planes...');
-      await calcularAnalisisPlanes(todosLosPedidos, filtros.planId);
+      // Calcular análisis de planes y modificaciones en base a los pedidos YA filtrados
+      console.log('🔄 Iniciando cálculo de análisis de planes (sobre pedidos filtrados)...');
+      await calcularAnalisisPlanes(todosLosPedidos);
       console.log('✅ Análisis de planes completado');
 
       // Cargar gastos del rango de fechas
@@ -296,9 +266,9 @@ const Reportes: React.FC = () => {
     }
   };
 
-  const calcularAnalisisPlanes = async (pedidosFiltrados: Pedido[], planIdFiltro?: string) => {
+  const calcularAnalisisPlanes = async (pedidosFiltrados: Pedido[]) => {
     try {
-      console.log('🔄 Calculando análisis de planes para', pedidosFiltrados.length, 'pedidos', planIdFiltro !== 'todos' && planIdFiltro ? `(filtrado por plan: ${planIdFiltro})` : '');
+      console.log('🔄 Calculando análisis de planes para', pedidosFiltrados.length, 'pedidos (ya filtrados por fecha/plan/cliente/estado)');
       
       // Filtrar pedidos válidos (no eliminados, no cancelados) y únicos
       const pedidosValidos = pedidosFiltrados.filter(p => !p.eliminado && p.status !== 'cancelado');
@@ -309,99 +279,72 @@ const Reportes: React.FC = () => {
         return acc;
       }, [] as Pedido[]);
 
-      console.log('📊 Pedidos válidos para análisis:', pedidosUnicos.length);
+      console.log('📊 Pedidos válidos para análisis (sin eliminados/cancelados):', pedidosUnicos.length);
 
-      // Si hay un filtro de plan activo, obtener la información del plan desde la lista de planes
-      let planFiltrado: Plan | undefined;
-      if (planIdFiltro && planIdFiltro !== 'todos') {
-        planFiltrado = planes.find(p => p.id === planIdFiltro);
-        if (planFiltrado) {
-          console.log('🎯 Filtro de plan activo:', {
-            planId: planFiltrado.id,
-            planName: planFiltrado.name,
-            planPrice: planFiltrado.price
-          });
-        } else {
-          console.warn('⚠️ Plan del filtro no encontrado en la lista de planes:', planIdFiltro);
-        }
-      }
-
-      // Agrupar pedidos por plan
-      const planesMap = new Map();
+      // Agrupar pedidos por plan \"lógico\" (por nombre), para evitar duplicar PLAN 1 con ids distintos
+      const planesMap = new Map<string, any>();
 
       for (const pedido of pedidosUnicos) {
-        // Usar planId del pedido como fuente principal, con fallback a plan.id 
-        const planId = pedido.planId || pedido.plan?.id;
+        // Usar el plan \"efectivo\" del pedido (id actual si existe)
+        const planIdEfectivo = getPlanIdEfectivo(pedido);
 
-        if (!planId) {
+        if (!planIdEfectivo && !pedido.plan?.name) {
           console.warn('⚠️ Pedido sin planId:', pedido.id, pedido);
           continue;
         }
 
-        // Si hay un filtro de plan activo, solo procesar pedidos que coincidan con ese plan
-        if (planIdFiltro && planIdFiltro !== 'todos') {
-          // Verificar que el planId del pedido coincida con el filtro
-          if (planId !== planIdFiltro) {
-            // Verificar también si el plan.id del objeto plan coincide (por si hay inconsistencias)
-            if (pedido.plan?.id !== planIdFiltro) {
-              console.log('⏭️ Pedido omitido (no coincide con filtro de plan):', {
-                pedidoId: pedido.id,
-                cliente: pedido.cliente?.name,
-                planIdDelPedido: planId,
-                planIdDelObjetoPlan: pedido.plan?.id,
-                planIdFiltro
-              });
-              continue;
-            }
-          }
-        }
-
         // Buscar el plan actual desde la lista de planes disponibles (más confiable que pedido.plan)
-        const planActual = planes.find(p => p.id === planId);
+        const planActual = planIdEfectivo ? planes.find(p => p.id === planIdEfectivo) : undefined;
         const planName = planActual?.name || pedido.plan?.name || 'Plan desconocido';
         const planPrice = planActual?.price || pedido.plan?.price || 0;
+        const planNameFinal = planName;
+        const planPriceFinal = planPrice;
 
-        // Si hay un filtro de plan activo, usar la información del plan filtrado para asegurar consistencia
-        const planNameFinal = planFiltrado && planId === planIdFiltro ? planFiltrado.name : planName;
-        const planPriceFinal = planFiltrado && planId === planIdFiltro ? planFiltrado.price : planPrice;
+        // Detectar si el pedido tuvo cambio de plan (modificación) usando modificacionesServicio
+        const fueModificado =
+          Array.isArray(pedido.modificacionesServicio) &&
+          pedido.modificacionesServicio.some((mod: any) => mod.tipo === 'cambioPlan' || mod.cambioPlan);
 
         // Log detallado de cada pedido procesado
         console.log('📋 Procesando pedido para análisis:', {
           pedidoId: pedido.id,
           cliente: pedido.cliente?.name,
-          planId,
+          planId: planIdEfectivo,
           planName: planNameFinal,
           planPrice: planPriceFinal,
           planActualEncontrado: !!planActual,
           planNameDelPedido: pedido.plan?.name,
-          usandoPlanFiltrado: planFiltrado && planId === planIdFiltro
+          fueModificado
         });
 
-        if (!planesMap.has(planId)) {
-          planesMap.set(planId, {
-            planId,
+        // Usar el nombre normalizado como clave lógica para agrupar todos los PLAN 1 juntos,
+        // incluso si tienen distintos ids en la base de datos.
+        const planKey = planNameFinal.trim().toUpperCase();
+
+        if (!planesMap.has(planKey)) {
+          planesMap.set(planKey, {
+            planKey,
+            planId: planIdEfectivo || planKey, // id representativo
             planName: planNameFinal,
             planPrice: planPriceFinal,
             cantidad: 0,
-            valorTotal: 0
+            valorTotal: 0,
+            modificados: 0
           });
-          console.log('✅ Nuevo plan agregado al análisis:', planId, planNameFinal);
+          console.log('✅ Nuevo plan agregado al análisis:', planKey, planNameFinal);
         }
 
-        const planData = planesMap.get(planId);
+        const planData = planesMap.get(planKey);
         planData.cantidad += 1;
         planData.valorTotal += planPriceFinal;
+        if (fueModificado) {
+          planData.modificados += 1;
+        }
       }
       
       // Convertir a array y ordenar por cantidad
       let analisisPlanesArray = Array.from(planesMap.values())
         .sort((a, b) => b.cantidad - a.cantidad);
-      
-      // Si hay un filtro de plan activo, solo mostrar ese plan en el análisis
-      if (planIdFiltro && planIdFiltro !== 'todos' && planFiltrado) {
-        analisisPlanesArray = analisisPlanesArray.filter(p => p.planId === planIdFiltro);
-        console.log('🎯 Análisis filtrado por plan:', planFiltrado.name, '- Planes mostrados:', analisisPlanesArray.length);
-      }
       
       console.log('📊 Análisis de planes calculado:', analisisPlanesArray);
       console.log('📊 Detalle de planes:', analisisPlanesArray.map(p => ({
@@ -843,12 +786,13 @@ const Reportes: React.FC = () => {
     
     // Hoja 2: Análisis de Planes
     const planesData = [
-      ['PLAN', 'CANTIDAD', 'VALOR TOTAL', 'PRECIO UNITARIO'],
+      ['PLAN', 'CANTIDAD', 'VALOR TOTAL', 'PRECIO UNITARIO', 'SERVICIOS MODIFICADOS'],
       ...analisisPlanes.map(plan => [
         plan.planName,
         plan.cantidad,
         plan.valorTotal,
-        plan.planPrice
+        plan.planPrice,
+        plan.modificados || 0
       ])
     ];
     
@@ -857,7 +801,8 @@ const Reportes: React.FC = () => {
       { wch: 20 }, // Plan
       { wch: 12 }, // Cantidad
       { wch: 15 }, // Valor Total
-      { wch: 15 }  // Precio Unitario
+      { wch: 15 }, // Precio Unitario
+      { wch: 20 }  // Servicios Modificados
     ];
     
     XLSX.utils.book_append_sheet(wb, wsPlanes, 'Análisis de Planes');
@@ -1235,9 +1180,10 @@ const Reportes: React.FC = () => {
             <input
               type="date"
               className="input-field"
-              value={filtros.fechaInicio.toISOString().split('T')[0]}
+              value={formatDateInputLocal(filtros.fechaInicio)}
               onChange={(e) => {
-                const nuevaFecha = new Date(e.target.value);
+                const [year, month, day] = e.target.value.split('-').map(Number);
+                const nuevaFecha = new Date(year, (month || 1) - 1, day || 1);
                 nuevaFecha.setHours(0, 0, 0, 0);
                 setFiltros(prev => ({ 
                 ...prev, 
@@ -1255,9 +1201,10 @@ const Reportes: React.FC = () => {
             <input
               type="date"
               className="input-field"
-              value={filtros.fechaFin.toISOString().split('T')[0]}
+              value={formatDateInputLocal(filtros.fechaFin)}
               onChange={(e) => {
-                const nuevaFecha = new Date(e.target.value);
+                const [year, month, day] = e.target.value.split('-').map(Number);
+                const nuevaFecha = new Date(year, (month || 1) - 1, day || 1);
                 nuevaFecha.setHours(0, 0, 0, 0);
                 setFiltros(prev => ({ 
                 ...prev, 
@@ -1648,7 +1595,9 @@ const Reportes: React.FC = () => {
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">{plan.planName}</div>
-                          <div className="text-sm text-gray-500">${plan.planPrice.toLocaleString()}</div>
+                          <div className="text-xs text-gray-500">
+                            ${plan.planPrice.toLocaleString()} {plan.modificados > 0 && `• ${plan.modificados} modificado(s)`}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -1711,6 +1660,100 @@ const Reportes: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Detalle de servicios utilizados en los reportes */}
+      <div className="card mb-8">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">
+          Detalle de Servicios (según filtros actuales)
+        </h3>
+        <p className="text-sm text-gray-500 mb-3">
+          Esta tabla muestra exactamente los servicios que se están utilizando para el análisis de planes y los totales.
+          Debe coincidir con lo que ves en la sección de Servicios usando el mismo rango de fechas y filtros.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Fecha
+                </th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Cliente
+                </th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Plan
+                </th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Estado
+                </th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Total
+                </th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Pagado
+                </th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Pendiente
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {pedidos.map((pedido) => {
+                const totalPagado = pedido.pagosRealizados?.reduce(
+                  (sum, pago) => sum + (pago.monto || 0),
+                  0
+                ) || 0;
+                const totalPedido = pedido.total || 0;
+                const saldoPendiente = Math.max(0, totalPedido - totalPagado);
+
+                // Determinar el plan a mostrar usando la misma lógica que el análisis
+                const planIdEfectivo = getPlanIdEfectivo(pedido);
+                const planActual = planIdEfectivo
+                  ? planes.find((p) => p.id === planIdEfectivo)
+                  : undefined;
+                const nombrePlan =
+                  planActual?.name || pedido.plan?.name || 'Plan desconocido';
+
+                return (
+                  <tr key={pedido.id}>
+                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                      {formatDate(pedido.fechaAsignacion, 'dd/MM/yyyy')}
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                      {pedido.cliente?.name}
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                      {nombrePlan}
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                      {pedido.status}
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 text-right">
+                      {formatCurrency(totalPedido)}
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 text-right">
+                      {formatCurrency(totalPagado)}
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 text-right">
+                      {formatCurrency(saldoPendiente)}
+                    </td>
+                  </tr>
+                );
+              })}
+              {pedidos.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-4 py-4 text-center text-sm text-gray-500"
+                  >
+                    No hay servicios para los filtros seleccionados.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 

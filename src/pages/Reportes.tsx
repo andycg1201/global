@@ -143,8 +143,8 @@ const Reportes: React.FC = () => {
           fechaPedido = (pedido.fechaAsignacion as any).toDate();
         } else {
           fechaPedido = new Date(pedido.fechaAsignacion);
-        }
-        
+      }
+      
         // Normalizar fecha del pedido a inicio del día para comparar solo por fecha
         const fechaPedidoNormalizada = new Date(fechaPedido);
         fechaPedidoNormalizada.setHours(0, 0, 0, 0);
@@ -278,12 +278,12 @@ const Reportes: React.FC = () => {
         }
         return acc;
       }, [] as Pedido[]);
-
+      
       console.log('📊 Pedidos válidos para análisis (sin eliminados/cancelados):', pedidosUnicos.length);
-
+      
       // Agrupar pedidos por plan \"lógico\" (por nombre), para evitar duplicar PLAN 1 con ids distintos
       const planesMap = new Map<string, any>();
-
+      
       for (const pedido of pedidosUnicos) {
         // Usar el plan \"efectivo\" del pedido (id actual si existe)
         const planIdEfectivo = getPlanIdEfectivo(pedido);
@@ -333,7 +333,7 @@ const Reportes: React.FC = () => {
           });
           console.log('✅ Nuevo plan agregado al análisis:', planKey, planNameFinal);
         }
-
+        
         const planData = planesMap.get(planKey);
         planData.cantidad += 1;
         planData.valorTotal += planPriceFinal;

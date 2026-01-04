@@ -241,7 +241,7 @@ const Capital: React.FC = () => {
         } else {
           console.log('❌ Fecha inválida para mantenimiento:', mant.id, mant.createdAt);
         }
-      });
+        });
 
       // Incluir movimientos de capital en el libro diario (excluyendo pagos de servicios)
       const movimientosCapitalLibro: MovimientoLibroDiario[] = movimientosCapitalData
@@ -604,19 +604,19 @@ const Capital: React.FC = () => {
 
     const worksheet = XLSX.utils.json_to_sheet(rows, {
       header: [
-        'Fecha',
-        'Hora',
-        'Tipo',
-        'Concepto',
-        'Monto',
-        'Medio de Pago',
-        'Cliente',
-        'Plan',
-        'Referencia',
-        'Saldo Efectivo',
-        'Saldo Nequi',
-        'Saldo Daviplata',
-        'Saldo Total'
+      'Fecha',
+      'Hora',
+      'Tipo',
+      'Concepto',
+      'Monto',
+      'Medio de Pago',
+      'Cliente',
+      'Plan',
+      'Referencia',
+      'Saldo Efectivo',
+      'Saldo Nequi',
+      'Saldo Daviplata',
+      'Saldo Total'
       ]
     });
 
@@ -626,7 +626,7 @@ const Capital: React.FC = () => {
     const fechaInicio = formatDate(filtros.fechaInicio, 'yyyy-MM-dd');
     const fechaFin = formatDate(filtros.fechaFin, 'yyyy-MM-dd');
     const nombreArchivo = `libro_diario_${fechaInicio}_a_${fechaFin}.xlsx`;
-
+    
     XLSX.writeFile(workbook, nombreArchivo);
     console.log('✅ Archivo exportado:', nombreArchivo);
   };
@@ -907,70 +907,70 @@ const Capital: React.FC = () => {
                     {movimientos.map((mov) => {
                       const medioInfo = getMedioPagoInfo(mov.medioPago);
                       return (
-                        <tr key={mov.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-900">
-                            <div>
-                              <div className="font-medium">{formatDate(mov.fecha, 'dd/MM/yyyy')}</div>
-                              <div className="text-gray-500">{mov.hora}</div>
+                      <tr key={mov.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm text-gray-900">
+                          <div>
+                            <div className="font-medium">{formatDate(mov.fecha, 'dd/MM/yyyy')}</div>
+                            <div className="text-gray-500">{mov.hora}</div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTipoColor(mov.tipo)}`}>
+                            {getTipoIcon(mov.tipo)} {mov.tipo}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900">
+                          <div className="max-w-xs truncate" title={mov.concepto}>
+                            {mov.concepto}
+                          </div>
+                          {mov.referencia && (
+                            <div className="text-xs text-gray-500 mt-1 truncate" title={mov.referencia}>
+                              {mov.referencia}
                             </div>
-                          </td>
-                          <td className="px-4 py-3 text-sm">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTipoColor(mov.tipo)}`}>
-                              {getTipoIcon(mov.tipo)} {mov.tipo}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
-                            <div className="max-w-xs truncate" title={mov.concepto}>
-                              {mov.concepto}
-                            </div>
-                            {mov.referencia && (
-                              <div className="text-xs text-gray-500 mt-1 truncate" title={mov.referencia}>
-                                {mov.referencia}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-right text-sm font-medium">
-                            <span className={getTipoColor(mov.tipo)}>
-                              {mov.tipo === 'ingreso' ? '+' : '-'}{formatCurrency(mov.monto)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center text-sm">
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right text-sm font-medium">
+                          <span className={getTipoColor(mov.tipo)}>
+                            {mov.tipo === 'ingreso' ? '+' : '-'}{formatCurrency(mov.monto)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center text-sm">
                             <div className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-semibold ${medioInfo.badgeClass}`}>
                               {medioInfo.icon}
                               <span className="ml-1">{medioInfo.label}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900">
+                          {mov.cliente && (
+                            <div>
+                              <div className="font-medium">{mov.cliente}</div>
+                              {mov.plan && (
+                                <div className="text-xs text-gray-500">{mov.plan}</div>
+                              )}
                             </div>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
-                            {mov.cliente && (
-                              <div>
-                                <div className="font-medium">{mov.cliente}</div>
-                                {mov.plan && (
-                                  <div className="text-xs text-gray-500">{mov.plan}</div>
-                                )}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-right text-sm font-medium">
-                            <span className={mov.saldoEfectivo >= 0 ? 'text-green-600' : 'text-red-600'}>
-                              {formatCurrency(mov.saldoEfectivo)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right text-sm font-medium">
-                            <span className={mov.saldoNequi >= 0 ? 'text-green-600' : 'text-red-600'}>
-                              {formatCurrency(mov.saldoNequi)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right text-sm font-medium">
-                            <span className={mov.saldoDaviplata >= 0 ? 'text-green-600' : 'text-red-600'}>
-                              {formatCurrency(mov.saldoDaviplata)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right text-sm font-bold">
-                            <span className={mov.saldoTotal >= 0 ? 'text-green-600' : 'text-red-600'}>
-                              {formatCurrency(mov.saldoTotal)}
-                            </span>
-                          </td>
-                        </tr>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right text-sm font-medium">
+                          <span className={mov.saldoEfectivo >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            {formatCurrency(mov.saldoEfectivo)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right text-sm font-medium">
+                          <span className={mov.saldoNequi >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            {formatCurrency(mov.saldoNequi)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right text-sm font-medium">
+                          <span className={mov.saldoDaviplata >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            {formatCurrency(mov.saldoDaviplata)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right text-sm font-bold">
+                          <span className={mov.saldoTotal >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            {formatCurrency(mov.saldoTotal)}
+                          </span>
+                        </td>
+                      </tr>
                       );
                     })}
                   </tbody>

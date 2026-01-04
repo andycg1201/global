@@ -45,8 +45,8 @@ const Pagos: React.FC = () => {
       tipo: 'hoy',
       fechaInicio: new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 0, 0, 0, 0),
       fechaFin: new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59, 999),
-      medioPago: 'todos',
-      busqueda: ''
+    medioPago: 'todos',
+    busqueda: ''
     };
   });
   

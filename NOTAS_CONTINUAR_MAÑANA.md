@@ -2,10 +2,11 @@
 
 ## 🎯 ESTADO ACTUAL DEL SISTEMA
 
-### ✅ **Último Cambio Implementado: Plantilla Configurable de WhatsApp (19 Nov 2025)**
-- **Commit:** `4ee66ca` - Agregar plantilla configurable de mensaje WhatsApp en Configuración
+### ✅ **Último Cambio Implementado: Reglas de Seguridad Firestore (19 Nov 2025)**
+- **Archivos:** `firestore.rules` creado, `firebase.json` actualizado
 - **Estado:** Desplegado en producción
 - **URL:** https://global-da5ac.web.app
+- **Problema resuelto:** Errores de permisos "Missing or insufficient permissions" corregidos
 
 ### ✅ **Funcionalidades Implementadas**
 - Plantilla de mensaje WhatsApp editable desde Configuración
@@ -21,10 +22,22 @@
 - ✅ Carga de modificaciones en Operadores
 - ✅ Actualización de planId al cambiar plan
 - ✅ Filtro por defecto en Pagos muestra día actual
+- ✅ **Reglas de seguridad Firestore implementadas** (NUEVO)
 
 ---
 
 ## 🔧 **ARCHIVOS MODIFICADOS RECIENTEMENTE**
+
+### `firestore.rules` (NUEVO)
+- Reglas de seguridad completas para todas las colecciones
+- Permisos diferenciados: usuarios autenticados vs administradores
+- Protección de colecciones sensibles (capital, configuración, planes)
+- Helper functions: `isAuthenticated()`, `isAdmin()`
+- Reglas desplegadas exitosamente a Firebase
+
+### `firebase.json`
+- Configuración actualizada para incluir `firestore.rules`
+- Sección `firestore` agregada con referencia a `firestore.rules`
 
 ### `src/components/ModalWhatsApp.tsx`
 - Carga plantilla desde `configService`
@@ -98,7 +111,13 @@
 ### ⚙️ **Configuración**
 - Hora adicional configurable
 - Teléfono de contacto
-- **Plantilla WhatsApp editable** (NUEVO)
+- **Plantilla WhatsApp editable**
+
+### 🔐 **Seguridad**
+- **Reglas de Firestore implementadas** (NUEVO)
+- Autenticación requerida para todas las operaciones
+- Control de acceso basado en roles (admin vs usuario)
+- Protección de datos críticos (capital, configuración, planes)
 
 ---
 
@@ -117,6 +136,15 @@
 ---
 
 ## 🔍 **PROBLEMAS RESUELTOS RECIENTEMENTE**
+
+### ✅ Errores de permisos Firestore (19 Nov 2025)
+- **Problema:** Errores "Missing or insufficient permissions" al cargar datos del Dashboard, mantenimientos, capital inicial y movimientos de capital
+- **Causa:** No existían reglas de seguridad de Firestore configuradas
+- **Solución:** 
+  - Creado archivo `firestore.rules` con reglas completas para todas las colecciones
+  - Actualizado `firebase.json` para incluir referencia a las reglas
+  - Desplegadas reglas a Firebase con `firebase deploy --only firestore:rules`
+  - Permisos diferenciados: usuarios autenticados pueden leer/crear, solo admins pueden modificar/eliminar en colecciones críticas
 
 ### ✅ Filtros de fecha cargando día siguiente
 - **Problema:** En Pedidos, cuando era tarde (23:53), cargaba datos del día siguiente
@@ -174,6 +202,12 @@ npm run build
 # Deploy a producción
 firebase deploy --only hosting
 
+# Deploy solo reglas de Firestore
+firebase deploy --only firestore:rules
+
+# Deploy completo (hosting + firestore)
+firebase deploy
+
 # Ver logs de Firebase
 firebase functions:log
 
@@ -222,4 +256,4 @@ git push
 
 **Última actualización:** 19 de Noviembre de 2025  
 **Estado:** ✅ Sistema estable y listo para continuar desarrollo  
-**Último commit:** `4ee66ca` - Plantilla configurable de WhatsApp
+**Último cambio:** Reglas de seguridad Firestore implementadas y desplegadas

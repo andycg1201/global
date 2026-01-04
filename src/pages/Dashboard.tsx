@@ -219,7 +219,7 @@ const Dashboard: React.FC = () => {
           });
         }
       });
-
+      
       gastosData.forEach(gasto => {
         const medioPago = (gasto.medioPago || 'efectivo') as MedioPago;
         registrarMovimiento(medioPago, 'gasto', gasto.amount);
@@ -254,7 +254,7 @@ const Dashboard: React.FC = () => {
       (Object.keys(saldosCalculados) as MedioPago[]).forEach(medio => {
         saldosCalculados[medio].saldo = saldosCalculados[medio].ingresos - saldosCalculados[medio].gastos;
       });
-
+      
       setSaldosPorMedioDePago(saldosCalculados);
       
       const capitalDisponibleCalculado =

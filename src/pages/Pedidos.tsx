@@ -1280,9 +1280,9 @@ const Pedidos: React.FC = () => {
                 const [year, month, day] = fechaValue.split('-').map(Number);
                 const fechaLocal = new Date(year, month - 1, day, 0, 0, 0, 0);
                 setFiltros(prev => ({ 
-                  ...prev, 
+                ...prev, 
                   fechaInicio: fechaLocal,
-                  tipoFiltro: 'personalizado'
+                tipoFiltro: 'personalizado'
                 }));
               }}
               />
@@ -1302,9 +1302,9 @@ const Pedidos: React.FC = () => {
                 const [year, month, day] = fechaValue.split('-').map(Number);
                 const fechaLocal = new Date(year, month - 1, day, 23, 59, 59, 999);
                 setFiltros(prev => ({ 
-                  ...prev, 
+                ...prev, 
                   fechaFin: fechaLocal,
-                  tipoFiltro: 'personalizado'
+                tipoFiltro: 'personalizado'
                 }));
               }}
             />

@@ -3,7 +3,7 @@
 **Fecha de última actualización:** 19 de Noviembre de 2025  
 **URL de Producción:** https://global-da5ac.web.app  
 **Proyecto Firebase:** global-da5ac  
-**Último Commit:** `4ee66ca` - Agregar plantilla configurable de mensaje WhatsApp en Configuración
+**Último Commit:** Reglas de seguridad Firestore implementadas y desplegadas
 
 ---
 
@@ -29,6 +29,36 @@
 ---
 
 ## ✅ **ÚLTIMOS CAMBIOS IMPLEMENTADOS**
+
+### 🔐 **Reglas de Seguridad Firestore (19 Nov 2025)**
+- **Archivos creados/modificados:**
+  - `firestore.rules` - Reglas de seguridad completas para todas las colecciones
+  - `firebase.json` - Configuración actualizada para incluir reglas de Firestore
+
+- **Funcionalidades:**
+  - Reglas de seguridad implementadas para todas las colecciones del sistema
+  - Permisos diferenciados: usuarios autenticados vs administradores
+  - Protección de colecciones sensibles (capital, configuración, planes)
+  - Usuarios autenticados pueden leer y crear en la mayoría de colecciones
+  - Solo administradores pueden modificar/eliminar en colecciones críticas
+  - Reglas desplegadas exitosamente a Firebase
+
+- **Colecciones protegidas:**
+  - `users` - Lectura para autenticados, escritura solo para admins
+  - `planes` - Lectura para autenticados, escritura solo para admins
+  - `clientes` - Lectura/escritura para autenticados
+  - `pedidos` - Lectura/creación/actualización para autenticados, eliminación solo admins
+  - `modificacionesServicios` - Lectura/escritura para autenticados, eliminación solo admins
+  - `gastos` - Lectura/escritura para autenticados, eliminación solo admins
+  - `conceptosGastos` - Lectura/creación para autenticados, modificación solo admins
+  - `capitalInicial` - Lectura para autenticados, escritura solo admins, sin eliminación
+  - `movimientosCapital` - Lectura para autenticados, escritura solo admins
+  - `mantenimientos` - Lectura/escritura para autenticados, eliminación solo admins
+  - `lavadoras` - Lectura para autenticados, escritura solo admins
+  - `configuracion` - Lectura para autenticados, escritura solo admins, sin eliminación
+  - `reportesDiarios` - Lectura para autenticados, escritura solo admins
+  - `pagos` - Lectura/creación para autenticados, modificación solo admins
+  - `auditoria` - Lectura solo para admins, creación para autenticados, sin modificación/eliminación
 
 ### 📱 **Plantilla Configurable de WhatsApp (19 Nov 2025)**
 - **Archivos modificados:**
@@ -133,6 +163,12 @@
 - **Teléfono de contacto:** Número configurable para WhatsApp
 - **Plantilla WhatsApp:** Mensaje editable con variables disponibles
 - **Persistencia:** Configuración guardada en Firestore
+
+### 🔐 **Seguridad**
+- **Reglas de Firestore:** Implementadas y desplegadas
+- **Autenticación requerida:** Todas las operaciones requieren usuario autenticado
+- **Control de acceso basado en roles:** Administradores tienen permisos extendidos
+- **Protección de datos críticos:** Capital, configuración y planes protegidos
 
 ---
 
@@ -248,6 +284,7 @@ git push
 - ✅ Actualización de planId al cambiar plan
 - ✅ Filtro por defecto en Pagos muestra día actual
 - ✅ Plantilla WhatsApp configurable desde Configuración
+- ✅ Reglas de seguridad Firestore implementadas y desplegadas
 
 ### ⚠️ **Limitaciones Actuales**
 - **Chunks grandes:** Build genera chunks de ~2.2MB (optimización futura)
@@ -303,4 +340,5 @@ git push
 ---
 
 **Última actualización:** 19 de Noviembre de 2025  
-**Estado:** ✅ Sistema estable y completamente funcional en producción
+**Estado:** ✅ Sistema estable y completamente funcional en producción  
+**Reglas de seguridad:** ✅ Firestore rules desplegadas y activas

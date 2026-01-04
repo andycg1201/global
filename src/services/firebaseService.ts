@@ -3,6 +3,7 @@ import {
   doc,
   addDoc,
   updateDoc,
+  setDoc,
   deleteDoc,
   getDoc,
   getDocs,
@@ -906,27 +907,63 @@ export const reporteService = {
 
 // ===== SERVICIOS DE CONFIGURACIÓN =====
 export const configService = {
-  // Obtener configuración
+  // Obtener configuración (busca cualquier documento en la colección, debería haber solo uno)
   async getConfiguracion(): Promise<Configuracion | null> {
-    const docRef = doc(db, 'configuracion', 'general');
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      return {
-        id: docSnap.id,
-        ...docSnap.data(),
-        updatedAt: docSnap.data().updatedAt?.toDate() || new Date()
-      } as Configuracion;
+    try {
+      // Primero intentar con ID "general"
+      const docRefGeneral = doc(db, 'configuracion', 'general');
+      const docSnapGeneral = await getDoc(docRefGeneral);
+      if (docSnapGeneral.exists()) {
+        return {
+          id: docSnapGeneral.id,
+          ...docSnapGeneral.data(),
+          updatedAt: docSnapGeneral.data().updatedAt?.toDate() || new Date()
+        } as Configuracion;
+      }
+      
+      // Si no existe "general", buscar cualquier documento en la colección
+      const configSnapshot = await getDocs(collection(db, 'configuracion'));
+      if (!configSnapshot.empty) {
+        const firstDoc = configSnapshot.docs[0];
+        return {
+          id: firstDoc.id,
+          ...firstDoc.data(),
+          updatedAt: firstDoc.data().updatedAt?.toDate() || new Date()
+        } as Configuracion;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error al obtener configuración:', error);
+      return null;
     }
-    return null;
   },
 
-  // Actualizar configuración
+  // Actualizar configuración (crea o actualiza el documento)
   async updateConfiguracion(updates: Partial<Configuracion>): Promise<void> {
-    const docRef = doc(db, 'configuracion', 'general');
-    await updateDoc(docRef, {
-      ...updates,
-      updatedAt: Timestamp.now()
-    });
+    try {
+      // Primero intentar obtener el documento existente
+      const config = await this.getConfiguracion();
+      
+      let docRef: ReturnType<typeof doc>;
+      
+      if (config && config.id) {
+        // Usar el ID del documento existente
+        docRef = doc(db, 'configuracion', config.id);
+      } else {
+        // Si no existe, crear uno nuevo con ID "general"
+        docRef = doc(db, 'configuracion', 'general');
+      }
+      
+      // Usar setDoc con merge para crear o actualizar
+      await setDoc(docRef, {
+        ...updates,
+        updatedAt: Timestamp.now()
+      }, { merge: true });
+    } catch (error) {
+      console.error('Error al actualizar configuración:', error);
+      throw error;
+    }
   }
 };
 

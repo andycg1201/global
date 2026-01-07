@@ -1,9 +1,9 @@
 # 📋 NOTAS DEL SISTEMA - ESTADO ACTUAL
 
-**Fecha de última actualización:** 19 de Noviembre de 2025  
+**Fecha de última actualización:** 6 de Enero de 2026  
 **URL de Producción:** https://global-da5ac.web.app  
 **Proyecto Firebase:** global-da5ac  
-**Último Commit:** Reglas de seguridad Firestore implementadas y desplegadas
+**Último Commit:** Ocultar botones Limpiar Duplicados y Reset Todo - Mantener código disponible para uso futuro
 
 ---
 
@@ -30,7 +30,48 @@
 
 ## ✅ **ÚLTIMOS CAMBIOS IMPLEMENTADOS**
 
-### 🔐 **Reglas de Seguridad Firestore (19 Nov 2025)**
+### 🔧 **Corrección de Planes Duplicados (6 Ene 2026)**
+- **Problema identificado:**
+  - Los planes se reseteaban al día siguiente después de actualizarlos
+  - Se detectaron 85 planes duplicados en Firestore (17 copias de cada plan)
+  - La lógica de selección de planes usaba `createdAt` en lugar de `updatedAt`
+
+- **Archivos modificados:**
+  - `src/services/firebaseService.ts` - Mejora en `getActivePlans()` y nueva función `limpiarPlanesDuplicados()`
+  - `src/pages/Configuracion.tsx` - Botón de limpieza (oculto pero disponible)
+
+- **Soluciones implementadas:**
+  - **Lógica mejorada de selección:** Prioriza `updatedAt` sobre `createdAt` para seleccionar el plan más recientemente actualizado
+  - **Función de limpieza:** `limpiarPlanesDuplicados()` que:
+    - Identifica planes duplicados por nombre
+    - Mantiene el plan más recientemente actualizado (prioriza `updatedAt`)
+    - Desactiva los duplicados antiguos (marca como `isActive: false`, no los elimina)
+    - Retorna resumen de planes mantenidos y desactivados
+  - **Detección de duplicados:** Logs temporales en consola para debugging
+  - **Botones ocultos:** "Limpiar Duplicados" y "Reset Todo" ocultos pero código mantenido para uso futuro
+
+- **Commits relacionados:**
+  - `5e6793f` - Fix: Mejorar lógica de selección de planes duplicados
+  - `9d76945` - Feat: Agregar función de limpieza de planes duplicados
+  - `48ee27e` - Ocultar botones Limpiar Duplicados y Reset Todo
+
+### 🔧 **Corrección de Configuración (6 Ene 2026)**
+- **Problema identificado:**
+  - Error al guardar configuración: "No document to update: configuracion/general"
+  - El documento en Firestore tenía un ID autogenerado, no "general"
+
+- **Archivos modificados:**
+  - `src/services/firebaseService.ts` - Mejora en `configService.getConfiguracion()` y `updateConfiguracion()`
+
+- **Solución implementada:**
+  - `getConfiguracion()` ahora busca primero el documento "general", y si no existe, busca cualquier documento en la colección
+  - `updateConfiguracion()` usa el ID real del documento encontrado o crea uno nuevo con ID "general" si no existe
+  - Uso de `setDoc` con `merge: true` para crear o actualizar de forma segura
+
+- **Commit relacionado:**
+  - `49015b5` - Fix: Corregir actualización de configuración - usar ID real del documento en Firestore
+
+### 🔐 **Reglas de Seguridad Firestore Simplificadas (Nov 2025)**
 - **Archivos creados/modificados:**
   - `firestore.rules` - Reglas de seguridad completas para todas las colecciones
   - `firebase.json` - Configuración actualizada para incluir reglas de Firestore
@@ -162,7 +203,9 @@
 - **Hora adicional:** Precio configurable para horas adicionales
 - **Teléfono de contacto:** Número configurable para WhatsApp
 - **Plantilla WhatsApp:** Mensaje editable con variables disponibles
-- **Persistencia:** Configuración guardada en Firestore
+- **Persistencia:** Configuración guardada en Firestore (usa ID real del documento)
+- **Gestión de planes:** Crear, editar y eliminar planes
+- **Limpieza de duplicados:** Función disponible para limpiar planes duplicados (botón oculto)
 
 ### 🔐 **Seguridad**
 - **Reglas de Firestore:** Implementadas y desplegadas
@@ -284,7 +327,10 @@ git push
 - ✅ Actualización de planId al cambiar plan
 - ✅ Filtro por defecto en Pagos muestra día actual
 - ✅ Plantilla WhatsApp configurable desde Configuración
-- ✅ Reglas de seguridad Firestore implementadas y desplegadas
+- ✅ Reglas de seguridad Firestore simplificadas (solo autenticación requerida)
+- ✅ Corrección de actualización de configuración (usa ID real del documento)
+- ✅ Mejora en selección de planes duplicados (prioriza updatedAt)
+- ✅ Función de limpieza de planes duplicados implementada
 
 ### ⚠️ **Limitaciones Actuales**
 - **Chunks grandes:** Build genera chunks de ~2.2MB (optimización futura)
@@ -302,9 +348,55 @@ git push
 8. **Backup automático** de datos
 9. **Panel admin** mejorado
 
+### 📋 **Problema de Planes Duplicados - Resuelto (6 Ene 2026)**
+- **Síntoma:** Los planes se reseteaban al día siguiente después de actualizarlos
+- **Causa raíz:** 
+  - 85 planes duplicados en Firestore (17 copias de cada plan: PLAN 1, PLAN 2, PLAN 3, PLAN 4, PLAN 5)
+  - La función `getActivePlans()` comparaba por `createdAt` en lugar de `updatedAt`
+  - Al haber múltiples planes con el mismo nombre, se seleccionaba el incorrecto
+  
+- **Solución implementada:**
+  1. **Lógica mejorada:** `getActivePlans()` ahora prioriza `updatedAt` sobre `createdAt`
+  2. **Función de limpieza:** `limpiarPlanesDuplicados()` disponible en `planService`
+  3. **Detección automática:** Logs en consola cuando se detectan duplicados
+  
+- **Cómo usar la limpieza:**
+  - Los botones están ocultos pero el código está disponible
+  - Para reactivar: cambiar `{false &&` por `{esAdmin() &&` en `Configuracion.tsx`
+  - La función mantiene el plan más recientemente actualizado y desactiva los duplicados
+  
+- **Estado actual:**
+  - ✅ Lógica de selección mejorada implementada
+  - ✅ Función de limpieza disponible
+  - ⚠️ Aún hay 85 planes en Firestore (necesita ejecutar limpieza manualmente)
+  - 📝 Después de limpiar, debería quedar 5 planes activos (uno de cada tipo)
+
 ---
 
 ## 📝 **HISTORIAL DE COMMITS RECIENTES**
+
+### `48ee27e` - Ocultar botones Limpiar Duplicados y Reset Todo
+- Botones ocultos pero código mantenido para uso futuro
+- Fácil reactivación cambiando `false` por `true` o `esAdmin()`
+
+### `9d76945` - Feat: Agregar función de limpieza de planes duplicados
+- Función `limpiarPlanesDuplicados()` en planService
+- Botón en Configuración para ejecutar limpieza (solo admin)
+- Mantiene el plan más recientemente actualizado
+- Desactiva duplicados antiguos de forma segura
+
+### `5e6793f` - Fix: Mejorar lógica de selección de planes duplicados
+- Priorizar planes actualizados por `updatedAt`
+- Agregar detección de duplicados para debugging
+- Logs temporales en consola para diagnóstico
+
+### `49015b5` - Fix: Corregir actualización de configuración
+- Usar ID real del documento en Firestore
+- Buscar documento existente o crear uno nuevo
+- Uso de `setDoc` con `merge: true` para seguridad
+
+### `6c2e6fa` - Backup: Estado actual del sistema antes de cambios
+- Backup de seguridad antes de implementar correcciones
 
 ### `4ee66ca` - Agregar plantilla configurable de mensaje WhatsApp en Configuración
 - Plantilla editable desde Configuración
@@ -339,6 +431,8 @@ git push
 
 ---
 
-**Última actualización:** 19 de Noviembre de 2025  
+**Última actualización:** 6 de Enero de 2026  
 **Estado:** ✅ Sistema estable y completamente funcional en producción  
-**Reglas de seguridad:** ✅ Firestore rules desplegadas y activas
+**Reglas de seguridad:** ✅ Firestore rules simplificadas (solo autenticación requerida)  
+**Planes duplicados:** ✅ Lógica mejorada implementada, función de limpieza disponible  
+**Configuración:** ✅ Corrección de actualización con ID real del documento

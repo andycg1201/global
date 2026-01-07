@@ -478,7 +478,8 @@ const Configuracion: React.FC = () => {
             >
               Nuevo Plan
             </button>
-            {esAdmin() && (
+            {/* Botones ocultos - disponibles para uso futuro */}
+            {false && esAdmin() && (
               <button
                 onClick={handleLimpiarPlanesDuplicados}
                 className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center"
@@ -489,14 +490,16 @@ const Configuracion: React.FC = () => {
                 {limpiandoPlanes ? 'Limpiando...' : 'Limpiar Duplicados'}
               </button>
             )}
-            <button
-              onClick={() => setMostrarConfirmacionReset(true)}
-              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center"
-              disabled={resetting}
-            >
-              <TrashIcon className="h-5 w-5 mr-2" />
-              {resetting ? 'Reseteando...' : 'Reset Todo'}
-            </button>
+            {false && (
+              <button
+                onClick={() => setMostrarConfirmacionReset(true)}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center"
+                disabled={resetting}
+              >
+                <TrashIcon className="h-5 w-5 mr-2" />
+                {resetting ? 'Reseteando...' : 'Reset Todo'}
+              </button>
+            )}
           </div>
         </div>
 

@@ -41,21 +41,58 @@ export const planService = {
     const planes = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate() || new Date()
-    })) as Plan[];
+      createdAt: doc.data().createdAt?.toDate() || new Date(),
+      updatedAt: doc.data().updatedAt?.toDate() || null
+    })) as (Plan & { updatedAt: Date | null })[];
     
-    // Eliminar duplicados por nombre (mantener el más reciente)
+    // Detectar duplicados para debugging (temporal)
+    const nombresPlanes = planes.map(p => p.name);
+    const duplicados = nombresPlanes.filter((name, index) => nombresPlanes.indexOf(name) !== index);
+    if (duplicados.length > 0) {
+      console.warn('⚠️ Planes duplicados detectados:', [...new Set(duplicados)]);
+      console.warn('Total planes encontrados:', planes.length);
+    }
+    
+    // Eliminar duplicados por nombre (priorizar el más recientemente actualizado)
     const planesUnicos = planes.reduce((acc, plan) => {
       const existing = acc.find(p => p.name === plan.name);
-      if (!existing || plan.createdAt > existing.createdAt) {
-        // Si no existe o este es más reciente, reemplazar
+      if (!existing) {
+        // Si no existe, agregarlo
+        return acc.concat(plan);
+      }
+      
+      // Comparar: primero por updatedAt, luego por createdAt
+      const planUpdatedAt = plan.updatedAt || null;
+      const existingUpdatedAt = existing.updatedAt || null;
+      
+      // Si ambos tienen updatedAt, usar el más reciente
+      if (planUpdatedAt && existingUpdatedAt) {
+        if (planUpdatedAt > existingUpdatedAt) {
+          return acc.filter(p => p.name !== plan.name).concat(plan);
+        }
+        return acc; // Mantener el existente
+      }
+      
+      // Si solo uno tiene updatedAt, priorizar ese
+      if (planUpdatedAt && !existingUpdatedAt) {
         return acc.filter(p => p.name !== plan.name).concat(plan);
       }
-      return acc;
-    }, [] as Plan[]);
+      if (!planUpdatedAt && existingUpdatedAt) {
+        return acc; // Mantener el existente que tiene updatedAt
+      }
+      
+      // Si ninguno tiene updatedAt, usar createdAt (comportamiento original)
+      if (plan.createdAt > existing.createdAt) {
+        return acc.filter(p => p.name !== plan.name).concat(plan);
+      }
+      return acc; // Mantener el existente
+    }, [] as (Plan & { updatedAt: Date | null })[]);
+    
+    // Remover updatedAt del resultado final (no es parte de la interfaz Plan)
+    const planesFinales = planesUnicos.map(({ updatedAt, ...plan }) => plan) as Plan[];
     
     // Ordenar en memoria para evitar necesidad de índice compuesto
-    return planesUnicos.sort((a, b) => a.name.localeCompare(b.name));
+    return planesFinales.sort((a, b) => a.name.localeCompare(b.name));
   },
 
   // Obtener plan por ID

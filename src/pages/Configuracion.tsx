@@ -53,6 +53,7 @@ const Configuracion: React.FC = () => {
     fotosAntiguas: 0
   });
   const [limpiando, setLimpiando] = useState(false);
+  const [limpiandoPlanes, setLimpiandoPlanes] = useState(false);
   const [telefonoAdvertencia, setTelefonoAdvertencia] = useState<string>('');
   
   const [formData, setFormData] = useState({
@@ -214,6 +215,27 @@ const Configuracion: React.FC = () => {
       alert('Error al limpiar fotos antiguas: ' + (error as Error).message);
     } finally {
       setLimpiando(false);
+    }
+  };
+
+  const handleLimpiarPlanesDuplicados = async () => {
+    if (!confirm('¿Estás seguro de que quieres limpiar los planes duplicados?\n\nEsto desactivará los planes duplicados manteniendo solo el más recientemente actualizado.')) {
+      return;
+    }
+    
+    setLimpiandoPlanes(true);
+    try {
+      const resultado = await planService.limpiarPlanesDuplicados();
+      
+      // Recargar planes
+      await cargarDatos();
+      
+      alert(`✅ Limpieza completada:\n- Planes mantenidos: ${resultado.planesMantenidos}\n- Planes desactivados: ${resultado.planesDesactivados}`);
+    } catch (error) {
+      console.error('Error al limpiar planes duplicados:', error);
+      alert('Error al limpiar planes duplicados: ' + (error as Error).message);
+    } finally {
+      setLimpiandoPlanes(false);
     }
   };
 
@@ -456,6 +478,17 @@ const Configuracion: React.FC = () => {
             >
               Nuevo Plan
             </button>
+            {esAdmin() && (
+              <button
+                onClick={handleLimpiarPlanesDuplicados}
+                className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center"
+                disabled={limpiandoPlanes}
+                title="Limpiar planes duplicados (mantiene solo el más recientemente actualizado)"
+              >
+                <TrashIcon className="h-5 w-5 mr-2" />
+                {limpiandoPlanes ? 'Limpiando...' : 'Limpiar Duplicados'}
+              </button>
+            )}
             <button
               onClick={() => setMostrarConfirmacionReset(true)}
               className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center"

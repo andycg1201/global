@@ -125,6 +125,86 @@ export const planService = {
       ...updates,
       updatedAt: Timestamp.now()
     });
+  },
+
+  // Limpiar planes duplicados (mantener solo el más recientemente actualizado)
+  async limpiarPlanesDuplicados(): Promise<{ planesDesactivados: number; planesMantenidos: number }> {
+    try {
+      // Obtener todos los planes activos
+      const q = query(
+        collection(db, 'planes'),
+        where('isActive', '==', true)
+      );
+      const snapshot = await getDocs(q);
+      
+      const planes = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate() || new Date(),
+        updatedAt: doc.data().updatedAt?.toDate() || null
+      })) as (Plan & { updatedAt: Date | null })[];
+      
+      // Agrupar por nombre
+      const planesPorNombre = new Map<string, (Plan & { updatedAt: Date | null })[]>();
+      planes.forEach(plan => {
+        const nombre = plan.name;
+        if (!planesPorNombre.has(nombre)) {
+          planesPorNombre.set(nombre, []);
+        }
+        planesPorNombre.get(nombre)!.push(plan);
+      });
+      
+      let planesDesactivados = 0;
+      let planesMantenidos = 0;
+      
+      // Para cada grupo de planes con el mismo nombre
+      for (const [nombre, planesGrupo] of planesPorNombre.entries()) {
+        if (planesGrupo.length <= 1) {
+          // No hay duplicados para este nombre
+          planesMantenidos += planesGrupo.length;
+          continue;
+        }
+        
+        // Encontrar el plan más reciente (priorizar updatedAt)
+        const planMantener = planesGrupo.reduce((mejor, actual) => {
+          const mejorUpdatedAt = mejor.updatedAt || null;
+          const actualUpdatedAt = actual.updatedAt || null;
+          
+          // Si ambos tienen updatedAt, usar el más reciente
+          if (mejorUpdatedAt && actualUpdatedAt) {
+            return actualUpdatedAt > mejorUpdatedAt ? actual : mejor;
+          }
+          
+          // Si solo uno tiene updatedAt, priorizar ese
+          if (actualUpdatedAt && !mejorUpdatedAt) {
+            return actual;
+          }
+          if (!actualUpdatedAt && mejorUpdatedAt) {
+            return mejor;
+          }
+          
+          // Si ninguno tiene updatedAt, usar createdAt
+          return actual.createdAt > mejor.createdAt ? actual : mejor;
+        });
+        
+        // Marcar los demás como inactivos
+        for (const plan of planesGrupo) {
+          if (plan.id !== planMantener.id) {
+            await updateDoc(doc(db, 'planes', plan.id), {
+              isActive: false
+            });
+            planesDesactivados++;
+          } else {
+            planesMantenidos++;
+          }
+        }
+      }
+      
+      return { planesDesactivados, planesMantenidos };
+    } catch (error) {
+      console.error('Error al limpiar planes duplicados:', error);
+      throw error;
+    }
   }
 };
 

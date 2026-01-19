@@ -276,6 +276,46 @@ export const calculateOrderTotal = (
   return Math.max(0, subtotal - totalDescuentos);
 };
 
+// Calcular total del pedido basándose en el plan y las modificaciones actuales
+// Esta función asegura que el total siempre refleje las modificaciones actuales
+// Si no hay modificaciones cargadas, usa el total guardado en el pedido como fallback
+export const calcularTotalPedidoActualizado = (pedido: any): number => {
+  // Precio base del plan
+  const precioPlan = Number(pedido.plan?.price || 0);
+  
+  // Calcular total de modificaciones desde modificacionesServicio
+  let totalModificaciones = 0;
+  
+  if (pedido.modificacionesServicio && pedido.modificacionesServicio.length > 0) {
+    pedido.modificacionesServicio.forEach((mod: any) => {
+      // Horas extras
+      const totalHorasExtras = mod.horasExtras?.reduce((sum: number, h: any) => sum + (h.total || 0), 0) || 0;
+      
+      // Cobros adicionales
+      const totalCobrosAdicionales = mod.cobrosAdicionales?.reduce((sum: number, c: any) => sum + (c.monto || 0), 0) || 0;
+      
+      // Descuentos
+      const totalDescuentos = mod.descuentos?.reduce((sum: number, d: any) => sum + (d.monto || 0), 0) || 0;
+      
+      // Diferencia por cambio de plan
+      const diferenciaPlan = mod.cambioPlan?.diferencia || 0;
+      
+      totalModificaciones += totalHorasExtras + totalCobrosAdicionales - totalDescuentos + diferenciaPlan;
+    });
+  }
+  
+  // Total final = precio del plan + modificaciones
+  const totalCalculado = precioPlan + totalModificaciones;
+  
+  // Si no hay modificaciones cargadas pero hay un total guardado, usar el total guardado como fallback
+  // Esto puede pasar si las modificaciones no se han cargado aún
+  if (!pedido.modificacionesServicio && pedido.total) {
+    return Number(pedido.total) || totalCalculado;
+  }
+  
+  return totalCalculado;
+};
+
 // Formatear duración en horas
 export const formatDuration = (hours: number): string => {
   if (hours < 24) {

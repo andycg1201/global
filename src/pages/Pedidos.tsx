@@ -20,7 +20,7 @@ import { recogidaOperativaService } from '../services/recogidaOperativaService';
 import { modificacionesService } from '../services/modificacionesService';
 import { useAuth } from '../contexts/AuthContext';
 import { Pedido } from '../types';
-import { formatDate, formatCurrency, calculatePickupDate, getCurrentDateColombia } from '../utils/dateUtils';
+import { formatDate, formatCurrency, calculatePickupDate, getCurrentDateColombia, calcularTotalPedidoActualizado } from '../utils/dateUtils';
 import { generarTimelineServicio, formatearFechaTimeline } from '../utils/timelineUtils';
 import NuevoPedido from './NuevoPedido';
 import ModalCancelacion from '../components/ModalCancelacion';
@@ -725,8 +725,10 @@ const Pedidos: React.FC = () => {
 
   const getLiquidacionButton = (pedido: Pedido) => {
     // Calcular saldo pendiente restando los pagos ya realizados
+    // Usar el total actualizado basado en modificaciones actuales
+    const totalPedido = calcularTotalPedidoActualizado(pedido);
     const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
-    const saldoPendiente = Math.max(0, (pedido.total || 0) - totalPagado);
+    const saldoPendiente = Math.max(0, totalPedido - totalPagado);
     
     const getBadgeColor = (saldo: number) => {
       if (saldo <= 0) return 'bg-green-100 text-green-800 border-green-200';
@@ -824,8 +826,10 @@ const Pedidos: React.FC = () => {
       );
     } else if (pedido.status === 'recogido') {
       // Calcular saldo pendiente para servicios completados
+      // Usar el total actualizado basado en modificaciones actuales
+      const totalPedido = calcularTotalPedidoActualizado(pedido);
       const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
-      const saldoPendiente = Math.max(0, (pedido.total || 0) - totalPagado);
+      const saldoPendiente = Math.max(0, totalPedido - totalPagado);
       
       return (
         <div className="flex flex-col gap-1.5 items-start">
@@ -1386,8 +1390,10 @@ const Pedidos: React.FC = () => {
                 const tieneFoto = pedido.validacionQR?.fotoInstalacion || 
                                  (pedido as any).validacionQR_fotoInstalacion ||
                                  pedido.lavadoraAsignada?.fotoInstalacion;
+                // Usar el total actualizado basado en modificaciones actuales
+                const totalPedido = calcularTotalPedidoActualizado(pedido);
                 const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
-                const saldoPendiente = Math.max(0, (pedido.total || 0) - totalPagado);
+                const saldoPendiente = Math.max(0, totalPedido - totalPagado);
                 
                 return (
                   <div 
@@ -1459,7 +1465,7 @@ const Pedidos: React.FC = () => {
                       </div>
                       <div className="text-right">
                         <div className="text-lg font-bold text-gray-900">
-                          {formatCurrency(pedido.total)}
+                          {formatCurrency(calcularTotalPedidoActualizado(pedido))}
                         </div>
                         {saldoPendiente > 0 && (
                           <div className="text-xs font-medium text-red-600">
@@ -2004,7 +2010,7 @@ const Pedidos: React.FC = () => {
                     <div className="flex justify-between items-center py-2 bg-blue-100 rounded-lg px-3 mt-3">
                       <span className="text-blue-900 font-bold text-lg">Total del servicio:</span>
                       <span className="text-blue-900 font-bold text-xl">
-                        {formatCurrency(pedidoSeleccionado.total)}
+                        {formatCurrency(calcularTotalPedidoActualizado(pedidoSeleccionado))}
                       </span>
                     </div>
                   </div>
@@ -2159,7 +2165,7 @@ const Pedidos: React.FC = () => {
                         <div className="flex justify-between items-center py-2 bg-red-50 rounded-lg px-3">
                           <span className="text-sm font-medium text-red-700">Saldo Pendiente:</span>
                           <span className="text-lg font-bold text-red-600">
-                            {formatCurrency(Math.max(0, pedidoSeleccionado.total - pedidoSeleccionado.pagosRealizados.reduce((sum, pago) => sum + pago.monto, 0)))}
+                            {formatCurrency(Math.max(0, calcularTotalPedidoActualizado(pedidoSeleccionado) - pedidoSeleccionado.pagosRealizados.reduce((sum, pago) => sum + pago.monto, 0)))}
                           </span>
                         </div>
                       </div>
@@ -2168,7 +2174,7 @@ const Pedidos: React.FC = () => {
                     <div className="text-center py-6 text-gray-500 bg-white rounded-lg border border-green-200">
                       <div className="text-3xl mb-3">💸</div>
                       <div className="font-medium text-gray-700 mb-1">Sin pagos realizados</div>
-                      <div className="text-sm text-gray-500">Saldo pendiente: {formatCurrency(pedidoSeleccionado.total)}</div>
+                      <div className="text-sm text-gray-500">Saldo pendiente: {formatCurrency(calcularTotalPedidoActualizado(pedidoSeleccionado))}</div>
                     </div>
                   )}
                 </div>

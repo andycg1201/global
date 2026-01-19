@@ -10,10 +10,9 @@ import {
 import { Pedido, PagoRealizado } from '../types';
 import { pedidoService, configService, planService, gastoService, lavadoraService } from '../services/firebaseService';
 import { capitalService } from '../services/capitalService';
-import { modificacionesService } from '../services/modificacionesService';
 import { obtenerTodosLosMantenimientos } from '../services/mantenimientoService';
 import { movimientosSaldosService, MovimientoSaldo, MovimientosSaldosService } from '../services/movimientosSaldosService';
-import { formatCurrency, calcularTotalPedidoActualizado } from '../utils/dateUtils';
+import { formatCurrency } from '../utils/dateUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { usuarioService } from '../services/usuarioService';
 import ModalModificacionesServicio from '../components/ModalModificacionesServicio';
@@ -97,30 +96,13 @@ const Dashboard: React.FC = () => {
       setPlanes(planesData);
       setLavadoras(lavadorasData);
       
-      // Cargar modificaciones para cada pedido
-      const pedidosConModificaciones = await Promise.all(
-        pedidosData.map(async (pedido) => {
-          try {
-            const modificaciones = await modificacionesService.obtenerModificacionesPorPedido(pedido.id);
-            return {
-              ...pedido,
-              modificacionesServicio: modificaciones
-            };
-          } catch (error) {
-            console.error(`Error cargando modificaciones para pedido ${pedido.id}:`, error);
-            return pedido;
-          }
-        })
-      );
-      
       // Procesar pedidos básico
-      const pedidosPendientes = pedidosConModificaciones.filter(p => p.status === 'pendiente');
-      const pedidosEntregados = pedidosConModificaciones.filter(p => p.status === 'entregado');
-      const completadosConSaldo = pedidosConModificaciones.filter(p => {
+      const pedidosPendientes = pedidosData.filter(p => p.status === 'pendiente');
+      const pedidosEntregados = pedidosData.filter(p => p.status === 'entregado');
+      const completadosConSaldo = pedidosData.filter(p => {
         if (p.status !== 'recogido') return false;
-        const totalPedido = calcularTotalPedidoActualizado(p);
         const totalPagado = p.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
-        const saldoPendiente = Math.max(0, totalPedido - totalPagado);
+        const saldoPendiente = Math.max(0, (p.total || 0) - totalPagado);
         return saldoPendiente > 0;
       });
       
@@ -161,7 +143,7 @@ const Dashboard: React.FC = () => {
       
       // Calcular datos financieros básicos
       // Ingresos de servicios (pagos de pedidos)
-      const ingresosServicios = pedidosConModificaciones.reduce((sum, pedido) => {
+      const ingresosServicios = pedidosData.reduce((sum, pedido) => {
         const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
         return sum + totalPagado;
       }, 0);
@@ -192,15 +174,14 @@ const Dashboard: React.FC = () => {
       // Ingresos reales = Servicios + Capital Inicial + Inyecciones
       const ingresosReales = ingresosServicios + capitalInicial + inyeccionesCapital;
 
-      const cuentasPorCobrar = pedidosConModificaciones.reduce((sum, pedido) => {
-        const totalPedido = calcularTotalPedidoActualizado(pedido);
+      const cuentasPorCobrar = pedidosData.reduce((sum, pedido) => {
         const totalPagado = pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0;
-        const saldoPendiente = Math.max(0, totalPedido - totalPagado);
+        const saldoPendiente = Math.max(0, (pedido.total || 0) - totalPagado);
         return sum + saldoPendiente;
       }, 0);
       
       setIngresosReales(ingresosReales);
-      setTotalPedidos(pedidosConModificaciones.length);
+      setTotalPedidos(pedidosData.length);
       setTotalGastos(totalGastos);
       setCuentasPorCobrar(cuentasPorCobrar);
       setCapitalInicial(capitalInicial);

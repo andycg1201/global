@@ -10,7 +10,7 @@ import {
   MinusCircleIcon,
   CurrencyDollarIcon
 } from '@heroicons/react/24/outline';
-import { formatDate, formatCurrency, calculatePickupDate, generateWhatsAppLink } from '../utils/dateUtils';
+import { formatDate, formatCurrency, calculatePickupDate, generateWhatsAppLink, calcularTotalPedidoActualizado } from '../utils/dateUtils';
 import { Pedido } from '../types';
 
 interface PedidosPendientesProps {
@@ -161,7 +161,9 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
     const UrgenciaIcon = urgenciaRecogida?.icon || ClockIcon;
     
     // Calcular saldo pendiente para determinar si se puede modificar
-    const saldoPendiente = (pedido.total || 0) - (pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0);
+    // Usar el total actualizado basado en modificaciones actuales
+    const totalPedido = calcularTotalPedidoActualizado(pedido);
+    const saldoPendiente = Math.max(0, totalPedido - (pedido.pagosRealizados?.reduce((sum, pago) => sum + pago.monto, 0) || 0));
     const puedeModificar = saldoPendiente > 0;
     
     return (
@@ -213,7 +215,7 @@ const PedidosPendientes: React.FC<PedidosPendientesProps> = ({
                   {pedido.plan.name}
                 </span>
                 <span className="text-sm font-semibold text-gray-900">
-                  Total: {formatCurrency(pedido.total)}
+                  Total: {formatCurrency(calcularTotalPedidoActualizado(pedido))}
                 </span>
                 {saldoPendiente > 0 && (
                   <span className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-semibold bg-red-50 text-red-700 border border-red-200">
